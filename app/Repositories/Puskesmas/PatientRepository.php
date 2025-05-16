@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Repositories\Eloquent;
+namespace App\Repositories\Puskesmas;
 
 use App\Models\Patient;
 use App\Repositories\Contracts\PatientRepositoryInterface;
+use App\Repositories\Eloquent\BaseRepository;
 
 class PatientRepository extends BaseRepository implements PatientRepositoryInterface
 {
@@ -12,94 +13,167 @@ class PatientRepository extends BaseRepository implements PatientRepositoryInter
         parent::__construct($model);
     }
 
+    /**
+     * Find patients by puskesmas ID
+     */
     public function findByPuskesmas(int $puskesmasId, array $columns = ['*'])
     {
         return $this->model->where('puskesmas_id', $puskesmasId)->get($columns);
     }
 
+    /**
+     * Find patients by disease type
+     */
     public function findByDiseaseType(int $puskesmasId, string $diseaseType, array $columns = ['*'])
     {
         $query = $this->model->where('puskesmas_id', $puskesmasId);
         
-        if ($diseaseType === 'ht') {
-            $query->whereNotNull('ht_years')
-                  ->where('ht_years', '<>', '[]')
-                  ->where('ht_years', '<>', 'null');
-        } elseif ($diseaseType === 'dm') {
-            $query->whereNotNull('dm_years')
-                  ->where('dm_years', '<>', '[]')
-                  ->where('dm_years', '<>', 'null');
-        } elseif ($diseaseType === 'both') {
-            $query->whereNotNull('ht_years')
-                  ->where('ht_years', '<>', '[]')
-                  ->where('ht_years', '<>', 'null')
-                  ->whereNotNull('dm_years')
-                  ->where('dm_years', '<>', '[]')
-                  ->where('dm_years', '<>', 'null');
+        switch ($diseaseType) {
+            case 'ht':
+                $query->where(function ($q) {
+                    $q->whereNotNull('ht_years')
+                      ->whereRaw("JSON_LENGTH(ht_years) > 0");
+                });
+                break;
+            case 'dm':
+                $query->where(function ($q) {
+                    $q->whereNotNull('dm_years')
+                      ->whereRaw("JSON_LENGTH(dm_years) > 0");
+                });
+                break;
+            case 'both':
+                $query->where(function ($q) {
+                    $q->where(function ($q) {
+                            $q->whereNotNull('ht_years')
+                              ->whereRaw("JSON_LENGTH(ht_years) > 0");
+                        })
+                        ->orWhere(function ($q) {
+                            $q->whereNotNull('dm_years')
+                              ->whereRaw("JSON_LENGTH(dm_years) > 0");
+                        });
+                });
+                break;
         }
         
         return $query->get($columns);
     }
 
+    /**
+     * Find patients by disease type and year
+     */
     public function findByDiseaseAndYear(int $puskesmasId, string $diseaseType, int $year, array $columns = ['*'])
     {
-        // Get base results for the puskesmas
-        $results = $this->model->where('puskesmas_id', $puskesmasId)->get($columns);
+        $query = $this->model->where('puskesmas_id', $puskesmasId);
         
-        // Filter results for disease type and year
-        return $results->filter(function ($patient) use ($year, $diseaseType) {
-            // Safely get the year arrays
-            $htYears = $this->safeGetYears($patient->ht_years);
-            $dmYears = $this->safeGetYears($patient->dm_years);
-            
-            if ($diseaseType === 'ht') {
-                return in_array($year, $htYears);
-            } elseif ($diseaseType === 'dm') {
-                return in_array($year, $dmYears);
-            } elseif ($diseaseType === 'both') {
-                return in_array($year, $htYears) && in_array($year, $dmYears);
-            } else {
-                return in_array($year, $htYears) || in_array($year, $dmYears);
-            }
-        });
+        switch ($diseaseType) {
+            case 'ht':
+                $query->whereJsonContains('ht_years', $year);
+                break;
+            case 'dm':
+                $query->whereJsonContains('dm_years', $year);
+                break;
+            case 'both':
+                $query->where(function ($q) use ($year) {
+                    $q->whereJsonContains('ht_years', $year)
+                      ->orWhereJsonContains('dm_years', $year);
+                });
+                break;
+        }
+        
+        return $query->get($columns);
     }
 
+    /**
+     * Search patients by name, NIK, or BPJS number
+     */
     public function search(int $puskesmasId, string $term, array $columns = ['*'])
     {
         return $this->model->where('puskesmas_id', $puskesmasId)
             ->where(function ($query) use ($term) {
                 $query->where('name', 'like', "%{$term}%")
-                      ->orWhere('nik', 'like', "%{$term}%")
-                      ->orWhere('bpjs_number', 'like', "%{$term}%")
-                      ->orWhere('medical_record_number', 'like', "%{$term}%");
+                    ->orWhere('nik', 'like', "%{$term}%")
+                    ->orWhere('bpjs_number', 'like', "%{$term}%")
+                    ->orWhere('medical_record_number', 'like', "%{$term}%");
             })
             ->get($columns);
     }
-
+    
     /**
-     * Safely get years array from various possible formats
+     * Get all patients with pagination and filtering
      */
-    private function safeGetYears($years)
+    public function getAllWithFilters(int $puskesmasId, array $filters = [], int $perPage = 15)
     {
-        // If it's null, return empty array
-        if (is_null($years)) {
-            return [];
-        }
+        $query = $this->model->where('puskesmas_id', $puskesmasId);
         
-        // If it's already an array, return it
-        if (is_array($years)) {
-            return $years;
-        }
-        
-        // If it's a string, try to decode it
-        if (is_string($years)) {
-            $decoded = json_decode($years, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                return $decoded;
+        // Apply disease type filter
+        if (isset($filters['disease_type'])) {
+            $year = $filters['year'] ?? date('Y');
+            
+            switch ($filters['disease_type']) {
+                case 'ht':
+                    $query->whereJsonContains('ht_years', (int)$year);
+                    break;
+                case 'dm':
+                    $query->whereJsonContains('dm_years', (int)$year);
+                    break;
+                case 'both':
+                    $query->where(function($q) use ($year) {
+                        $q->whereJsonContains('ht_years', (int)$year)
+                          ->orWhereJsonContains('dm_years', (int)$year);
+                    });
+                    break;
             }
         }
         
-        // Default fallback
-        return [];
+        // Apply search filter
+        if (isset($filters['search']) && !empty($filters['search'])) {
+            $query->where(function ($q) use ($filters) {
+                $q->where('name', 'like', '%' . $filters['search'] . '%')
+                  ->orWhere('nik', 'like', '%' . $filters['search'] . '%')
+                  ->orWhere('bpjs_number', 'like', '%' . $filters['search'] . '%')
+                  ->orWhere('medical_record_number', 'like', '%' . $filters['search'] . '%');
+            });
+        }
+        
+        return $query->orderBy('name')->paginate($perPage);
+    }
+    
+    /**
+     * Count patients by gender and disease type
+     */
+    public function countByGenderAndDisease(int $puskesmasId, int $year)
+    {
+        $htMale = $this->model->where('puskesmas_id', $puskesmasId)
+            ->whereJsonContains('ht_years', $year)
+            ->where('gender', 'male')
+            ->count();
+            
+        $htFemale = $this->model->where('puskesmas_id', $puskesmasId)
+            ->whereJsonContains('ht_years', $year)
+            ->where('gender', 'female')
+            ->count();
+            
+        $dmMale = $this->model->where('puskesmas_id', $puskesmasId)
+            ->whereJsonContains('dm_years', $year)
+            ->where('gender', 'male')
+            ->count();
+            
+        $dmFemale = $this->model->where('puskesmas_id', $puskesmasId)
+            ->whereJsonContains('dm_years', $year)
+            ->where('gender', 'female')
+            ->count();
+            
+        return [
+            'ht' => [
+                'male' => $htMale,
+                'female' => $htFemale,
+                'total' => $htMale + $htFemale
+            ],
+            'dm' => [
+                'male' => $dmMale,
+                'female' => $dmFemale,
+                'total' => $dmMale + $dmFemale
+            ]
+        ];
     }
 }

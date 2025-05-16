@@ -2,11 +2,15 @@
 
 namespace App\Services\Patient;
 
-use App\Repositories\Contracts\HtExaminationRepositoryInterface;
+use App\Events\HtExaminationCreated;
+use App\Exceptions\ExaminationAlreadyExistsException;
 use App\Models\HtExamination;
 use App\Models\Patient;
+use App\Repositories\Contracts\HtExaminationRepositoryInterface;
 use Carbon\Carbon;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class HtExaminationService
 {
@@ -18,106 +22,148 @@ class HtExaminationService
     }
 
     /**
-     * Get all examinations with filters and pagination
-     * 
-     * @param int $puskesmasId
-     * @param array $filters
-     * @param int $perPage
-     * @return \Illuminate\Pagination\LengthAwarePaginator
+     * Get all examinations with filtering
      */
-    public function getAllExaminations(int $puskesmasId, array $filters = [], int $perPage = 10)
+    public function getAllExaminations(int $puskesmasId, array $filters = [], int $perPage = 15)
     {
-        $query = HtExamination::where('puskesmas_id', $puskesmasId)
-            ->with('patient');
-        
-        // Apply filters
-        if (isset($filters['year'])) {
-            $query->where('year', $filters['year']);
-        }
-        
-        if (isset($filters['month'])) {
-            $query->where('month', $filters['month']);
-        }
-        
-        if (isset($filters['is_archived'])) {
-            $query->where('is_archived', $filters['is_archived']);
-        }
-        
-        if (isset($filters['patient_id'])) {
-            $query->where('patient_id', $filters['patient_id']);
-        }
-        
-        return $query->orderBy('examination_date', 'desc')
-            ->paginate($perPage);
+        return $this->htExaminationRepository->getAllWithFilters($puskesmasId, $filters, $perPage);
     }
 
     /**
      * Create a new HT examination
-     * 
-     * @param array $data
-     * @return \App\Models\HtExamination
      */
-    public function createExamination(array $data)
+    public function createExamination(array $data): HtExamination
     {
-        $date = Carbon::parse($data['examination_date']);
-        $data['year'] = $date->year;
-        $data['month'] = $date->month;
-        
-        // Set archived status based on year
-        $data['is_archived'] = $date->year < Carbon::now()->year;
-        
-        $examination = $this->htExaminationRepository->create($data);
-        
-        // Make sure the patient has the examination year recorded
-        $patient = Patient::find($data['patient_id']);
-        if (!$patient->hasHtInYear($data['year'])) {
-            $patient->addHtYear($data['year']);
-            $patient->save();
+        try {
+            DB::beginTransaction();
+            
+            // Parse examination date
+            $examinationDate = Carbon::parse($data['examination_date']);
+            
+            // Check if there's already an examination for this patient on this date
+            $existingExamination = HtExamination::where('patient_id', $data['patient_id'])
+                ->where('examination_date', $examinationDate->format('Y-m-d'))
+                ->first();
+                
+            if ($existingExamination) {
+                throw new ExaminationAlreadyExistsException();
+            }
+            
+            // Extract year and month from examination date
+            $data['year'] = $examinationDate->year;
+            $data['month'] = $examinationDate->month;
+            
+            // Set archived status based on year
+            $data['is_archived'] = $data['year'] < Carbon::now()->year;
+            
+            // Create examination
+            $examination = $this->htExaminationRepository->create($data);
+            
+            // Check if patient has the examination year in ht_years
+            $patient = Patient::findOrFail($data['patient_id']);
+            if (!$patient->hasHtInYear($data['year'])) {
+                $patient->addHtYear($data['year']);
+                $patient->save();
+            }
+            
+            // Fire event
+            event(new HtExaminationCreated($examination));
+            
+            DB::commit();
+            
+            return $examination;
+            
+        } catch (ExaminationAlreadyExistsException $e) {
+            DB::rollback();
+            throw $e;
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            Log::error("Error creating HT examination: " . $e->getMessage(), [
+                'data' => $data,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            throw $e;
         }
-        
-        return $examination;
     }
 
     /**
-     * Update an HT examination
-     * 
-     * @param int $id
-     * @param array $data
-     * @return \App\Models\HtExamination|bool
+     * Update an existing HT examination
      */
-    public function updateExamination(int $id, array $data)
+    public function updateExamination(int $id, array $data): HtExamination
     {
-        $date = Carbon::parse($data['examination_date']);
-        $data['year'] = $date->year;
-        $data['month'] = $date->month;
-        
-        // Set archived status based on year
-        $data['is_archived'] = $date->year < Carbon::now()->year;
-        
-        return $this->htExaminationRepository->update($id, $data);
+        try {
+            DB::beginTransaction();
+            
+            // Get the examination
+            $examination = HtExamination::findOrFail($id);
+            
+            // Parse examination date if provided
+            if (isset($data['examination_date'])) {
+                $examinationDate = Carbon::parse($data['examination_date']);
+                
+                // Extract year and month from examination date
+                $data['year'] = $examinationDate->year;
+                $data['month'] = $examinationDate->month;
+                
+                // Set archived status based on year
+                $data['is_archived'] = $data['year'] < Carbon::now()->year;
+            }
+            
+            // Update examination
+            $this->htExaminationRepository->update($id, $data);
+            
+            // Refresh examination data
+            $examination = HtExamination::findOrFail($id);
+            
+            DB::commit();
+            
+            return $examination;
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            Log::error("Error updating HT examination: " . $e->getMessage(), [
+                'id' => $id,
+                'data' => $data,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            throw $e;
+        }
     }
 
     /**
      * Delete an HT examination
-     * 
-     * @param int $id
-     * @return bool
      */
-    public function deleteExamination(int $id)
+    public function deleteExamination(int $id): bool
     {
-        return $this->htExaminationRepository->delete($id);
-    }
-
-    /**
-     * Check if an examination is controlled
-     * 
-     * @param int $systolic
-     * @param int $diastolic
-     * @return bool
-     */
-    public function isControlled(int $systolic, int $diastolic)
-    {
-        return $systolic >= 90 && $systolic <= 139 && 
-               $diastolic >= 60 && $diastolic <= 89;
+        try {
+            DB::beginTransaction();
+            
+            // Get the examination
+            $examination = HtExamination::findOrFail($id);
+            
+            // Delete examination
+            $result = $this->htExaminationRepository->delete($id);
+            
+            DB::commit();
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            Log::error("Error deleting HT examination: " . $e->getMessage(), [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            throw $e;
+        }
     }
 }
