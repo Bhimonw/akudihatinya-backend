@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\Auth\AuthController;
 use App\Http\Controllers\API\Shared\StatisticsController;
 use App\Http\Controllers\API\Shared\DashboardController;
 use App\Http\Controllers\API\Shared\UserController;
@@ -63,6 +63,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Statistics for Dashboard (used by dashboard controllers)
         Route::get('/dashboard-statistics', [StatisticsController::class, 'dashboardStatistics']);
 
+        Route::get('/admin', [StatisticsController::class, 'adminStatistics']);
+        Route::get('/admin/export', [StatisticsController::class, 'exportStatistics']);
+
         // Laporan Bulanan dan Tahunan
         Route::get('/', [StatisticsController::class, 'index']);
         Route::get('/ht', [StatisticsController::class, 'htStatistics']);
@@ -98,7 +101,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Laporan Pemantauan Pasien (dengan checklist kedatangan)
         Route::get('/monitoring', [StatisticsController::class, 'exportMonitoringReport']);
-        
+
         /** @var StatisticsController $controller */
         Route::get('/monitoring/ht', function (Request $request) {
             $controller = app(StatisticsController::class);
@@ -106,7 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 $request->merge(['type' => 'ht'])
             );
         });
-        
+
         /** @var StatisticsController $controller */
         Route::get('/monitoring/dm', function (Request $request) {
             $controller = app(StatisticsController::class);

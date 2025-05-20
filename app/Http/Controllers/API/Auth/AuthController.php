@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\API\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
@@ -38,8 +38,8 @@ class AuthController extends Controller
 
         $user = Auth::user();
 
-        // Generate access token (1 hour)
-        $tokenResult = $user->createToken('auth_token', ['*']);
+        // Generate access token (1 menit)
+        $tokenResult = $user->createToken('auth_token', ['*'], now()->addMinutes(60));
         $accessToken = $tokenResult->plainTextToken;
 
         // Generate refresh token (30 days)
@@ -49,7 +49,7 @@ class AuthController extends Controller
         UserRefreshToken::create([
             'user_id' => $user->id,
             'refresh_token' => $refreshToken,
-            'expires_at' => Carbon::now()->addDays(30),
+            'expires_at' => Carbon::now()->addHour(),
         ]);
 
         // Log aktivitas login
@@ -109,8 +109,8 @@ class AuthController extends Controller
         // Revoke all tokens
         $user->tokens()->delete();
 
-        // Generate new access token
-        $tokenResult = $user->createToken('auth_token', ['*']);
+        // Generate new access token (1 menit)
+        $tokenResult = $user->createToken('auth_token', ['*'], now()->addMinutes(60));
         $accessToken = $tokenResult->plainTextToken;
 
         // Generate new refresh token
@@ -119,7 +119,7 @@ class AuthController extends Controller
         // Update refresh token
         $refreshToken->update([
             'refresh_token' => $newRefreshToken,
-            'expires_at' => Carbon::now()->addDays(30),
+            'expires_at' => Carbon::now()->addHour(),
         ]);
 
         // Log aktivitas refresh token

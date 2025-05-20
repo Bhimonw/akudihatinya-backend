@@ -336,7 +336,8 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Mendapatkan statistik HT dengan breakdown bulanan dari cache
+     * Mendapatkan statistik HT dengan breakdown bulanan 
+     * yang sesuai dengan logika standar dan tidak standar yang baru
      */
     private function getHtStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month = null)
     {
@@ -348,130 +349,192 @@ class StatisticsController extends Controller
 
         $yearlyTarget = $target ? $target->target_count : 0;
 
+        // Jika filter bulan digunakan, ambil data untuk bulan tersebut saja
         if ($month !== null) {
-            // Get specific month data from cache
-            $monthData = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
-                ->where('disease_type', 'ht')
-                ->where('year', $year)
-                ->where('month', $month)
-                ->first();
+            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
 
-            if (!$monthData) {
-                return [
-                    'total_patients' => 0,
-                    'standard_patients' => 0,
-                    'non_standard_patients' => 0,
-                    'male_patients' => 0,
-                    'female_patients' => 0,
-                    'achievement_percentage' => 0,
-                    'standard_percentage' => 0,
-                    'monthly_data' => [],
-                ];
+            // Ambil data pasien unik yang melakukan pemeriksaan di bulan ini
+            $patients = Patient::where('puskesmas_id', $puskesmasId)
+                ->whereHas('htExaminations', function ($query) use ($startDate, $endDate) {
+                    $query->whereBetween('examination_date', [$startDate, $endDate]);
+                })
+                ->get();
+
+            $totalPatients = $patients->count();
+            $malePatients = $patients->where('gender', 'male')->count();
+            $femalePatients = $patients->where('gender', 'female')->count();
+
+            // Untuk laporan bulanan, cek apakah pasien telah melakukan pemeriksaan
+            // setiap bulan sejak pemeriksaan pertama sampai bulan ini
+            $standardPatients = 0;
+
+            foreach ($patients as $patient) {
+                // Ambil bulan pertama pemeriksaan tahun ini
+                $firstExamMonth = HtExamination::where('patient_id', $patient->id)
+                    ->where('year', $year)
+                    ->min('month');
+
+                if ($firstExamMonth === null) continue;
+
+                // Cek apakah pasien hadir setiap bulan sejak pertama sampai bulan ini
+                $isStandard = true;
+                for ($m = $firstExamMonth; $m <= $month; $m++) {
+                    $hasExam = HtExamination::where('patient_id', $patient->id)
+                        ->where('year', $year)
+                        ->where('month', $m)
+                        ->exists();
+
+                    if (!$hasExam) {
+                        $isStandard = false;
+                        break;
+                    }
+                }
+
+                if ($isStandard) {
+                    $standardPatients++;
+                }
             }
 
-            $monthlyPercentage = $yearlyTarget > 0 ? round(($monthData->total_count / $yearlyTarget) * 100, 2) : 0;
+            $nonStandardPatients = $totalPatients - $standardPatients;
+            $monthlyPercentage = $yearlyTarget > 0 ? round(($standardPatients / $yearlyTarget) * 100, 2) : 0;
 
             return [
-                'total_patients' => $monthData->total_count,
-                'standard_patients' => $monthData->standard_count,
-                'non_standard_patients' => $monthData->non_standard_count,
-                'male_patients' => $monthData->male_count,
-                'female_patients' => $monthData->female_count,
+                'total_patients' => $totalPatients,
+                'standard_patients' => $standardPatients,
+                'non_standard_patients' => $nonStandardPatients,
+                'male_patients' => $malePatients,
+                'female_patients' => $femalePatients,
                 'achievement_percentage' => $monthlyPercentage,
-                'standard_percentage' => $monthData->standard_percentage,
+                'standard_percentage' => $totalPatients > 0 ? round(($standardPatients / $totalPatients) * 100, 2) : 0,
                 'monthly_data' => [
                     $month => [
-                        'male' => $monthData->male_count,
-                        'female' => $monthData->female_count,
-                        'total' => $monthData->total_count,
-                        'standard' => $monthData->standard_count,
-                        'non_standard' => $monthData->non_standard_count,
+                        'male' => $malePatients,
+                        'female' => $femalePatients,
+                        'total' => $totalPatients,
+                        'standard' => $standardPatients,
+                        'non_standard' => $nonStandardPatients,
                         'percentage' => $monthlyPercentage,
                     ]
                 ],
             ];
         }
 
-        // Get all months data from cache
-        $monthlyData = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
-            ->where('disease_type', 'ht')
-            ->where('year', $year)
-            ->orderBy('month')
-            ->get()
-            ->keyBy('month');
-
+        // Untuk laporan tahunan, ambil semua bulan
         $yearlyData = [];
-        $totalPatients = 0;
+        $totalUniquePatients = 0;
         $totalStandard = 0;
         $totalNonStandard = 0;
         $totalMale = 0;
         $totalFemale = 0;
 
+        // Ambil semua pasien yang memiliki pemeriksaan HT dalam tahun ini
+        $allPatients = Patient::where('puskesmas_id', $puskesmasId)
+            ->whereHas('htExaminations', function ($query) use ($year) {
+                $query->where('year', $year);
+            })
+            ->with(['htExaminations' => function ($query) use ($year) {
+                $query->where('year', $year)->orderBy('month');
+            }])
+            ->get();
+
+        $totalUniquePatients = $allPatients->count();
+        $totalMale = $allPatients->where('gender', 'male')->count();
+        $totalFemale = $allPatients->where('gender', 'female')->count();
+
+        // Untuk setiap bulan, hitung statistik
         for ($m = 1; $m <= 12; $m++) {
-            $data = $monthlyData->get($m);
-            
-            if ($data) {
-                // For yearly totals, we need to count unique patients across months
-                // Since we're using cache, we'll sum the monthly totals
-                // Note: This might count some patients multiple times if they visit in different months
-                $totalMale += $data->male_count;
-                $totalFemale += $data->female_count;
-                $totalPatients += $data->total_count;
-                $totalStandard += $data->standard_count;
-                $totalNonStandard += $data->non_standard_count;
-                
-                $monthlyPercentage = $yearlyTarget > 0 ? round(($data->total_count / $yearlyTarget) * 100, 2) : 0;
-                
-                $yearlyData[$m] = [
-                    'male' => $data->male_count,
-                    'female' => $data->female_count,
-                    'total' => $data->total_count,
-                    'standard' => $data->standard_count,
-                    'non_standard' => $data->non_standard_count,
-                    'percentage' => $monthlyPercentage,
-                ];
-            } else {
-                $yearlyData[$m] = [
-                    'male' => 0,
-                    'female' => 0,
-                    'total' => 0,
-                    'standard' => 0,
-                    'non_standard' => 0,
-                    'percentage' => 0,
-                ];
+            $monthlyPatients = $allPatients->filter(function ($patient) use ($m) {
+                return $patient->htExaminations->where('month', $m)->count() > 0;
+            });
+
+            $monthlyTotal = $monthlyPatients->count();
+            $monthlyMale = $monthlyPatients->where('gender', 'male')->count();
+            $monthlyFemale = $monthlyPatients->where('gender', 'female')->count();
+
+            // Hitung pasien standar untuk bulan ini
+            $monthlyStandard = 0;
+            foreach ($monthlyPatients as $patient) {
+                // Ambil bulan pertama pemeriksaan tahun ini
+                $firstExamMonth = $patient->htExaminations
+                    ->min('month');
+
+                if ($firstExamMonth === null) continue;
+
+                // Cek apakah pasien hadir setiap bulan sejak pertama sampai bulan ini
+                $isStandard = true;
+                for ($checkM = $firstExamMonth; $checkM <= $m; $checkM++) {
+                    $hasExam = $patient->htExaminations
+                        ->where('month', $checkM)
+                        ->count() > 0;
+
+                    if (!$hasExam) {
+                        $isStandard = false;
+                        break;
+                    }
+                }
+
+                if ($isStandard) {
+                    $monthlyStandard++;
+                }
+            }
+
+            $monthlyNonStandard = $monthlyTotal - $monthlyStandard;
+            $monthlyPercentage = $yearlyTarget > 0 ? round(($monthlyStandard / $yearlyTarget) * 100, 2) : 0;
+
+            $yearlyData[$m] = [
+                'male' => $monthlyMale,
+                'female' => $monthlyFemale,
+                'total' => $monthlyTotal,
+                'standard' => $monthlyStandard,
+                'non_standard' => $monthlyNonStandard,
+                'percentage' => $monthlyPercentage,
+            ];
+        }
+
+        // Hitung pasien standar untuk tahun ini
+        // Pasien standar = hadir setiap bulan sejak pertama pemeriksaan
+        $standardPatients = 0;
+        foreach ($allPatients as $patient) {
+            $firstExamMonth = $patient->htExaminations->min('month');
+
+            if ($firstExamMonth === null) continue;
+
+            $isStandard = true;
+            for ($m = $firstExamMonth; $m <= 12; $m++) {
+                $hasExam = $patient->htExaminations
+                    ->where('month', $m)
+                    ->count() > 0;
+
+                if (!$hasExam) {
+                    $isStandard = false;
+                    break;
+                }
+            }
+
+            if ($isStandard) {
+                $standardPatients++;
             }
         }
 
-        // For yearly statistics, we need to get unique patient counts
-        // We'll query the database directly for accuracy
-        $uniquePatients = Patient::where('puskesmas_id', $puskesmasId)
-            ->whereHas('htExaminations', function ($query) use ($year) {
-                $query->whereYear('examination_date', $year);
-            })
-            ->select('id', 'gender')
-            ->get();
-
-        $uniqueMaleCount = $uniquePatients->where('gender', 'male')->count();
-        $uniqueFemaleCount = $uniquePatients->where('gender', 'female')->count();
-        $uniqueTotalCount = $uniquePatients->count();
-
-        $yearlyPercentage = $yearlyTarget > 0 ? round(($totalStandard / $yearlyTarget) * 100, 2) : 0;
-        $standardPercentage = $uniqueTotalCount > 0 ? round(($totalStandard / $uniqueTotalCount) * 100, 2) : 0;
+        $nonStandardPatients = $totalUniquePatients - $standardPatients;
+        $yearlyPercentage = $yearlyTarget > 0 ? round(($standardPatients / $yearlyTarget) * 100, 2) : 0;
 
         return [
-            'total_patients' => $uniqueTotalCount,
-            'standard_patients' => $totalStandard,
-            'non_standard_patients' => $uniqueTotalCount - $totalStandard,
-            'male_patients' => $uniqueMaleCount,
-            'female_patients' => $uniqueFemaleCount,
+            'total_patients' => $totalUniquePatients,
+            'standard_patients' => $standardPatients,
+            'non_standard_patients' => $nonStandardPatients,
+            'male_patients' => $totalMale,
+            'female_patients' => $totalFemale,
             'achievement_percentage' => $yearlyPercentage,
-            'standard_percentage' => $standardPercentage,
+            'standard_percentage' => $totalUniquePatients > 0 ? round(($standardPatients / $totalUniquePatients) * 100, 2) : 0,
             'monthly_data' => $yearlyData,
         ];
     }
 
     /**
-     * Mendapatkan statistik DM dengan breakdown bulanan dari cache
+     * Mendapatkan statistik DM dengan breakdown bulanan
+     * yang sesuai dengan logika standar dan tidak standar yang baru
      */
     private function getDmStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month = null)
     {
@@ -483,123 +546,187 @@ class StatisticsController extends Controller
 
         $yearlyTarget = $target ? $target->target_count : 0;
 
+        // Jika filter bulan digunakan, ambil data untuk bulan tersebut saja
         if ($month !== null) {
-            // Get specific month data from cache
-            $monthData = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
-                ->where('disease_type', 'dm')
-                ->where('year', $year)
-                ->where('month', $month)
-                ->first();
+            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
 
-            if (!$monthData) {
-                return [
-                    'total_patients' => 0,
-                    'standard_patients' => 0,
-                    'non_standard_patients' => 0,
-                    'male_patients' => 0,
-                    'female_patients' => 0,
-                    'achievement_percentage' => 0,
-                    'standard_percentage' => 0,
-                    'monthly_data' => [],
-                ];
+            // Ambil data pasien unik yang melakukan pemeriksaan di bulan ini (min. 1 jenis pemeriksaan)
+            $patients = Patient::where('puskesmas_id', $puskesmasId)
+                ->whereHas('dmExaminations', function ($query) use ($startDate, $endDate) {
+                    $query->whereBetween('examination_date', [$startDate, $endDate]);
+                })
+                ->get();
+
+            $totalPatients = $patients->count();
+            $malePatients = $patients->where('gender', 'male')->count();
+            $femalePatients = $patients->where('gender', 'female')->count();
+
+            // Cek apakah pasien telah melakukan pemeriksaan setiap bulan sejak pertama
+            $standardPatients = 0;
+
+            foreach ($patients as $patient) {
+                // Ambil bulan pertama pemeriksaan tahun ini
+                $firstExamMonth = DmExamination::where('patient_id', $patient->id)
+                    ->where('year', $year)
+                    ->min('month');
+
+                if ($firstExamMonth === null) continue;
+
+                // Cek apakah pasien hadir setiap bulan sejak pertama sampai bulan ini
+                $isStandard = true;
+                for ($m = $firstExamMonth; $m <= $month; $m++) {
+                    $hasExam = DmExamination::where('patient_id', $patient->id)
+                        ->where('year', $year)
+                        ->where('month', $m)
+                        ->exists();
+
+                    if (!$hasExam) {
+                        $isStandard = false;
+                        break;
+                    }
+                }
+
+                if ($isStandard) {
+                    $standardPatients++;
+                }
             }
 
-            $monthlyPercentage = $yearlyTarget > 0 ? round(($monthData->total_count / $yearlyTarget) * 100, 2) : 0;
+            $nonStandardPatients = $totalPatients - $standardPatients;
+            $monthlyPercentage = $yearlyTarget > 0 ? round(($standardPatients / $yearlyTarget) * 100, 2) : 0;
 
             return [
-                'total_patients' => $monthData->total_count,
-                'standard_patients' => $monthData->standard_count,
-                'non_standard_patients' => $monthData->non_standard_count,
-                'male_patients' => $monthData->male_count,
-                'female_patients' => $monthData->female_count,
+                'total_patients' => $totalPatients,
+                'standard_patients' => $standardPatients,
+                'non_standard_patients' => $nonStandardPatients,
+                'male_patients' => $malePatients,
+                'female_patients' => $femalePatients,
                 'achievement_percentage' => $monthlyPercentage,
-                'standard_percentage' => $monthData->standard_percentage,
+                'standard_percentage' => $totalPatients > 0 ? round(($standardPatients / $totalPatients) * 100, 2) : 0,
                 'monthly_data' => [
                     $month => [
-                        'male' => $monthData->male_count,
-                        'female' => $monthData->female_count,
-                        'total' => $monthData->total_count,
-                        'standard' => $monthData->standard_count,
-                        'non_standard' => $monthData->non_standard_count,
+                        'male' => $malePatients,
+                        'female' => $femalePatients,
+                        'total' => $totalPatients,
+                        'standard' => $standardPatients,
+                        'non_standard' => $nonStandardPatients,
                         'percentage' => $monthlyPercentage,
                     ]
                 ],
             ];
         }
 
-        // Get all months data from cache
-        $monthlyData = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
-            ->where('disease_type', 'dm')
-            ->where('year', $year)
-            ->orderBy('month')
-            ->get()
-            ->keyBy('month');
-
+        // Untuk laporan tahunan, ambil semua bulan
         $yearlyData = [];
-        $totalPatients = 0;
+        $totalUniquePatients = 0;
         $totalStandard = 0;
         $totalNonStandard = 0;
         $totalMale = 0;
         $totalFemale = 0;
 
+        // Ambil semua pasien yang memiliki pemeriksaan DM dalam tahun ini
+        $allPatients = Patient::where('puskesmas_id', $puskesmasId)
+            ->whereHas('dmExaminations', function ($query) use ($year) {
+                $query->where('year', $year);
+            })
+            ->with(['dmExaminations' => function ($query) use ($year) {
+                $query->where('year', $year)->orderBy('month');
+            }])
+            ->get();
+
+        $totalUniquePatients = $allPatients->count();
+        $totalMale = $allPatients->where('gender', 'male')->count();
+        $totalFemale = $allPatients->where('gender', 'female')->count();
+
+        // Untuk setiap bulan, hitung statistik
         for ($m = 1; $m <= 12; $m++) {
-            $data = $monthlyData->get($m);
-            
-            if ($data) {
-                $totalMale += $data->male_count;
-                $totalFemale += $data->female_count;
-                $totalPatients += $data->total_count;
-                $totalStandard += $data->standard_count;
-                $totalNonStandard += $data->non_standard_count;
-                
-                $monthlyPercentage = $yearlyTarget > 0 ? round(($data->total_count / $yearlyTarget) * 100, 2) : 0;
-                
-                $yearlyData[$m] = [
-                    'male' => $data->male_count,
-                    'female' => $data->female_count,
-                    'total' => $data->total_count,
-                    'standard' => $data->standard_count,
-                    'non_standard' => $data->non_standard_count,
-                    'percentage' => $monthlyPercentage,
-                ];
-            } else {
-                $yearlyData[$m] = [
-                    'male' => 0,
-                    'female' => 0,
-                    'total' => 0,
-                    'standard' => 0,
-                    'non_standard' => 0,
-                    'percentage' => 0,
-                ];
+            $monthlyPatients = $allPatients->filter(function ($patient) use ($m) {
+                return $patient->dmExaminations->where('month', $m)->count() > 0;
+            });
+
+            $monthlyTotal = $monthlyPatients->count();
+            $monthlyMale = $monthlyPatients->where('gender', 'male')->count();
+            $monthlyFemale = $monthlyPatients->where('gender', 'female')->count();
+
+            // Hitung pasien standar untuk bulan ini - pasien yang hadir setiap bulan sejak pertama
+            $monthlyStandard = 0;
+            foreach ($monthlyPatients as $patient) {
+                // Ambil bulan pertama pemeriksaan tahun ini
+                $firstExamMonth = $patient->dmExaminations
+                    ->min('month');
+
+                if ($firstExamMonth === null) continue;
+
+                // Cek apakah pasien hadir setiap bulan sejak pertama sampai bulan ini
+                $isStandard = true;
+                for ($checkM = $firstExamMonth; $checkM <= $m; $checkM++) {
+                    $hasExam = $patient->dmExaminations
+                        ->where('month', $checkM)
+                        ->count() > 0;
+
+                    if (!$hasExam) {
+                        $isStandard = false;
+                        break;
+                    }
+                }
+
+                if ($isStandard) {
+                    $monthlyStandard++;
+                }
+            }
+
+            $monthlyNonStandard = $monthlyTotal - $monthlyStandard;
+            $monthlyPercentage = $yearlyTarget > 0 ? round(($monthlyStandard / $yearlyTarget) * 100, 2) : 0;
+
+            $yearlyData[$m] = [
+                'male' => $monthlyMale,
+                'female' => $monthlyFemale,
+                'total' => $monthlyTotal,
+                'standard' => $monthlyStandard,
+                'non_standard' => $monthlyNonStandard,
+                'percentage' => $monthlyPercentage,
+            ];
+        }
+
+        // Hitung pasien standar untuk tahun ini - hadir setiap bulan sejak pertama kali pemeriksaan
+        $standardPatients = 0;
+        foreach ($allPatients as $patient) {
+            $firstExamMonth = $patient->dmExaminations->min('month');
+
+            if ($firstExamMonth === null) continue;
+
+            $isStandard = true;
+            for ($m = $firstExamMonth; $m <= 12; $m++) {
+                $hasExam = $patient->dmExaminations
+                    ->where('month', $m)
+                    ->count() > 0;
+
+                if (!$hasExam) {
+                    $isStandard = false;
+                    break;
+                }
+            }
+
+            if ($isStandard) {
+                $standardPatients++;
             }
         }
 
-        // For yearly statistics, we need to get unique patient counts
-        $uniquePatients = Patient::where('puskesmas_id', $puskesmasId)
-            ->whereHas('dmExaminations', function ($query) use ($year) {
-                $query->whereYear('examination_date', $year);
-            })
-            ->select('id', 'gender')
-            ->get();
-
-        $uniqueMaleCount = $uniquePatients->where('gender', 'male')->count();
-        $uniqueFemaleCount = $uniquePatients->where('gender', 'female')->count();
-        $uniqueTotalCount = $uniquePatients->count();
-
-        $yearlyPercentage = $yearlyTarget > 0 ? round(($totalStandard / $yearlyTarget) * 100, 2) : 0;
-        $standardPercentage = $uniqueTotalCount > 0 ? round(($totalStandard / $uniqueTotalCount) * 100, 2) : 0;
+        $nonStandardPatients = $totalUniquePatients - $standardPatients;
+        $yearlyPercentage = $yearlyTarget > 0 ? round(($standardPatients / $yearlyTarget) * 100, 2) : 0;
 
         return [
-            'total_patients' => $uniqueTotalCount,
-            'standard_patients' => $totalStandard,
-            'non_standard_patients' => $uniqueTotalCount - $totalStandard,
-            'male_patients' => $uniqueMaleCount,
-            'female_patients' => $uniqueFemaleCount,
+            'total_patients' => $totalUniquePatients,
+            'standard_patients' => $standardPatients,
+            'non_standard_patients' => $nonStandardPatients,
+            'male_patients' => $totalMale,
+            'female_patients' => $totalFemale,
             'achievement_percentage' => $yearlyPercentage,
-            'standard_percentage' => $standardPercentage,
+            'standard_percentage' => $totalUniquePatients > 0 ? round(($standardPatients / $totalUniquePatients) * 100, 2) : 0,
             'monthly_data' => $yearlyData,
         ];
     }
+
     /**
      * Export statistik bulanan atau tahunan ke format PDF atau Excel
      */
@@ -899,7 +1026,7 @@ class StatisticsController extends Controller
             return $this->exportMonitoringToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
         }
     }
-    
+
     /**
      * Export laporan statistik ke format PDF menggunakan Dompdf
      */
@@ -1082,7 +1209,7 @@ class StatisticsController extends Controller
         // Data
         foreach ($statistics as $index => $stat) {
             $row++;
-            
+
             if ($isRecap) {
                 $sheet->setCellValue('A' . $row, $stat['ranking']);
                 $sheet->setCellValue('B' . $row, $stat['puskesmas_name']);
@@ -1673,14 +1800,14 @@ class StatisticsController extends Controller
 
         // Group examinations by patient
         $examinationsByPatient = $examinations->groupBy('patient_id');
-        
+
         // Count unique patients served in the period
         $totalPatients = $examinationsByPatient->count();
 
         // Count patients by gender
         $malePatients = 0;
         $femalePatients = 0;
-        
+
         foreach ($examinationsByPatient as $patientId => $patientExams) {
             $patient = $htPatients->firstWhere('id', $patientId);
             if ($patient) {
@@ -1711,7 +1838,7 @@ class StatisticsController extends Controller
             // For controlled patients - blood pressure 90-139/60-89 in at least 3 visits
             $controlledVisits = $patientExaminations->filter(function ($exam) {
                 return $exam->systolic >= 90 && $exam->systolic <= 139 &&
-                       $exam->diastolic >= 60 && $exam->diastolic <= 89;
+                    $exam->diastolic >= 60 && $exam->diastolic <= 89;
             })->count();
 
             if ($controlledVisits >= 3) {
@@ -1731,10 +1858,10 @@ class StatisticsController extends Controller
             });
 
             $monthlyPatients = $monthExaminations->pluck('patient_id')->unique();
-            
+
             $monthlyMale = 0;
             $monthlyFemale = 0;
-            
+
             foreach ($monthlyPatients as $patientId) {
                 $patient = $htPatients->firstWhere('id', $patientId);
                 if ($patient) {
@@ -1793,17 +1920,17 @@ class StatisticsController extends Controller
             ->get();
 
         // Group examinations by patient and date
-        $examinationsByPatient = $examinations->groupBy(['patient_id', function($exam) {
+        $examinationsByPatient = $examinations->groupBy(['patient_id', function ($exam) {
             return Carbon::parse($exam->examination_date)->format('Y-m-d');
         }]);
-        
+
         // Count unique patients served in the period
         $totalPatients = $examinationsByPatient->count();
 
         // Count patients by gender
         $malePatients = 0;
         $femalePatients = 0;
-        
+
         foreach ($examinationsByPatient as $patientId => $patientExams) {
             $patient = $dmPatients->firstWhere('id', $patientId);
             if ($patient) {
@@ -1821,7 +1948,7 @@ class StatisticsController extends Controller
 
         foreach ($examinationsByPatient as $patientId => $patientDates) {
             $patientExams = $examinations->where('patient_id', $patientId);
-            
+
             // For standard patients, check if they have visits every month of the year
             if (!$month) {
                 $months = $patientExams->pluck('month')->unique()->toArray();
@@ -1863,10 +1990,10 @@ class StatisticsController extends Controller
             });
 
             $monthlyPatients = $monthExaminations->pluck('patient_id')->unique();
-            
+
             $monthlyMale = 0;
             $monthlyFemale = 0;
-            
+
             foreach ($monthlyPatients as $patientId) {
                 $patient = $dmPatients->firstWhere('id', $patientId);
                 if ($patient) {
@@ -1896,5 +2023,654 @@ class StatisticsController extends Controller
             'controlled_patients' => $controlledPatients,
             'monthly_data' => $monthlyData
         ];
+    }
+
+    /**
+     * Display aggregated statistics for admin (all puskesmas)
+     * 
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function adminStatistics(Request $request)
+    {
+
+        $year = $request->year ?? Carbon::now()->year;
+        $month = $request->month; // Optional: null for yearly view, 1-12 for monthly view
+        $diseaseType = $request->type ?? 'all'; // all, ht, dm
+
+        // Validate disease type
+        if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
+            return response()->json([
+                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+            ], 400);
+        }
+
+        // Get puskesmas with pagination directly from database
+        $perPage = $request->per_page ?? 15;
+        $page = $request->page ?? 1;
+
+        $puskesmasQuery = Puskesmas::query();
+
+        // Filter by puskesmas name if provided
+        if ($request->has('name')) {
+            $puskesmasQuery->where('name', 'like', '%' . $request->name . '%');
+        }
+
+        // Get paginated puskesmas
+        $puskesmas = $puskesmasQuery->paginate($perPage);
+
+        if ($puskesmas->isEmpty()) {
+            return response()->json([
+                'message' => 'Tidak ada data puskesmas yang ditemukan.',
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'from' => 0,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'to' => 0,
+                    'total' => 0,
+                ],
+            ]);
+        }
+
+        // Get all puskesmas IDs for summary calculations
+        $allPuskesmasIds = Puskesmas::pluck('id')->toArray();
+
+        // Get statistics for paginated puskesmas only
+        $statistics = [];
+        $puskesmasIds = $puskesmas->pluck('id')->toArray();
+
+        // Get targets for all puskesmas in one query to reduce DB calls
+        $htTargets = YearlyTarget::where('year', $year)
+            ->where('disease_type', 'ht')
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        $dmTargets = YearlyTarget::where('year', $year)
+            ->where('disease_type', 'dm')
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        // Pre-fetch statistics from cache
+        $monthlyStats = MonthlyStatisticsCache::where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->when($month, function ($query) use ($month) {
+                return $query->where('month', $month);
+            })
+            ->get();
+
+        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
+        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
+
+        foreach ($puskesmas as $p) {
+            $data = [
+                'puskesmas_id' => $p->id,
+                'puskesmas_name' => $p->name,
+            ];
+
+            // Get HT data if requested
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                // Use cached data if available
+                if (isset($htStats[$p->id])) {
+                    $data['ht'] = $this->processHtCachedStats($htStats[$p->id], $htTargets->get($p->id));
+                } else {
+                    // Fallback to direct calculation if cache not available
+                    $htTarget = $htTargets->get($p->id);
+                    $htTargetCount = $htTarget ? $htTarget->target_count : 0;
+
+                    // Use shorter function that reads from cache instead of recalculating
+                    $htData = $this->getHtStatisticsFromCache($p->id, $year, $month);
+
+                    $data['ht'] = [
+                        'target' => $htTargetCount,
+                        'total_patients' => $htData['total_patients'],
+                        'achievement_percentage' => $htTargetCount > 0
+                            ? round(($htData['total_standard'] / $htTargetCount) * 100, 2)
+                            : 0,
+                        'standard_patients' => $htData['total_standard'],
+                        'non_standard_patients' => $htData['total_patients'] - $htData['total_standard'],
+                        'male_patients' => $htData['male_patients'] ?? 0,
+                        'female_patients' => $htData['female_patients'] ?? 0,
+                        'monthly_data' => $htData['monthly_data'],
+                    ];
+                }
+            }
+
+            // Get DM data if requested
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                // Use cached data if available
+                if (isset($dmStats[$p->id])) {
+                    $data['dm'] = $this->processDmCachedStats($dmStats[$p->id], $dmTargets->get($p->id));
+                } else {
+                    // Fallback to direct calculation if cache not available
+                    $dmTarget = $dmTargets->get($p->id);
+                    $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
+
+                    // Use shorter function that reads from cache instead of recalculating
+                    $dmData = $this->getDmStatisticsFromCache($p->id, $year, $month);
+
+                    $data['dm'] = [
+                        'target' => $dmTargetCount,
+                        'total_patients' => $dmData['total_patients'],
+                        'achievement_percentage' => $dmTargetCount > 0
+                            ? round(($dmData['total_standard'] / $dmTargetCount) * 100, 2)
+                            : 0,
+                        'standard_patients' => $dmData['total_standard'],
+                        'non_standard_patients' => $dmData['total_patients'] - $dmData['total_standard'],
+                        'male_patients' => $dmData['male_patients'] ?? 0,
+                        'female_patients' => $dmData['female_patients'] ?? 0,
+                        'monthly_data' => $dmData['monthly_data'],
+                    ];
+                }
+            }
+
+            $statistics[] = $data;
+        }
+
+        // Sort statistics based on achievement percentage
+        if ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return $b['ht']['achievement_percentage'] <=> $a['ht']['achievement_percentage'];
+            });
+        } elseif ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return $b['dm']['achievement_percentage'] <=> $a['dm']['achievement_percentage'];
+            });
+        } else {
+            // Sort by combined achievement percentage (HT + DM)
+            usort($statistics, function ($a, $b) {
+                $aTotal = ($a['ht']['achievement_percentage'] ?? 0) + ($a['dm']['achievement_percentage'] ?? 0);
+                $bTotal = ($b['ht']['achievement_percentage'] ?? 0) + ($b['dm']['achievement_percentage'] ?? 0);
+                return $bTotal <=> $aTotal;
+            });
+        }
+
+        // Add ranking
+        foreach ($statistics as $index => $stat) {
+            $statistics[$index]['ranking'] = $index + 1;
+        }
+
+        // Calculate summary data for all puskesmas
+        $summary = $this->calculateSummaryStatistics($allPuskesmasIds, $year, $month, $diseaseType);
+
+        // Prepare response with summary data
+        $response = [
+            'year' => $year,
+            'type' => $diseaseType,
+            'month' => $month,
+            'month_name' => $month ? $this->getMonthName($month) : null,
+            'total_puskesmas' => Puskesmas::count(),
+            'summary' => $summary,
+            'data' => $statistics,
+            'meta' => [
+                'current_page' => $puskesmas->currentPage(),
+                'from' => $puskesmas->firstItem(),
+                'last_page' => $puskesmas->lastPage(),
+                'per_page' => $puskesmas->perPage(),
+                'to' => $puskesmas->lastItem(),
+                'total' => $puskesmas->total(),
+            ],
+        ];
+
+        // Add chart data for visualization (from summary)
+        $response['chart_data'] = $this->prepareChartData(
+            $diseaseType,
+            $summary['ht']['monthly_data'] ?? [],
+            $summary['dm']['monthly_data'] ?? []
+        );
+
+        // Add top and bottom performers
+        // This requires getting top and bottom performers from database instead of full puskesmas list
+        $response['rankings'] = $this->getTopAndBottomPuskesmas($year, $diseaseType);
+
+        return response()->json($response);
+    }
+
+    /**
+     * Process cached HT statistics for admin view
+     */
+    private function processHtCachedStats($statsList, $target = null)
+    {
+        $targetCount = $target ? $target->target_count : 0;
+
+        $totalPatients = 0;
+        $totalStandard = 0;
+        $malePatients = 0;
+        $femalePatients = 0;
+        $monthlyData = [];
+
+        // Initialize monthly data
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyData[$m] = [
+                'male' => 0,
+                'female' => 0,
+                'total' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'percentage' => 0
+            ];
+        }
+
+        foreach ($statsList as $stat) {
+            $month = $stat->month;
+            $totalPatients += $stat->total_count;
+            $totalStandard += $stat->standard_count;
+            $malePatients += $stat->male_count;
+            $femalePatients += $stat->female_count;
+
+            $monthlyData[$month] = [
+                'male' => $stat->male_count,
+                'female' => $stat->female_count,
+                'total' => $stat->total_count,
+                'standard' => $stat->standard_count,
+                'non_standard' => $stat->non_standard_count,
+                'percentage' => $targetCount > 0
+                    ? round(($stat->standard_count / $targetCount) * 100, 2)
+                    : 0
+            ];
+        }
+
+        return [
+            'target' => $targetCount,
+            'total_patients' => $totalPatients,
+            'achievement_percentage' => $targetCount > 0
+                ? round(($totalStandard / $targetCount) * 100, 2)
+                : 0,
+            'standard_patients' => $totalStandard,
+            'non_standard_patients' => $totalPatients - $totalStandard,
+            'male_patients' => $malePatients,
+            'female_patients' => $femalePatients,
+            'monthly_data' => $monthlyData,
+        ];
+    }
+
+    /**
+     * Process cached DM statistics for admin view
+     */
+    private function processDmCachedStats($statsList, $target = null)
+    {
+        $targetCount = $target ? $target->target_count : 0;
+
+        $totalPatients = 0;
+        $totalStandard = 0;
+        $malePatients = 0;
+        $femalePatients = 0;
+        $monthlyData = [];
+
+        // Initialize monthly data
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyData[$m] = [
+                'male' => 0,
+                'female' => 0,
+                'total' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'percentage' => 0
+            ];
+        }
+
+        foreach ($statsList as $stat) {
+            $month = $stat->month;
+            $totalPatients += $stat->total_count;
+            $totalStandard += $stat->standard_count;
+            $malePatients += $stat->male_count;
+            $femalePatients += $stat->female_count;
+
+            $monthlyData[$month] = [
+                'male' => $stat->male_count,
+                'female' => $stat->female_count,
+                'total' => $stat->total_count,
+                'standard' => $stat->standard_count,
+                'non_standard' => $stat->non_standard_count,
+                'percentage' => $targetCount > 0
+                    ? round(($stat->standard_count / $targetCount) * 100, 2)
+                    : 0
+            ];
+        }
+
+        return [
+            'target' => $targetCount,
+            'total_patients' => $totalPatients,
+            'achievement_percentage' => $targetCount > 0
+                ? round(($totalStandard / $targetCount) * 100, 2)
+                : 0,
+            'standard_patients' => $totalStandard,
+            'non_standard_patients' => $totalPatients - $totalStandard,
+            'male_patients' => $malePatients,
+            'female_patients' => $femalePatients,
+            'monthly_data' => $monthlyData,
+        ];
+    }
+
+    /**
+     * Calculate summary statistics using efficient queries
+     */
+    private function calculateSummaryStatistics($puskesmasIds, $year, $month, $diseaseType)
+    {
+        $summary = [];
+
+        if ($diseaseType === 'all' || $diseaseType === 'ht') {
+            // Get aggregated HT statistics from cache
+            $htStats = DB::table('monthly_statistics_cache')
+                ->select(
+                    DB::raw('SUM(total_count) as total_patients'),
+                    DB::raw('SUM(standard_count) as standard_patients'),
+                    DB::raw('SUM(non_standard_count) as non_standard_patients'),
+                    DB::raw('SUM(male_count) as male_patients'),
+                    DB::raw('SUM(female_count) as female_patients')
+                )
+                ->where('disease_type', 'ht')
+                ->where('year', $year)
+                ->whereIn('puskesmas_id', $puskesmasIds)
+                ->when($month, function ($query) use ($month) {
+                    return $query->where('month', $month);
+                })
+                ->first();
+
+            // Get total HT target
+            $htTargetTotal = YearlyTarget::where('year', $year)
+                ->where('disease_type', 'ht')
+                ->whereIn('puskesmas_id', $puskesmasIds)
+                ->sum('target_count');
+
+            // Get monthly data
+            $htMonthlyData = $this->getMonthlyAggregatedStats('ht', $puskesmasIds, $year, $htTargetTotal);
+
+            $summary['ht'] = [
+                'target' => $htTargetTotal,
+                'total_patients' => $htStats->total_patients ?? 0,
+                'standard_patients' => $htStats->standard_patients ?? 0,
+                'non_standard_patients' => $htStats->non_standard_patients ?? 0,
+                'male_patients' => $htStats->male_patients ?? 0,
+                'female_patients' => $htStats->female_patients ?? 0,
+                'achievement_percentage' => $htTargetTotal > 0
+                    ? round((($htStats->standard_patients ?? 0) / $htTargetTotal) * 100, 2)
+                    : 0,
+                'monthly_data' => $htMonthlyData,
+            ];
+        }
+
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            // Get aggregated DM statistics
+            $dmStats = DB::table('monthly_statistics_cache')
+                ->select(
+                    DB::raw('SUM(total_count) as total_patients'),
+                    DB::raw('SUM(standard_count) as standard_patients'),
+                    DB::raw('SUM(non_standard_count) as non_standard_patients'),
+                    DB::raw('SUM(male_count) as male_patients'),
+                    DB::raw('SUM(female_count) as female_patients')
+                )
+                ->where('disease_type', 'dm')
+                ->where('year', $year)
+                ->whereIn('puskesmas_id', $puskesmasIds)
+                ->when($month, function ($query) use ($month) {
+                    return $query->where('month', $month);
+                })
+                ->first();
+
+            // Get total DM target
+            $dmTargetTotal = YearlyTarget::where('year', $year)
+                ->where('disease_type', 'dm')
+                ->whereIn('puskesmas_id', $puskesmasIds)
+                ->sum('target_count');
+
+            // Get monthly data
+            $dmMonthlyData = $this->getMonthlyAggregatedStats('dm', $puskesmasIds, $year, $dmTargetTotal);
+
+            $summary['dm'] = [
+                'target' => $dmTargetTotal,
+                'total_patients' => $dmStats->total_patients ?? 0,
+                'standard_patients' => $dmStats->standard_patients ?? 0,
+                'non_standard_patients' => $dmStats->non_standard_patients ?? 0,
+                'male_patients' => $dmStats->male_patients ?? 0,
+                'female_patients' => $dmStats->female_patients ?? 0,
+                'achievement_percentage' => $dmTargetTotal > 0
+                    ? round((($dmStats->standard_patients ?? 0) / $dmTargetTotal) * 100, 2)
+                    : 0,
+                'monthly_data' => $dmMonthlyData,
+            ];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Get monthly aggregated statistics
+     */
+    private function getMonthlyAggregatedStats($diseaseType, $puskesmasIds, $year, $targetTotal)
+    {
+        $monthlyData = [];
+
+        // Initialize monthly data structure
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyData[$m] = [
+                'male' => 0,
+                'female' => 0,
+                'total' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'percentage' => 0
+            ];
+        }
+
+        // Get monthly aggregated data from cache
+        $monthlySummary = DB::table('monthly_statistics_cache')
+            ->select(
+                'month',
+                DB::raw('SUM(total_count) as total_count'),
+                DB::raw('SUM(standard_count) as standard_count'),
+                DB::raw('SUM(non_standard_count) as non_standard_count'),
+                DB::raw('SUM(male_count) as male_count'),
+                DB::raw('SUM(female_count) as female_count')
+            )
+            ->where('disease_type', $diseaseType)
+            ->where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->groupBy('month')
+            ->get();
+
+        foreach ($monthlySummary as $summary) {
+            $month = $summary->month;
+
+            $monthlyData[$month] = [
+                'male' => $summary->male_count,
+                'female' => $summary->female_count,
+                'total' => $summary->total_count,
+                'standard' => $summary->standard_count,
+                'non_standard' => $summary->non_standard_count,
+                'percentage' => $targetTotal > 0
+                    ? round(($summary->standard_count / $targetTotal) * 100, 2)
+                    : 0
+            ];
+        }
+
+        return $monthlyData;
+    }
+
+    /**
+     * Get top and bottom performers efficiently
+     */
+    private function getTopAndBottomPuskesmas($year, $diseaseType)
+    {
+        // Get all puskesmas with their IDs and names
+        $allPuskesmas = Puskesmas::select('id', 'name')->get()->keyBy('id');
+        $puskesmasIds = $allPuskesmas->pluck('id')->toArray();
+
+        // Initialize data holders for rankings
+        $rankings = [];
+
+        // Get yearly targets for calculation
+        $htTargets = YearlyTarget::where('year', $year)
+            ->where('disease_type', 'ht')
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        $dmTargets = YearlyTarget::where('year', $year)
+            ->where('disease_type', 'dm')
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        // Get aggregated sums per puskesmas
+        $htStats = DB::table('monthly_statistics_cache')
+            ->select(
+                'puskesmas_id',
+                DB::raw('SUM(total_count) as total_patients'),
+                DB::raw('SUM(standard_count) as standard_patients'),
+                DB::raw('SUM(male_count) as male_patients'),
+                DB::raw('SUM(female_count) as female_patients')
+            )
+            ->where('disease_type', 'ht')
+            ->where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->groupBy('puskesmas_id')
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        $dmStats = DB::table('monthly_statistics_cache')
+            ->select(
+                'puskesmas_id',
+                DB::raw('SUM(total_count) as total_patients'),
+                DB::raw('SUM(standard_count) as standard_patients'),
+                DB::raw('SUM(male_count) as male_patients'),
+                DB::raw('SUM(female_count) as female_patients')
+            )
+            ->where('disease_type', 'dm')
+            ->where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->groupBy('puskesmas_id')
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        // Calculate achievement percentages for each puskesmas
+        foreach ($allPuskesmas as $id => $puskesmas) {
+            $htTarget = $htTargets->get($id);
+            $dmTarget = $dmTargets->get($id);
+            $htStat = $htStats->get($id);
+            $dmStat = $dmStats->get($id);
+
+            $htTargetCount = $htTarget ? $htTarget->target_count : 0;
+            $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
+
+            $htStandardPatients = $htStat ? $htStat->standard_patients : 0;
+            $dmStandardPatients = $dmStat ? $dmStat->standard_patients : 0;
+
+            $htAchievement = $htTargetCount > 0 ? round(($htStandardPatients / $htTargetCount) * 100, 2) : 0;
+            $dmAchievement = $dmTargetCount > 0 ? round(($dmStandardPatients / $dmTargetCount) * 100, 2) : 0;
+
+            $ranking = [
+                'puskesmas_id' => $id,
+                'puskesmas_name' => $puskesmas->name,
+            ];
+
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $ranking['ht'] = [
+                    'target' => $htTargetCount,
+                    'total_patients' => $htStat ? $htStat->total_patients : 0,
+                    'achievement_percentage' => $htAchievement,
+                    'standard_patients' => $htStandardPatients,
+                ];
+            }
+
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $ranking['dm'] = [
+                    'target' => $dmTargetCount,
+                    'total_patients' => $dmStat ? $dmStat->total_patients : 0,
+                    'achievement_percentage' => $dmAchievement,
+                    'standard_patients' => $dmStandardPatients,
+                ];
+            }
+
+            // Calculate combined achievement for sorting
+            if ($diseaseType === 'all') {
+                $ranking['combined_achievement'] = $htAchievement + $dmAchievement;
+            } elseif ($diseaseType === 'ht') {
+                $ranking['combined_achievement'] = $htAchievement;
+            } else {
+                $ranking['combined_achievement'] = $dmAchievement;
+            }
+
+            $rankings[] = $ranking;
+        }
+
+        // Sort by achievement percentage
+        usort($rankings, function ($a, $b) {
+            return $b['combined_achievement'] <=> $a['combined_achievement'];
+        });
+
+        // Add ranking
+        foreach ($rankings as $index => $rank) {
+            $rankings[$index]['ranking'] = $index + 1;
+        }
+
+        // Return top 5 and bottom 5
+        return [
+            'top_puskesmas' => array_slice($rankings, 0, 5),
+            'bottom_puskesmas' => count($rankings) > 5 ? array_slice($rankings, -5) : []
+        ];
+    }
+
+    /**
+     * Prepare chart data for frontend visualization
+     */
+    private function prepareChartData($diseaseType, $htMonthlyData, $dmMonthlyData)
+    {
+        $shortMonths = [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'Mei',
+            'Jun',
+            'Jul',
+            'Ags',
+            'Sep',
+            'Okt',
+            'Nov',
+            'Des'
+        ];
+
+        $chartData = [
+            'labels' => $shortMonths,
+            'datasets' => []
+        ];
+
+        if ($diseaseType === 'all' || $diseaseType === 'ht') {
+            $htData = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $htData[] = $htMonthlyData[$m]['total'] ?? 0;
+            }
+
+            $chartData['datasets'][] = [
+                'label' => 'Hipertensi (HT)',
+                'data' => $htData,
+                'borderColor' => '#3490dc',
+                'backgroundColor' => 'rgba(52, 144, 220, 0.1)',
+                'borderWidth' => 2,
+                'tension' => 0.4
+            ];
+        }
+
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            $dmData = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $dmData[] = $dmMonthlyData[$m]['total'] ?? 0;
+            }
+
+            $chartData['datasets'][] = [
+                'label' => 'Diabetes Mellitus (DM)',
+                'data' => $dmData,
+                'borderColor' => '#f6993f',
+                'backgroundColor' => 'rgba(246, 153, 63, 0.1)',
+                'borderWidth' => 2,
+                'tension' => 0.4
+            ];
+        }
+
+        return $chartData;
     }
 }
