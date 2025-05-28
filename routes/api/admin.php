@@ -1,15 +1,14 @@
 <?php
 
 use App\Http\Controllers\API\Admin\YearlyTargetController;
-use App\Http\Controllers\API\Shared\DashboardController;
+// Hapus baris ini: use App\Http\Controllers\API\Shared\DashboardController;
 use App\Http\Controllers\API\Shared\UserController;
 use App\Http\Middleware\IsAdmin;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes
 Route::middleware(['auth:sanctum', IsAdmin::class])->prefix('admin')->group(function () {
-    // Dashboard
-    Route::get('/dashboard', [DashboardController::class, 'dinasIndex']);
+    // Hapus baris ini: Route::get('/dashboard', [DashboardController::class, 'dinasIndex']);
     
     // User management
     Route::resource('users', UserController::class)->except(['create', 'edit']);
