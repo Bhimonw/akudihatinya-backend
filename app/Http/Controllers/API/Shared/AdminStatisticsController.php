@@ -95,15 +95,15 @@ class AdminStatisticsController extends Controller
 
                 $data['ht'] = [
                     'target' => $htTargetCount,
-                    'total_patients' => $htData['total_patients'],
+                    'total_patients' => $htData['total_patients'] ?? 0,
                     'achievement_percentage' => $htTargetCount > 0
                         ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
                         : 0,
-                    'standard_patients' => $htData['standard_patients'],
-                    'non_standard_patients' => $htData['non_standard_patients'],
-                    'male_patients' => $htData['male_patients'],
-                    'female_patients' => $htData['female_patients'],
-                    'monthly_data' => $htData['monthly_data'],
+                    'standard_patients' => $htData['standard_patients'] ?? 0,
+                    'non_standard_patients' => $htData['non_standard_patients'] ?? 0,
+                    'male_patients' => $htData['male_patients'] ?? 0,
+                    'female_patients' => $htData['female_patients'] ?? 0,
+                    'monthly_data' => $htData['monthly_data'] ?? [],
                 ];
             }
 
@@ -120,15 +120,15 @@ class AdminStatisticsController extends Controller
 
                 $data['dm'] = [
                     'target' => $dmTargetCount,
-                    'total_patients' => $dmData['total_patients'],
+                    'total_patients' => $dmData['total_patients'] ?? 0,
                     'achievement_percentage' => $dmTargetCount > 0
                         ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
                         : 0,
-                    'standard_patients' => $dmData['standard_patients'],
-                    'non_standard_patients' => $dmData['non_standard_patients'],
-                    'male_patients' => $dmData['male_patients'],
-                    'female_patients' => $dmData['female_patients'],
-                    'monthly_data' => $dmData['monthly_data'],
+                    'standard_patients' => $dmData['standard_patients'] ?? 0,
+                    'non_standard_patients' => $dmData['non_standard_patients'] ?? 0,
+                    'male_patients' => $dmData['male_patients'] ?? 0,
+                    'female_patients' => $dmData['female_patients'] ?? 0,
+                    'monthly_data' => $dmData['monthly_data'] ?? [],
                 ];
             }
 
@@ -138,11 +138,11 @@ class AdminStatisticsController extends Controller
         // Sort statistics based on achievement percentage
         if ($diseaseType === 'ht') {
             usort($statistics, function ($a, $b) {
-                return $b['ht']['achievement_percentage'] <=> $a['ht']['achievement_percentage'];
+                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
             });
         } elseif ($diseaseType === 'dm') {
             usort($statistics, function ($a, $b) {
-                return $b['dm']['achievement_percentage'] <=> $a['dm']['achievement_percentage'];
+                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
             });
         } else {
             // Sort by combined achievement percentage (HT + DM)
@@ -220,15 +220,15 @@ class AdminStatisticsController extends Controller
 
             $data['ht'] = [
                 'target' => $htTargetCount,
-                'total_patients' => $htData['total_patients'],
+                'total_patients' => $htData['total_patients'] ?? 0,
                 'achievement_percentage' => $htTargetCount > 0
                     ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
                     : 0,
-                'standard_patients' => $htData['standard_patients'],
-                'non_standard_patients' => $htData['non_standard_patients'],
-                'male_patients' => $htData['male_patients'],
-                'female_patients' => $htData['female_patients'],
-                'monthly_data' => $htData['monthly_data'],
+                'standard_patients' => $htData['standard_patients'] ?? 0,
+                'non_standard_patients' => $htData['non_standard_patients'] ?? 0,
+                'male_patients' => $htData['male_patients'] ?? 0,
+                'female_patients' => $htData['female_patients'] ?? 0,
+                'monthly_data' => $htData['monthly_data'] ?? [],
             ];
         }
 
@@ -245,15 +245,15 @@ class AdminStatisticsController extends Controller
 
             $data['dm'] = [
                 'target' => $dmTargetCount,
-                'total_patients' => $dmData['total_patients'],
+                'total_patients' => $dmData['total_patients'] ?? 0,
                 'achievement_percentage' => $dmTargetCount > 0
                     ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
                     : 0,
-                'standard_patients' => $dmData['standard_patients'],
-                'non_standard_patients' => $dmData['non_standard_patients'],
-                'male_patients' => $dmData['male_patients'],
-                'female_patients' => $dmData['female_patients'],
-                'monthly_data' => $dmData['monthly_data'],
+                'standard_patients' => $dmData['standard_patients'] ?? 0,
+                'non_standard_patients' => $dmData['non_standard_patients'] ?? 0,
+                'male_patients' => $dmData['male_patients'] ?? 0,
+                'female_patients' => $dmData['female_patients'] ?? 0,
+                'monthly_data' => $dmData['monthly_data'] ?? [],
             ];
         }
 
