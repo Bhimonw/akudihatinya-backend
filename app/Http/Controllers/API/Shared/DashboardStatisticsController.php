@@ -10,17 +10,33 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class DashboardStatisticsController extends Controller
 {
+    protected $calculationService;
+
+    public function __construct(
+        \App\Services\StatisticsCalculationService $calculationService
+    ) {
+        $this->calculationService = $calculationService;
+    }
+
     /**
      * Dashboard statistics API untuk frontend
      */
     public function index(Request $request)
     {
         $year = $request->year ?? Carbon::now()->year;
-        $type = $request->type ?? 'all'; // Default 'all', bisa juga 'ht' atau 'dm'
+        $type = $request->type ?? 'all';
         $user = Auth::user();
+
+        // Validasi tahun
+        if (!is_numeric($year) || $year < 2000 || $year > 2100) {
+            return response()->json([
+                'message' => 'Parameter year tidak valid. Gunakan tahun antara 2000-2100.',
+            ], 400);
+        }
 
         // Validasi nilai type
         if (!in_array($type, ['all', 'ht', 'dm'])) {
@@ -32,32 +48,9 @@ class DashboardStatisticsController extends Controller
         // Siapkan query untuk mengambil data puskesmas
         $puskesmasQuery = Puskesmas::query();
 
-        // Jika user bukan admin, filter data ke puskesmas user
-        if (!$user->is_admin) {
-            $userPuskesmas = $user->puskesmas_id;
-            if ($userPuskesmas) {
-                $puskesmasQuery->where('id', $userPuskesmas);
-            } else {
-                // Log this issue to debug
-                Log::warning('Puskesmas user without puskesmas_id: ' . $user->id);
-
-                // Try to find a puskesmas with matching name as fallback
-                $puskesmasWithSameName = Puskesmas::where('name', 'like', '%' . $user->name . '%')->first();
-
-                if ($puskesmasWithSameName) {
-                    $puskesmasQuery->where('id', $puskesmasWithSameName->id);
-
-                    // Update the user with the correct puskesmas_id for future requests
-                    $user->update(['puskesmas_id' => $puskesmasWithSameName->id]);
-
-                    Log::info('Updated user ' . $user->id . ' with puskesmas_id ' . $puskesmasWithSameName->id);
-                } else {
-                    return response()->json([
-                        'message' => 'User puskesmas tidak terkait dengan puskesmas manapun. Hubungi administrator.',
-                        'data' => [],
-                    ], 400);
-                }
-            }
+        // Filter berdasarkan role
+        if (!$user->isAdmin()) {
+            $puskesmasQuery->where('id', $user->puskesmas_id);
         }
 
         $puskesmas = $puskesmasQuery->first();
@@ -65,24 +58,19 @@ class DashboardStatisticsController extends Controller
         if (!$puskesmas) {
             return response()->json([
                 'message' => 'Tidak ada data puskesmas yang ditemukan.',
-                'data' => [],
-            ]);
+            ], 404);
         }
 
-        $data = [
-            'puskesmas_id' => $puskesmas->id,
-            'puskesmas_name' => $puskesmas->name,
-        ];
+        $data = [];
 
-        // Ambil data HT jika diperlukan
+        // Get HT data if requested
         if ($type === 'all' || $type === 'ht') {
             $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
                 ->where('disease_type', 'ht')
                 ->where('year', $year)
                 ->first();
 
-            $htData = app(\App\Services\StatisticsCalculationService::class)
-                ->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
+            $htData = $this->calculationService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
 
             $htTargetCount = $htTarget ? $htTarget->target_count : 0;
 
@@ -100,15 +88,14 @@ class DashboardStatisticsController extends Controller
             ];
         }
 
-        // Ambil data DM jika diperlukan
+        // Get DM data if requested
         if ($type === 'all' || $type === 'dm') {
             $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
                 ->where('disease_type', 'dm')
                 ->where('year', $year)
                 ->first();
 
-            $dmData = app(\App\Services\StatisticsCalculationService::class)
-                ->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
+            $dmData = $this->calculationService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
 
             $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
 
@@ -127,7 +114,9 @@ class DashboardStatisticsController extends Controller
         }
 
         return response()->json([
-            'data' => $data,
+            'year' => $year,
+            'type' => $type,
+            'data' => $data
         ]);
     }
 } 

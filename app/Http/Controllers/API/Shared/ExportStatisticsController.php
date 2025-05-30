@@ -16,6 +16,8 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class ExportStatisticsController extends Controller
 {
@@ -42,6 +44,13 @@ class ExportStatisticsController extends Controller
         $isRecap = $request->recap ?? false;
         $reportType = $request->report_type ?? 'monthly';
 
+        // Validasi tahun
+        if (!is_numeric($year) || $year < 2000 || $year > 2100) {
+            return response()->json([
+                'message' => 'Parameter year tidak valid. Gunakan tahun antara 2000-2100.',
+            ], 400);
+        }
+
         // Validasi nilai disease_type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
@@ -66,6 +75,13 @@ class ExportStatisticsController extends Controller
             }
         }
 
+        // Validasi report_type
+        if (!in_array($reportType, ['monthly', 'yearly'])) {
+            return response()->json([
+                'message' => 'Parameter report_type tidak valid. Gunakan monthly atau yearly.',
+            ], 400);
+        }
+
         // Ambil data puskesmas
         $puskesmasQuery = Puskesmas::query();
 
@@ -75,9 +91,24 @@ class ExportStatisticsController extends Controller
             if ($userPuskesmas) {
                 $puskesmasQuery->where('id', $userPuskesmas);
             } else {
-                return response()->json([
-                    'message' => 'User puskesmas tidak terkait dengan puskesmas manapun. Hubungi administrator.',
-                ], 400);
+                // Log this issue to debug
+                Log::warning('Puskesmas user without puskesmas_id: ' . Auth::user()->id);
+
+                // Try to find a puskesmas with matching name as fallback
+                $puskesmasWithSameName = Puskesmas::where('name', 'like', '%' . Auth::user()->name . '%')->first();
+
+                if ($puskesmasWithSameName) {
+                    $puskesmasQuery->where('id', $puskesmasWithSameName->id);
+
+                    // Update the user with the correct puskesmas_id for future requests
+                    Auth::user()->update(['puskesmas_id' => $puskesmasWithSameName->id]);
+
+                    Log::info('Updated user ' . Auth::user()->id . ' with puskesmas_id ' . $puskesmasWithSameName->id);
+                } else {
+                    return response()->json([
+                        'message' => 'User puskesmas tidak terkait dengan puskesmas manapun. Hubungi administrator.',
+                    ], 400);
+                }
             }
         }
 
@@ -91,55 +122,63 @@ class ExportStatisticsController extends Controller
 
         $statistics = [];
 
-        // Ambil data HT jika diperlukan
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                ->where('disease_type', 'ht')
-                ->where('year', $year)
-                ->first();
+        // Ambil data dari cache
+        $cacheKey = "export_statistics_{$puskesmas->id}_{$year}" . ($month ? "_{$month}" : "") . "_{$diseaseType}";
+        $statistics = Cache::remember($cacheKey, now()->addHours(24), function () use ($puskesmas, $year, $month, $diseaseType) {
+            $stats = [];
 
-            $htData = $this->calculationService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
+            // Ambil data HT jika diperlukan
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->first();
 
-            $htTargetCount = $htTarget ? $htTarget->target_count : 0;
+                $htData = $this->calculationService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
 
-            $statistics['ht'] = [
-                'target' => $htTargetCount,
-                'total_patients' => $htData['total_patients'],
-                'achievement_percentage' => $htTargetCount > 0
-                    ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
-                    : 0,
-                'standard_patients' => $htData['standard_patients'],
-                'non_standard_patients' => $htData['non_standard_patients'],
-                'male_patients' => $htData['male_patients'],
-                'female_patients' => $htData['female_patients'],
-                'monthly_data' => $htData['monthly_data'],
-            ];
-        }
+                $htTargetCount = $htTarget ? $htTarget->target_count : 0;
 
-        // Ambil data DM jika diperlukan
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                ->where('disease_type', 'dm')
-                ->where('year', $year)
-                ->first();
+                $stats['ht'] = [
+                    'target' => $htTargetCount,
+                    'total_patients' => $htData['total_patients'],
+                    'achievement_percentage' => $htTargetCount > 0
+                        ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
+                        : 0,
+                    'standard_patients' => $htData['standard_patients'],
+                    'non_standard_patients' => $htData['non_standard_patients'],
+                    'male_patients' => $htData['male_patients'],
+                    'female_patients' => $htData['female_patients'],
+                    'monthly_data' => $htData['monthly_data'],
+                ];
+            }
 
-            $dmData = $this->calculationService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
+            // Ambil data DM jika diperlukan
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
 
-            $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
+                $dmData = $this->calculationService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
 
-            $statistics['dm'] = [
-                'target' => $dmTargetCount,
-                'total_patients' => $dmData['total_patients'],
-                'achievement_percentage' => $dmTargetCount > 0
-                    ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
-                    : 0,
-                'standard_patients' => $dmData['standard_patients'],
-                'non_standard_patients' => $dmData['non_standard_patients'],
-                'male_patients' => $dmData['male_patients'],
-                'female_patients' => $dmData['female_patients'],
-                'monthly_data' => $dmData['monthly_data'],
-            ];
-        }
+                $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
+
+                $stats['dm'] = [
+                    'target' => $dmTargetCount,
+                    'total_patients' => $dmData['total_patients'],
+                    'achievement_percentage' => $dmTargetCount > 0
+                        ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
+                        : 0,
+                    'standard_patients' => $dmData['standard_patients'],
+                    'non_standard_patients' => $dmData['non_standard_patients'],
+                    'male_patients' => $dmData['male_patients'],
+                    'female_patients' => $dmData['female_patients'],
+                    'monthly_data' => $dmData['monthly_data'],
+                ];
+            }
+
+            return $stats;
+        });
 
         // Generate filename
         $filename = sprintf(

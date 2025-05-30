@@ -15,7 +15,7 @@ return new class extends Migration
             $table->integer('year');
             $table->integer('target_count');
             $table->timestamps();
-            
+
             $table->unique(['puskesmas_id', 'disease_type', 'year']);
         });
     }

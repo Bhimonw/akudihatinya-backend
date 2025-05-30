@@ -83,6 +83,11 @@ class AuthController extends Controller
 
     public function refresh(Request $request)
     {
+        Log::info('Refresh token request received', [
+            'request_data' => $request->all(),
+            'headers' => $request->headers->all()
+        ]);
+
         $request->validate([
             'refresh_token' => 'required|string',
         ]);
@@ -92,6 +97,9 @@ class AuthController extends Controller
             ->first();
 
         if (!$refreshToken) {
+            Log::warning('Invalid or expired refresh token', [
+                'refresh_token' => $request->refresh_token
+            ]);
             return response()->json([
                 'message' => 'Refresh token tidak valid atau sudah kadaluarsa',
             ], 401);

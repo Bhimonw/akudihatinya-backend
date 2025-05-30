@@ -7,6 +7,8 @@ use App\Models\Puskesmas;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class MonitoringStatisticsController extends Controller
 {
@@ -31,6 +33,13 @@ class MonitoringStatisticsController extends Controller
         $diseaseType = $request->type ?? 'all';
         $format = $request->format ?? 'pdf';
 
+        // Validasi tahun
+        if (!is_numeric($year) || $year < 2000 || $year > 2100) {
+            return response()->json([
+                'message' => 'Parameter year tidak valid. Gunakan tahun antara 2000-2100.',
+            ], 400);
+        }
+
         // Validasi nilai disease_type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
@@ -49,7 +58,9 @@ class MonitoringStatisticsController extends Controller
         $month = intval($month);
         if ($month < 1 || $month > 12) {
             return response()->json([
+                'status' => 'error',
                 'message' => 'Parameter month tidak valid. Gunakan angka 1-12.',
+                'data' => null
             ], 400);
         }
 
@@ -62,9 +73,26 @@ class MonitoringStatisticsController extends Controller
             if ($userPuskesmas) {
                 $puskesmasQuery->where('id', $userPuskesmas);
             } else {
-                return response()->json([
-                    'message' => 'User puskesmas tidak terkait dengan puskesmas manapun. Hubungi administrator.',
-                ], 400);
+                // Log this issue to debug
+                Log::warning('Puskesmas user without puskesmas_id: ' . Auth::user()->id);
+
+                // Try to find a puskesmas with matching name as fallback
+                $puskesmasWithSameName = Puskesmas::where('name', 'like', '%' . Auth::user()->name . '%')->first();
+
+                if ($puskesmasWithSameName) {
+                    $puskesmasQuery->where('id', $puskesmasWithSameName->id);
+
+                    // Update the user with the correct puskesmas_id for future requests
+                    Auth::user()->update(['puskesmas_id' => $puskesmasWithSameName->id]);
+
+                    Log::info('Updated user ' . Auth::user()->id . ' with puskesmas_id ' . $puskesmasWithSameName->id);
+                } else {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'User puskesmas tidak terkait dengan puskesmas manapun. Hubungi administrator.',
+                        'data' => null
+                    ], 400);
+                }
             }
         }
 
@@ -77,12 +105,15 @@ class MonitoringStatisticsController extends Controller
         }
 
         // Get patient attendance data
-        $patientData = $this->calculationService->getPatientAttendanceData(
-            $puskesmas->id,
-            $year,
-            $month,
-            $diseaseType
-        );
+        $cacheKey = "monitoring_statistics_{$puskesmas->id}_{$year}_{$month}_{$diseaseType}";
+        $patientData = Cache::remember($cacheKey, now()->addHours(24), function () use ($puskesmas, $year, $month, $diseaseType) {
+            return $this->calculationService->getPatientAttendanceData(
+                $puskesmas->id,
+                $year,
+                $month,
+                $diseaseType
+            );
+        });
 
         // Generate filename
         $filename = sprintf(

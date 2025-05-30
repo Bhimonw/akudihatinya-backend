@@ -1,66 +1,151 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Aku Dihatinya Backend API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+This is the backend API for the Aku Dihatinya application, a healthcare management system built with Laravel.
 
-## About Laravel
+## API Documentation
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Authentication
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+All protected routes require authentication using Laravel Sanctum. Include the token in the Authorization header:
+```
+Authorization: Bearer <your-token>
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+#### Public Routes
 
-## Learning Laravel
+- `POST /api/login` - User login
+- `POST /api/refresh` - Refresh authentication token
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+#### Protected Routes
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+##### Auth Routes
+- `POST /api/logout` - User logout
+- `GET /api/user` - Get authenticated user details
+- `POST /api/change-password` - Change user password
+- `POST /api/profile` - Update user profile
+- `GET /api/users/me` - Get current user details
+- `PUT /api/users/me` - Update current user details
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Admin Routes
 
-## Laravel Sponsors
+All admin routes are prefixed with `/api/admin` and require admin privileges.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+#### User Management
+- `GET /api/admin/users` - List all users
+- `POST /api/admin/users` - Create new user
+- `GET /api/admin/users/{user}` - Get user details
+- `PUT /api/admin/users/{user}` - Update user
+- `DELETE /api/admin/users/{user}` - Delete user
+- `POST /api/admin/users/{user}/reset-password` - Reset user password
 
-### Premium Partners
+#### Yearly Targets
+- `GET /api/admin/yearly-targets` - List yearly targets
+- `POST /api/admin/yearly-targets` - Create yearly target
+- `GET /api/admin/yearly-targets/{target}` - Get target details
+- `PUT /api/admin/yearly-targets/{target}` - Update target
+- `DELETE /api/admin/yearly-targets/{target}` - Delete target
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+### Puskesmas Routes
 
-## Contributing
+All puskesmas routes are prefixed with `/api/puskesmas` and require puskesmas privileges.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+#### Patient Management
+- `GET /api/puskesmas/patients` - List patients
+- `POST /api/puskesmas/patients` - Create new patient
+- `GET /api/puskesmas/patients/{patient}` - Get patient details
+- `PUT /api/puskesmas/patients/{patient}` - Update patient
+- `DELETE /api/puskesmas/patients/{patient}` - Delete patient
+- `POST /api/puskesmas/patients/{patient}/examination-year` - Add examination year
+- `PUT /api/puskesmas/patients/{patient}/examination-year` - Remove examination year
 
-## Code of Conduct
+#### Examinations
+- `GET /api/puskesmas/ht-examinations` - List HT examinations
+- `POST /api/puskesmas/ht-examinations` - Create HT examination
+- `GET /api/puskesmas/ht-examinations/{examination}` - Get HT examination details
+- `PUT /api/puskesmas/ht-examinations/{examination}` - Update HT examination
+- `DELETE /api/puskesmas/ht-examinations/{examination}` - Delete HT examination
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- `GET /api/puskesmas/dm-examinations` - List DM examinations
+- `POST /api/puskesmas/dm-examinations` - Create DM examination
+- `GET /api/puskesmas/dm-examinations/{examination}` - Get DM examination details
+- `PUT /api/puskesmas/dm-examinations/{examination}` - Update DM examination
+- `DELETE /api/puskesmas/dm-examinations/{examination}` - Delete DM examination
 
-## Security Vulnerabilities
+### Statistics Routes
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+All statistics routes are prefixed with `/api/statistics` and require either admin or puskesmas privileges.
 
-## License
+#### Dashboard Statistics
+- `GET /api/statistics/dashboard` - Get dashboard statistics
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+#### Admin Statistics
+- `GET /api/statistics/admin` - Get admin statistics
+
+#### Export Statistics
+- `GET /api/statistics/export` - Export all statistics
+- `GET /api/statistics/export/ht` - Export HT statistics
+- `GET /api/statistics/export/dm` - Export DM statistics
+- `GET /api/statistics/export/{year}/{month}` - Export monthly statistics
+
+#### Monitoring
+- `GET /api/statistics/monitoring` - Get monitoring statistics
+
+## Error Handling
+
+The API uses standard HTTP response codes:
+- 200: Success
+- 201: Created
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 422: Validation Error
+- 500: Server Error
+
+## Response Format
+
+All responses are in JSON format. Error responses include a message and optional validation errors:
+
+```json
+{
+    "message": "Error message",
+    "errors": {
+        "field": ["Error details"]
+    }
+}
+```
+
+## Development
+
+### Requirements
+- PHP 8.1 or higher
+- Composer
+- MySQL 5.7 or higher
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+```bash
+composer install
+```
+3. Copy `.env.example` to `.env` and configure your environment
+4. Generate application key:
+```bash
+php artisan key:generate
+```
+5. Run migrations:
+```bash
+php artisan migrate
+```
+6. Start the development server:
+```bash
+php artisan serve
+```
+
+### Testing
+
+Run the test suite:
+```bash
+php artisan test
+```

@@ -9,6 +9,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use App\Models\MonthlyStatisticsCache;
 
 class AdminStatisticsController extends Controller
 {
@@ -28,6 +30,14 @@ class AdminStatisticsController extends Controller
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month ?? null;
         $diseaseType = $request->type ?? 'all';
+        $perPage = $request->per_page ?? 15;
+
+        // Validasi tahun
+        if (!is_numeric($year) || $year < 2000 || $year > 2100) {
+            return response()->json([
+                'message' => 'Parameter year tidak valid. Gunakan tahun antara 2000-2100.',
+            ], 400);
+        }
 
         // Validasi nilai disease_type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
@@ -46,211 +56,211 @@ class AdminStatisticsController extends Controller
             }
         }
 
-        // Get all puskesmas IDs
-        $puskesmasIds = Puskesmas::pluck('id')->toArray();
+        // Get puskesmas with pagination
+        $puskesmasQuery = Puskesmas::query();
+        $puskesmas = $puskesmasQuery->paginate($perPage);
 
-        // Calculate summary statistics
-        $summaryStats = $this->calculateSummaryStatistics($puskesmasIds, $year, $month, $diseaseType);
+        if ($puskesmas->isEmpty()) {
+            return response()->json([
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'from' => 0,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'to' => 0,
+                    'total' => 0,
+                ],
+            ]);
+        }
 
-        // Get top and bottom performing puskesmas
-        $performanceData = $this->getTopAndBottomPuskesmas($year, $diseaseType);
+        $statistics = [];
 
-        // Get monthly aggregated stats
-        $monthlyStats = $this->getMonthlyAggregatedStats($diseaseType, $puskesmasIds, $year, $summaryStats['total_target']);
+        foreach ($puskesmas as $p) {
+            $data = [
+                'puskesmas_id' => $p->id,
+                'puskesmas_name' => $p->name,
+            ];
 
-        // Prepare chart data
-        $chartData = $this->prepareChartData($diseaseType, $monthlyStats['ht'] ?? [], $monthlyStats['dm'] ?? []);
+            // Get HT data if requested
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htTarget = YearlyTarget::where('puskesmas_id', $p->id)
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->first();
+
+                $htData = $this->calculationService->getHtStatisticsWithMonthlyBreakdown($p->id, $year, $month);
+
+                $htTargetCount = $htTarget ? $htTarget->target_count : 0;
+
+                $data['ht'] = [
+                    'target' => $htTargetCount,
+                    'total_patients' => $htData['total_patients'],
+                    'achievement_percentage' => $htTargetCount > 0
+                        ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
+                        : 0,
+                    'standard_patients' => $htData['standard_patients'],
+                    'non_standard_patients' => $htData['non_standard_patients'],
+                    'male_patients' => $htData['male_patients'],
+                    'female_patients' => $htData['female_patients'],
+                    'monthly_data' => $htData['monthly_data'],
+                ];
+            }
+
+            // Get DM data if requested
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmTarget = YearlyTarget::where('puskesmas_id', $p->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
+
+                $dmData = $this->calculationService->getDmStatisticsWithMonthlyBreakdown($p->id, $year, $month);
+
+                $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
+
+                $data['dm'] = [
+                    'target' => $dmTargetCount,
+                    'total_patients' => $dmData['total_patients'],
+                    'achievement_percentage' => $dmTargetCount > 0
+                        ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
+                        : 0,
+                    'standard_patients' => $dmData['standard_patients'],
+                    'non_standard_patients' => $dmData['non_standard_patients'],
+                    'male_patients' => $dmData['male_patients'],
+                    'female_patients' => $dmData['female_patients'],
+                    'monthly_data' => $dmData['monthly_data'],
+                ];
+            }
+
+            $statistics[] = $data;
+        }
+
+        // Sort statistics based on achievement percentage
+        if ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return $b['ht']['achievement_percentage'] <=> $a['ht']['achievement_percentage'];
+            });
+        } elseif ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return $b['dm']['achievement_percentage'] <=> $a['dm']['achievement_percentage'];
+            });
+        } else {
+            // Sort by combined achievement percentage (HT + DM)
+            usort($statistics, function ($a, $b) {
+                $aTotal = ($a['ht']['achievement_percentage'] ?? 0) + ($a['dm']['achievement_percentage'] ?? 0);
+                $bTotal = ($b['ht']['achievement_percentage'] ?? 0) + ($b['dm']['achievement_percentage'] ?? 0);
+                return $bTotal <=> $aTotal;
+            });
+        }
+
+        // Add ranking to meta
+        $rankings = [];
+        foreach ($statistics as $index => $stat) {
+            $rankings[$stat['puskesmas_id']] = $index + 1;
+        }
 
         return response()->json([
-            'data' => [
-                'summary' => $summaryStats,
-                'performance' => $performanceData,
-                'monthly' => $monthlyStats,
-                'charts' => $chartData,
+            'data' => $statistics,
+            'meta' => [
+                'current_page' => $puskesmas->currentPage(),
+                'from' => $puskesmas->firstItem(),
+                'last_page' => $puskesmas->lastPage(),
+                'per_page' => $puskesmas->perPage(),
+                'to' => $puskesmas->lastItem(),
+                'total' => $puskesmas->total(),
+                'rankings' => $rankings
             ],
         ]);
     }
 
     /**
-     * Calculate summary statistics
+     * Dashboard statistics API untuk frontend
      */
-    private function calculateSummaryStatistics($puskesmasIds, $year, $month, $diseaseType)
+    public function dashboardStatistics(Request $request)
     {
-        $stats = [
-            'total_target' => 0,
-            'total_achievement' => 0,
-            'total_percentage' => 0,
-            'total_puskesmas' => count($puskesmasIds),
-            'achieving_puskesmas' => 0,
-            'not_achieving_puskesmas' => 0,
-        ];
+        $year = $request->year ?? Carbon::now()->year;
+        $type = $request->type ?? 'all';
+        $user = Auth::user();
 
-        // Get total target
-        $targetQuery = YearlyTarget::whereIn('puskesmas_id', $puskesmasIds)
-            ->where('year', $year);
-
-        if ($diseaseType !== 'all') {
-            $targetQuery->where('disease_type', $diseaseType);
+        // Validasi tahun
+        if (!is_numeric($year) || $year < 2000 || $year > 2100) {
+            return response()->json([
+                'message' => 'Parameter year tidak valid. Gunakan tahun antara 2000-2100.',
+            ], 400);
         }
 
-        $totalTarget = $targetQuery->sum('target_count');
-        $stats['total_target'] = $totalTarget;
-
-        // Get achievement data
-        $achievementData = DB::table('monthly_statistics_cache')
-            ->whereIn('puskesmas_id', $puskesmasIds)
-            ->where('year', $year);
-
-        if ($month) {
-            $achievementData->where('month', $month);
+        // Validasi nilai type
+        if (!in_array($type, ['all', 'ht', 'dm'])) {
+            return response()->json([
+                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+            ], 400);
         }
 
-        if ($diseaseType !== 'all') {
-            $achievementData->where('disease_type', $diseaseType);
+        // Get puskesmas
+        $puskesmas = Puskesmas::first();
+
+        if (!$puskesmas) {
+            return response()->json([
+                'message' => 'Tidak ada data puskesmas yang ditemukan.',
+            ], 404);
         }
 
-        $achievementData = $achievementData->get();
+        $data = [];
 
-        // Calculate total achievement
-        $totalAchievement = 0;
-        $achievingCount = 0;
-
-        foreach ($achievementData as $data) {
-            $totalAchievement += $data->standard_patients;
-            if ($data->achievement_percentage >= 100) {
-                $achievingCount++;
-            }
-        }
-
-        $stats['total_achievement'] = $totalAchievement;
-        $stats['total_percentage'] = $totalTarget > 0 ? round(($totalAchievement / $totalTarget) * 100, 2) : 0;
-        $stats['achieving_puskesmas'] = $achievingCount;
-        $stats['not_achieving_puskesmas'] = count($puskesmasIds) - $achievingCount;
-
-        return $stats;
-    }
-
-    /**
-     * Get top and bottom performing puskesmas
-     */
-    private function getTopAndBottomPuskesmas($year, $diseaseType)
-    {
-        $query = DB::table('monthly_statistics_cache')
-            ->join('puskesmas', 'monthly_statistics_cache.puskesmas_id', '=', 'puskesmas.id')
-            ->select(
-                'puskesmas.id',
-                'puskesmas.name',
-                DB::raw('AVG(achievement_percentage) as avg_achievement')
-            )
-            ->where('year', $year);
-
-        if ($diseaseType !== 'all') {
-            $query->where('disease_type', $diseaseType);
-        }
-
-        $query->groupBy('puskesmas.id', 'puskesmas.name')
-            ->orderBy('avg_achievement', 'desc');
-
-        $allPuskesmas = $query->get();
-
-        return [
-            'top' => $allPuskesmas->take(5)->values(),
-            'bottom' => $allPuskesmas->reverse()->take(5)->values(),
-        ];
-    }
-
-    /**
-     * Get monthly aggregated stats
-     */
-    private function getMonthlyAggregatedStats($diseaseType, $puskesmasIds, $year, $targetTotal)
-    {
-        $stats = [];
-
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $htStats = DB::table('monthly_statistics_cache')
-                ->whereIn('puskesmas_id', $puskesmasIds)
-                ->where('year', $year)
+        // Get HT data if requested
+        if ($type === 'all' || $type === 'ht') {
+            $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
                 ->where('disease_type', 'ht')
-                ->select(
-                    'month',
-                    DB::raw('SUM(standard_patients) as total_patients'),
-                    DB::raw('AVG(achievement_percentage) as avg_achievement')
-                )
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
-
-            $stats['ht'] = $htStats->map(function ($item) use ($targetTotal) {
-                return [
-                    'month' => $item->month,
-                    'total_patients' => $item->total_patients,
-                    'achievement_percentage' => $item->avg_achievement,
-                    'target' => $targetTotal / 12, // Monthly target
-                ];
-            })->values();
-        }
-
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $dmStats = DB::table('monthly_statistics_cache')
-                ->whereIn('puskesmas_id', $puskesmasIds)
                 ->where('year', $year)
+                ->first();
+
+            $htData = $this->calculationService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
+
+            $htTargetCount = $htTarget ? $htTarget->target_count : 0;
+
+            $data['ht'] = [
+                'target' => $htTargetCount,
+                'total_patients' => $htData['total_patients'],
+                'achievement_percentage' => $htTargetCount > 0
+                    ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
+                    : 0,
+                'standard_patients' => $htData['standard_patients'],
+                'non_standard_patients' => $htData['non_standard_patients'],
+                'male_patients' => $htData['male_patients'],
+                'female_patients' => $htData['female_patients'],
+                'monthly_data' => $htData['monthly_data'],
+            ];
+        }
+
+        // Get DM data if requested
+        if ($type === 'all' || $type === 'dm') {
+            $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
                 ->where('disease_type', 'dm')
-                ->select(
-                    'month',
-                    DB::raw('SUM(standard_patients) as total_patients'),
-                    DB::raw('AVG(achievement_percentage) as avg_achievement')
-                )
-                ->groupBy('month')
-                ->orderBy('month')
-                ->get();
+                ->where('year', $year)
+                ->first();
 
-            $stats['dm'] = $dmStats->map(function ($item) use ($targetTotal) {
-                return [
-                    'month' => $item->month,
-                    'total_patients' => $item->total_patients,
-                    'achievement_percentage' => $item->avg_achievement,
-                    'target' => $targetTotal / 12, // Monthly target
-                ];
-            })->values();
-        }
+            $dmData = $this->calculationService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
 
-        return $stats;
-    }
+            $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
 
-    /**
-     * Prepare chart data
-     */
-    private function prepareChartData($diseaseType, $htMonthlyData, $dmMonthlyData)
-    {
-        $chartData = [
-            'labels' => [],
-            'datasets' => [],
-        ];
-
-        // Prepare labels (months)
-        for ($i = 1; $i <= 12; $i++) {
-            $chartData['labels'][] = Carbon::create()->month($i)->format('M');
-        }
-
-        // Prepare datasets
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $chartData['datasets'][] = [
-                'label' => 'HT Achievement',
-                'data' => $htMonthlyData->pluck('achievement_percentage')->toArray(),
-                'borderColor' => '#4CAF50',
-                'backgroundColor' => 'rgba(76, 175, 80, 0.1)',
+            $data['dm'] = [
+                'target' => $dmTargetCount,
+                'total_patients' => $dmData['total_patients'],
+                'achievement_percentage' => $dmTargetCount > 0
+                    ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
+                    : 0,
+                'standard_patients' => $dmData['standard_patients'],
+                'non_standard_patients' => $dmData['non_standard_patients'],
+                'male_patients' => $dmData['male_patients'],
+                'female_patients' => $dmData['female_patients'],
+                'monthly_data' => $dmData['monthly_data'],
             ];
         }
 
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $chartData['datasets'][] = [
-                'label' => 'DM Achievement',
-                'data' => $dmMonthlyData->pluck('achievement_percentage')->toArray(),
-                'borderColor' => '#2196F3',
-                'backgroundColor' => 'rgba(33, 150, 243, 0.1)',
-            ];
-        }
-
-        return $chartData;
+        return response()->json([
+            'year' => $year,
+            'type' => $type,
+            'data' => $data
+        ]);
     }
 }
