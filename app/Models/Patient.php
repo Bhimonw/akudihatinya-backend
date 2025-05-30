@@ -27,6 +27,7 @@ class Patient extends Model
         'birth_date' => 'date',
         'ht_years' => 'array',
         'dm_years' => 'array',
+        'gender' => 'string',
     ];
 
     // Default empty arrays for years
@@ -85,7 +86,7 @@ class Patient extends Model
     public function removeHtYear($year)
     {
         $years = $this->ht_years ?? [];
-        $this->ht_years = array_values(array_filter($years, function($y) use ($year) {
+        $this->ht_years = array_values(array_filter($years, function ($y) use ($year) {
             return $y != $year;
         }));
         return $this;
@@ -95,7 +96,7 @@ class Patient extends Model
     public function removeDmYear($year)
     {
         $years = $this->dm_years ?? [];
-        $this->dm_years = array_values(array_filter($years, function($y) use ($year) {
+        $this->dm_years = array_values(array_filter($years, function ($y) use ($year) {
             return $y != $year;
         }));
         return $this;
@@ -114,5 +115,21 @@ class Patient extends Model
     public function dmExaminations()
     {
         return $this->hasMany(DmExamination::class);
+    }
+
+    /**
+     * Get the gender in a consistent format
+     */
+    public function getGenderAttribute($value)
+    {
+        return strtolower($value);
+    }
+
+    /**
+     * Set the gender in a consistent format
+     */
+    public function setGenderAttribute($value)
+    {
+        $this->attributes['gender'] = strtolower($value);
     }
 }

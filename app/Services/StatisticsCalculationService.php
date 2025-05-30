@@ -6,14 +6,23 @@ use App\Models\MonthlyStatisticsCache;
 use App\Models\HtExamination;
 use App\Models\DmExamination;
 use App\Models\YearlyTarget;
+use App\Models\Examination;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use App\Services\StandardPatientCalculationService;
 
 class StatisticsCalculationService
 {
     const CACHE_TTL = 3600; // 1 hour cache
+
+    protected $standardPatientService;
+
+    public function __construct(StandardPatientCalculationService $standardPatientService)
+    {
+        $this->standardPatientService = $standardPatientService;
+    }
 
     /**
      * Get HT statistics with monthly breakdown for a specific puskesmas
@@ -38,47 +47,44 @@ class StatisticsCalculationService
                     $query->whereMonth('examination_date', $month);
                 }
 
-                // Get all examinations for the year
-                $examinations = $query->get();
+                $examinations = $query->with('patient')->get();
 
-                // Get unique patients
-                $uniquePatients = $examinations->pluck('patient_id')->unique()->toArray();
+                // Calculate monthly statistics
+                $monthlyStats = $this->standardPatientService->calculateMonthlyStatistics($examinations, $year);
 
-                // Get standard patients (those who attended all months after their first visit)
-                $standardPatients = $this->getStandardPatients($examinations, $year);
+                // Get the last month's data for total statistics
+                $lastMonthStats = end($monthlyStats);
 
-                // Get monthly statistics
-                $monthlyData = $this->getMonthlyStatistics($query, $standardPatients);
+                $totalPatients = $lastMonthStats['total_patients'];
+                $malePatients = $lastMonthStats['male_patients'];
+                $femalePatients = $lastMonthStats['female_patients'];
+                $standardPatients = $lastMonthStats['standard_patients'];
+                $standardMalePatients = $lastMonthStats['standard_male_patients'];
+                $standardFemalePatients = $lastMonthStats['standard_female_patients'];
+                $nonStandardPatients = $totalPatients - $standardPatients;
 
-                // Calculate gender statistics
-                $genderStats = $this->getGenderStatistics($examinations, $standardPatients);
-
-                // Calculate overall statistics
-                $totalPatients = count($uniquePatients);
-                $standardPatientsCount = count($standardPatients);
-                $nonStandardPatientsCount = $totalPatients - $standardPatientsCount;
-                $achievementPercentage = $target && $target->target_count > 0
-                    ? min(round(($standardPatientsCount / $target->target_count) * 100, 2), 100)
+                // Calculate achievement percentage
+                $targetCount = $target ? $target->target_count : 0;
+                $achievementPercentage = $targetCount > 0
+                    ? min(round(($standardPatients / $targetCount) * 100, 2), 100)
                     : 0;
 
-                $stats = [
-                    'target' => $target ? $target->target_count : 0,
+                return [
+                    'target' => $targetCount,
                     'total_patients' => $totalPatients,
-                    'standard_patients' => $standardPatientsCount,
-                    'non_standard_patients' => max(0, $nonStandardPatientsCount),
                     'achievement_percentage' => $achievementPercentage,
-                    'male_patients' => $genderStats['male_patients'],
-                    'female_patients' => $genderStats['female_patients'],
-                    'standard_male_patients' => $genderStats['standard_male_patients'],
-                    'standard_female_patients' => $genderStats['standard_female_patients'],
-                    'monthly_data' => $monthlyData
+                    'standard_patients' => $standardPatients,
+                    'non_standard_patients' => $nonStandardPatients,
+                    'male_patients' => $malePatients,
+                    'female_patients' => $femalePatients,
+                    'standard_male_patients' => $standardMalePatients,
+                    'standard_female_patients' => $standardFemalePatients,
+                    'monthly_data' => $monthlyStats
                 ];
-
-                return $stats;
             });
         } catch (\Exception $e) {
-            Log::error('Error calculating HT statistics: ' . $e->getMessage());
-            throw new \Exception('Terjadi kesalahan saat menghitung statistik HT');
+            Log::error('Error in HT statistics: ' . $e->getMessage());
+            return $this->getDefaultStatistics();
         }
     }
 
@@ -105,150 +111,63 @@ class StatisticsCalculationService
                     $query->whereMonth('examination_date', $month);
                 }
 
-                // Get all examinations for the year
-                $examinations = $query->get();
+                $examinations = $query->with('patient')->get();
 
-                // Get unique patients
-                $uniquePatients = $examinations->pluck('patient_id')->unique()->toArray();
+                // Calculate monthly statistics
+                $monthlyStats = $this->standardPatientService->calculateMonthlyStatistics($examinations, $year);
 
-                // Get standard patients (those who attended all months after their first visit)
-                $standardPatients = $this->getStandardPatients($examinations, $year);
+                // Get the last month's data for total statistics
+                $lastMonthStats = end($monthlyStats);
 
-                // Get monthly statistics
-                $monthlyData = $this->getMonthlyStatistics($query, $standardPatients);
+                $totalPatients = $lastMonthStats['total_patients'];
+                $malePatients = $lastMonthStats['male_patients'];
+                $femalePatients = $lastMonthStats['female_patients'];
+                $standardPatients = $lastMonthStats['standard_patients'];
+                $standardMalePatients = $lastMonthStats['standard_male_patients'];
+                $standardFemalePatients = $lastMonthStats['standard_female_patients'];
+                $nonStandardPatients = $totalPatients - $standardPatients;
 
-                // Calculate gender statistics
-                $genderStats = $this->getGenderStatistics($examinations, $standardPatients);
-
-                // Calculate overall statistics
-                $totalPatients = count($uniquePatients);
-                $standardPatientsCount = count($standardPatients);
-                $nonStandardPatientsCount = $totalPatients - $standardPatientsCount;
-                $achievementPercentage = $target && $target->target_count > 0
-                    ? min(round(($standardPatientsCount / $target->target_count) * 100, 2), 100)
+                // Calculate achievement percentage
+                $targetCount = $target ? $target->target_count : 0;
+                $achievementPercentage = $targetCount > 0
+                    ? min(round(($standardPatients / $targetCount) * 100, 2), 100)
                     : 0;
 
-                $stats = [
-                    'target' => $target ? $target->target_count : 0,
+                return [
+                    'target' => $targetCount,
                     'total_patients' => $totalPatients,
-                    'standard_patients' => $standardPatientsCount,
-                    'non_standard_patients' => max(0, $nonStandardPatientsCount),
                     'achievement_percentage' => $achievementPercentage,
-                    'male_patients' => $genderStats['male_patients'],
-                    'female_patients' => $genderStats['female_patients'],
-                    'standard_male_patients' => $genderStats['standard_male_patients'],
-                    'standard_female_patients' => $genderStats['standard_female_patients'],
-                    'monthly_data' => $monthlyData
+                    'standard_patients' => $standardPatients,
+                    'non_standard_patients' => $nonStandardPatients,
+                    'male_patients' => $malePatients,
+                    'female_patients' => $femalePatients,
+                    'standard_male_patients' => $standardMalePatients,
+                    'standard_female_patients' => $standardFemalePatients,
+                    'monthly_data' => $monthlyStats
                 ];
-
-                return $stats;
             });
         } catch (\Exception $e) {
-            Log::error('Error calculating DM statistics: ' . $e->getMessage());
-            throw new \Exception('Terjadi kesalahan saat menghitung statistik DM');
+            Log::error('Error in DM statistics: ' . $e->getMessage());
+            return $this->getDefaultStatistics();
         }
     }
 
     /**
-     * Get standard patients (those who attended all months after their first visit)
+     * Get default statistics when an error occurs
      */
-    private function getStandardPatients($examinations, $year)
+    private function getDefaultStatistics()
     {
-        $standardPatients = [];
-        $patientVisits = [];
-
-        // Group visits by patient
-        foreach ($examinations as $exam) {
-            $patientId = $exam->patient_id;
-            $visitMonth = Carbon::parse($exam->examination_date)->month;
-
-            if (!isset($patientVisits[$patientId])) {
-                $patientVisits[$patientId] = [];
-            }
-            $patientVisits[$patientId][] = $visitMonth;
-        }
-
-        // Check each patient's attendance
-        foreach ($patientVisits as $patientId => $visits) {
-            sort($visits);
-            $firstMonth = min($visits);
-            $isStandard = true;
-
-            // Check if patient attended all months after their first visit
-            for ($month = $firstMonth; $month <= 12; $month++) {
-                if (!in_array($month, $visits)) {
-                    $isStandard = false;
-                    break;
-                }
-            }
-
-            if ($isStandard) {
-                $standardPatients[] = $patientId;
-            }
-        }
-
-        return $standardPatients;
-    }
-
-    /**
-     * Get monthly statistics for a specific puskesmas
-     */
-    private function getMonthlyStatistics($query, $standardPatients)
-    {
-        $monthlyData = [];
-
-        for ($m = 1; $m <= 12; $m++) {
-            $monthExams = $query->whereMonth('examination_date', $m)->get();
-            $uniquePatients = $monthExams->pluck('patient_id')->unique()->toArray();
-            $monthStandardPatients = array_intersect($uniquePatients, $standardPatients);
-
-            $maleStandardPatients = $monthExams->whereIn('patient_id', $monthStandardPatients)
-                ->where('patient_gender', 'L')
-                ->pluck('patient_id')
-                ->unique()
-                ->count();
-
-            $femaleStandardPatients = $monthExams->whereIn('patient_id', $monthStandardPatients)
-                ->where('patient_gender', 'P')
-                ->pluck('patient_id')
-                ->unique()
-                ->count();
-
-            $totalPatients = count($uniquePatients);
-            $standardPatientsCount = count($monthStandardPatients);
-            $nonStandardPatientsCount = $totalPatients - $standardPatientsCount;
-
-            $monthlyData[] = [
-                'month' => $m,
-                'total_patients' => $totalPatients,
-                'standard_patients' => $standardPatientsCount,
-                'non_standard_patients' => max(0, $nonStandardPatientsCount),
-                'male_patients' => $monthExams->where('patient_gender', 'L')->pluck('patient_id')->unique()->count(),
-                'female_patients' => $monthExams->where('patient_gender', 'P')->pluck('patient_id')->unique()->count(),
-                'standard_male_patients' => $maleStandardPatients,
-                'standard_female_patients' => $femaleStandardPatients
-            ];
-        }
-
-        return $monthlyData;
-    }
-
-    /**
-     * Get gender statistics for a specific query
-     */
-    private function getGenderStatistics($examinations, $standardPatients)
-    {
-        $malePatients = $examinations->where('patient_gender', 'L')->pluck('patient_id')->unique();
-        $femalePatients = $examinations->where('patient_gender', 'P')->pluck('patient_id')->unique();
-
-        $standardMalePatients = $malePatients->intersect($standardPatients)->count();
-        $standardFemalePatients = $femalePatients->intersect($standardPatients)->count();
-
         return [
-            'male_patients' => $malePatients->count(),
-            'female_patients' => $femalePatients->count(),
-            'standard_male_patients' => $standardMalePatients,
-            'standard_female_patients' => $standardFemalePatients
+            'target' => 0,
+            'total_patients' => 0,
+            'achievement_percentage' => 0,
+            'standard_patients' => 0,
+            'non_standard_patients' => 0,
+            'male_patients' => 0,
+            'female_patients' => 0,
+            'standard_male_patients' => 0,
+            'standard_female_patients' => 0,
+            'monthly_data' => []
         ];
     }
 
@@ -265,27 +184,30 @@ class StatisticsCalculationService
                 $startDate = Carbon::create($year, $month, 1)->startOfDay();
                 $endDate = Carbon::create($year, $month, $daysInMonth)->endOfDay();
 
-                $examinationTable = $diseaseType === 'dm' ? 'dm_examinations' : 'ht_examinations';
-                $examinationDateColumn = "{$examinationTable}.examination_date";
-
-                $patients = DB::table('patients')
-                    ->join($examinationTable, 'patients.id', '=', "{$examinationTable}.patient_id")
-                    ->where("{$examinationTable}.puskesmas_id", $puskesmasId)
-                    ->whereBetween($examinationDateColumn, [$startDate, $endDate])
-                    ->select([
-                        'patients.id',
-                        'patients.name',
-                        'patients.gender',
-                        'patients.birth_date',
-                        'patients.address',
-                        'patients.phone',
-                        DB::raw("DATE({$examinationDateColumn}) as examination_date")
-                    ])
-                    ->orderBy('examination_date')
+                $model = $diseaseType === 'dm' ? DmExamination::class : HtExamination::class;
+                $examinations = $model::where('puskesmas_id', $puskesmasId)
+                    ->whereBetween('examination_date', [$startDate, $endDate])
+                    ->with('patient')
                     ->get();
 
+                $patients = [];
+                foreach ($examinations as $exam) {
+                    $patientId = $exam->patient_id;
+                    if (!isset($patients[$patientId])) {
+                        $patients[$patientId] = [
+                            'id' => $exam->patient->id,
+                            'name' => $exam->patient->name,
+                            'gender' => $exam->patient->gender,
+                            'birth_date' => $exam->patient->birth_date,
+                            'address' => $exam->patient->address,
+                            'phone' => $exam->patient->phone,
+                            'examination_date' => $exam->examination_date->format('Y-m-d')
+                        ];
+                    }
+                }
+
                 return [
-                    'patients' => $patients,
+                    'patients' => array_values($patients),
                     'days_in_month' => $daysInMonth,
                 ];
             });

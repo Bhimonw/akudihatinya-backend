@@ -14,13 +14,13 @@ class PatientRequest extends FormRequest
     public function rules()
     {
         $patientId = $this->route('patient') ? $this->route('patient')->id : null;
-        
+
         return [
             'nik' => 'nullable|string|size:16|unique:patients,nik,' . $patientId,
             'bpjs_number' => 'nullable|string|max:20',
             'name' => 'required|string|max:255',
             'address' => 'nullable|string',
-            'gender' => 'nullable|in:male,female',
+            'gender' => 'required|in:male,female',
             'birth_date' => 'nullable|date',
             'age' => 'nullable|integer|min:0|max:150',
             'ht_years' => 'nullable|array',
