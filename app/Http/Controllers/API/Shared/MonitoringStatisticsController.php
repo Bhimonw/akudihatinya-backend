@@ -18,9 +18,25 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use Illuminate\Support\Facades\DB;
+use App\Services\StatisticsCalculationService;
+use App\Services\StatisticsExportService;
+use Illuminate\Support\Facades\Cache;
 
 class MonitoringStatisticsController extends Controller
 {
+    protected $statisticsService;
+    protected $exportService;
+    protected $cacheVersion = 'v1';
+    protected $cacheDuration = 900; // 15 menit
+
+    public function __construct(
+        StatisticsCalculationService $statisticsService,
+        StatisticsExportService $exportService
+    ) {
+        $this->statisticsService = $statisticsService;
+        $this->exportService = $exportService;
+    }
+
     public function export(Request $request)
     {
         $year = $request->year ?? Carbon::now()->year;
@@ -66,8 +82,13 @@ class MonitoringStatisticsController extends Controller
             ], 404);
         }
 
-        // Ambil data pasien dan kedatangan
-        $patientData = $this->getPatientAttendanceData($puskesmas->id, $year, $month, $diseaseType);
+        // Generate cache key dengan versioning
+        $cacheKey = "monitoring_data:{$this->cacheVersion}:{$puskesmas->id}:{$year}:{$month}:{$diseaseType}";
+
+        // Get cached data or calculate new
+        $patientData = Cache::remember($cacheKey, $this->cacheDuration, function () use ($puskesmas, $year, $month, $diseaseType) {
+            return $this->statisticsService->getPatientAttendanceData($puskesmas->id, $year, $month, $diseaseType);
+        });
 
         // Buat nama file
         $filename = "laporan_pemantauan_";
@@ -81,17 +102,29 @@ class MonitoringStatisticsController extends Controller
 
         // Export sesuai format
         if ($format === 'pdf') {
-            return $this->exportMonitoringToPdf($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
+            return $this->exportService->exportMonitoringToPdf($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
         } else {
-            return $this->exportMonitoringToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
+            return $this->exportService->exportMonitoringToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
         }
     }
 
     /**
-     * Get patient attendance data for monitoring report
+     * Clear cache for a specific puskesmas, year, and month
      */
-    protected function getPatientAttendanceData($puskesmasId, $year, $month, $diseaseType)
+    public function clearCache($puskesmasId, $year, $month)
     {
+        $diseaseTypes = ['all', 'ht', 'dm'];
+        $keys = [];
+
+        foreach ($diseaseTypes as $type) {
+            $keys[] = "monitoring_data:{$this->cacheVersion}:{$puskesmasId}:{$year}:{$month}:{$type}";
+        }
+
+        foreach ($keys as $key) {
+            Cache::forget($key);
+        }
+
+        return true;
         $result = [
             'ht' => [],
             'dm' => []

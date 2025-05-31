@@ -8,20 +8,31 @@ use App\Models\HtExamination;
 use App\Models\Patient;
 use App\Models\Puskesmas;
 use App\Models\YearlyTarget;
+use App\Services\StatisticsCalculationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class DashboardStatisticsController extends Controller
 {
+    protected $statisticsService;
+    protected $cacheVersion = 'v1';
+    protected $cacheDuration = 1800; // 30 menit
+
+    public function __construct(StatisticsCalculationService $statisticsService)
+    {
+        $this->statisticsService = $statisticsService;
+    }
+
     /**
      * Get dashboard statistics
      */
     public function index(Request $request)
     {
         $year = $request->year ?? Carbon::now()->year;
-        $type = $request->type ?? 'all'; // Default 'all', bisa juga 'ht' atau 'dm'
+        $type = $request->type ?? 'all';
         $user = Auth::user();
 
         // Validasi nilai type
@@ -50,54 +61,28 @@ class DashboardStatisticsController extends Controller
                 'puskesmas_name' => $puskesmas->name,
             ];
 
-            // Tambahkan data HT jika diperlukan
+            // Generate cache key dengan versioning
+            $cacheKey = "dashboard_stats:{$this->cacheVersion}:{$puskesmas->id}:{$year}";
+
+            // Get cached data or calculate new
+            $cachedData = Cache::remember($cacheKey, $this->cacheDuration, function () use ($puskesmas, $year) {
+                return $this->calculatePuskesmasStatistics($puskesmas, $year);
+            });
+
+            // Add HT data if needed
             if ($type === 'all' || $type === 'ht') {
-                $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'ht')
-                    ->where('year', $year)
-                    ->first();
-
-                $htData = $this->getHtStatistics($puskesmas->id, $year);
-
-                $targetCount = $htTarget ? $htTarget->target_count : 0;
-
-                $puskesmasData['ht'] = [
-                    'target' => $targetCount,
-                    'total_patients' => $htData['total_patients'],
-                    'achievement_percentage' => $targetCount > 0
-                        ? round(($htData['standard_patients'] / $targetCount) * 100, 2)
-                        : 0,
-                    'standard_patients' => $htData['standard_patients'],
-                    'monthly_data' => $htData['monthly_data'],
-                ];
+                $puskesmasData['ht'] = $cachedData['ht'];
             }
 
-            // Tambahkan data DM jika diperlukan
+            // Add DM data if needed
             if ($type === 'all' || $type === 'dm') {
-                $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'dm')
-                    ->where('year', $year)
-                    ->first();
-
-                $dmData = $this->getDmStatistics($puskesmas->id, $year);
-
-                $targetCount = $dmTarget ? $dmTarget->target_count : 0;
-
-                $puskesmasData['dm'] = [
-                    'target' => $targetCount,
-                    'total_patients' => $dmData['total_patients'],
-                    'achievement_percentage' => $targetCount > 0
-                        ? round(($dmData['standard_patients'] / $targetCount) * 100, 2)
-                        : 0,
-                    'standard_patients' => $dmData['standard_patients'],
-                    'monthly_data' => $dmData['monthly_data'],
-                ];
+                $puskesmasData['dm'] = $cachedData['dm'];
             }
 
             $data[] = $puskesmasData;
         }
 
-        // Urutkan data berdasarkan achievement_percentage
+        // Sort data by achievement percentage
         usort($data, function ($a, $b) use ($type) {
             $aValue = $type === 'dm' ?
                 ($a['dm']['achievement_percentage'] ?? 0) : ($a['ht']['achievement_percentage'] ?? 0);
@@ -108,7 +93,7 @@ class DashboardStatisticsController extends Controller
             return $bValue <=> $aValue;
         });
 
-        // Tambahkan ranking
+        // Add ranking
         foreach ($data as $index => $item) {
             $data[$index]['ranking'] = $index + 1;
         }
@@ -118,6 +103,60 @@ class DashboardStatisticsController extends Controller
             'type' => $type,
             'data' => $data
         ]);
+    }
+
+    /**
+     * Calculate statistics for a puskesmas
+     */
+    protected function calculatePuskesmasStatistics($puskesmas, $year)
+    {
+        // Get targets with cache
+        $htTarget = Cache::remember(
+            "yearly_target:{$this->cacheVersion}:{$puskesmas->id}:ht:{$year}",
+            $this->cacheDuration,
+            function () use ($puskesmas, $year) {
+                return YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->first();
+            }
+        );
+
+        $dmTarget = Cache::remember(
+            "yearly_target:{$this->cacheVersion}:{$puskesmas->id}:dm:{$year}",
+            $this->cacheDuration,
+            function () use ($puskesmas, $year) {
+                return YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
+            }
+        );
+
+        // Get statistics using service
+        $htStats = $this->statisticsService->calculateHtStatistics($puskesmas->id, $year);
+        $dmStats = $this->statisticsService->calculateDmStatistics($puskesmas->id, $year);
+
+        return [
+            'ht' => [
+                'target' => $htTarget ? $htTarget->target_count : 0,
+                'total_patients' => $htStats['total_patients'],
+                'achievement_percentage' => $htTarget && $htTarget->target_count > 0
+                    ? round(($htStats['standard_patients'] / $htTarget->target_count) * 100, 2)
+                    : 0,
+                'standard_patients' => $htStats['standard_patients'],
+                'monthly_data' => $htStats['monthly_data'],
+            ],
+            'dm' => [
+                'target' => $dmTarget ? $dmTarget->target_count : 0,
+                'total_patients' => $dmStats['total_patients'],
+                'achievement_percentage' => $dmTarget && $dmTarget->target_count > 0
+                    ? round(($dmStats['standard_patients'] / $dmTarget->target_count) * 100, 2)
+                    : 0,
+                'standard_patients' => $dmStats['standard_patients'],
+                'monthly_data' => $dmStats['monthly_data'],
+            ]
+        ];
     }
 
     /**
@@ -368,5 +407,23 @@ class DashboardStatisticsController extends Controller
             'female_patients' => $femalePatients,
             'monthly_data' => $monthlyData
         ];
+    }
+
+    /**
+     * Clear cache for a specific puskesmas and year
+     */
+    public function clearCache($puskesmasId, $year)
+    {
+        $keys = [
+            "dashboard_stats:{$this->cacheVersion}:{$puskesmasId}:{$year}",
+            "yearly_target:{$this->cacheVersion}:{$puskesmasId}:ht:{$year}",
+            "yearly_target:{$this->cacheVersion}:{$puskesmasId}:dm:{$year}"
+        ];
+
+        foreach ($keys as $key) {
+            Cache::forget($key);
+        }
+
+        return true;
     }
 }

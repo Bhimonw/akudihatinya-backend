@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Patient extends Model
 {
@@ -35,6 +36,46 @@ class Patient extends Model
         'ht_years' => '[]',
         'dm_years' => '[]',
     ];
+
+    /**
+     * Boot the model.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::created(function ($patient) {
+            Cache::tags(['patients'])->flush();
+        });
+
+        static::updated(function ($patient) {
+            Cache::tags(['patients'])->flush();
+        });
+
+        static::deleted(function ($patient) {
+            Cache::tags(['patients'])->flush();
+        });
+    }
+
+    /**
+     * Get cached patient by ID
+     */
+    public static function getCached($id)
+    {
+        return Cache::tags(['patients'])->remember('patient:' . $id, now()->addDay(), function () use ($id) {
+            return static::with(['puskesmas', 'htExaminations', 'dmExaminations'])->find($id);
+        });
+    }
+
+    /**
+     * Get cached patient by NIK
+     */
+    public static function getCachedByNik($nik)
+    {
+        return Cache::tags(['patients'])->remember('patient:nik:' . $nik, now()->addDay(), function () use ($nik) {
+            return static::with(['puskesmas', 'htExaminations', 'dmExaminations'])->where('nik', $nik)->first();
+        });
+    }
 
     // Dynamic getter for has_ht based on ht_years
     public function getHasHtAttribute()

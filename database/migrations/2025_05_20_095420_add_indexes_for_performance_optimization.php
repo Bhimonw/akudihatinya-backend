@@ -46,25 +46,53 @@ class AddIndexesForPerformanceOptimization extends Migration
     {
         // Menghapus indeks dari tabel monthly_statistics_cache
         Schema::table('monthly_statistics_cache', function (Blueprint $table) {
-            $table->dropIndex('msc_puskesmas_disease_year_month_idx');
-            $table->dropIndex('msc_disease_year_idx');
+            try {
+                $table->dropIndex('msc_puskesmas_disease_year_month_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
+            try {
+                $table->dropIndex('msc_disease_year_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
         });
 
         // Menghapus indeks dari tabel yearly_targets
         Schema::table('yearly_targets', function (Blueprint $table) {
-            $table->dropIndex('yt_puskesmas_disease_year_idx');
+            try {
+                $table->dropIndex('yt_puskesmas_disease_year_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
         });
 
         // Menghapus indeks dari tabel ht_examinations
         Schema::table('ht_examinations', function (Blueprint $table) {
-            $table->dropIndex('ht_patient_year_month_idx');
-            $table->dropIndex('ht_puskesmas_year_idx');
+            try {
+                $table->dropIndex('ht_patient_year_month_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
+            try {
+                $table->dropIndex('ht_puskesmas_year_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
         });
 
         // Menghapus indeks dari tabel dm_examinations
         Schema::table('dm_examinations', function (Blueprint $table) {
-            $table->dropIndex('dm_patient_year_month_idx');
-            $table->dropIndex('dm_puskesmas_year_idx');
+            try {
+                $table->dropIndex('dm_patient_year_month_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
+            try {
+                $table->dropIndex('dm_puskesmas_year_idx');
+            } catch (\Exception $e) {
+                // Index mungkin tidak ada atau digunakan dalam foreign key
+            }
         });
     }
 }
