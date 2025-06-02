@@ -282,6 +282,12 @@ class StatisticsController extends Controller
                     ->first();
 
                 $htData = $this->statisticsService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
+                // Provide default values if $htData is null
+                $htData = $htData ?? [
+                    'total_patients' => 0,
+                    'standard_patients' => 0,
+                    'monthly_data' => [],
+                ];
 
                 $targetCount = $htTarget ? $htTarget->target_count : 0;
 
@@ -304,6 +310,12 @@ class StatisticsController extends Controller
                     ->first();
 
                 $dmData = $this->statisticsService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year);
+                // Provide default values if $dmData is null
+                $dmData = $dmData ?? [
+                    'total_patients' => 0,
+                    'standard_patients' => 0,
+                    'monthly_data' => [],
+                ];
 
                 $targetCount = $dmTarget ? $dmTarget->target_count : 0;
 
