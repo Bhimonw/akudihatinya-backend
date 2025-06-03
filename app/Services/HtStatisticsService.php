@@ -163,11 +163,79 @@ class HtStatisticsService
 
     public function processHtCachedStats($statsList, $target = null)
     {
-        // ... salin isi dari StatisticsService::processHtCachedStats ...
+        $totalPatients = $statsList->sum('total_count');
+        $standardPatients = $statsList->sum('standard_count');
+        $nonStandardPatients = $statsList->sum('non_standard_count');
+        $malePatients = $statsList->sum('male_count');
+        $femalePatients = $statsList->sum('female_count');
+        $targetCount = $target ? $target->target_count : 0;
+        $achievement = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+        $monthlyData = [];
+        foreach ($statsList as $stat) {
+            $monthlyData[$stat->month] = [
+                'target' => (string)$targetCount,
+                'male' => (string)$stat->male_count,
+                'female' => (string)$stat->female_count,
+                'total' => (string)$stat->total_count,
+                'standard' => (string)$stat->standard_count,
+                'non_standard' => (string)$stat->non_standard_count,
+                'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+            ];
+        }
+        return [
+            'target' => $targetCount,
+            'total_patients' => $totalPatients,
+            'achievement_percentage' => $achievement,
+            'standard_patients' => $standardPatients,
+            'non_standard_patients' => $nonStandardPatients,
+            'male_patients' => $malePatients,
+            'female_patients' => $femalePatients,
+            'monthly_data' => $monthlyData
+        ];
     }
 
     public function getHtStatisticsFromCache($puskesmasId, $year, $month = null)
     {
-        // ... salin isi dari StatisticsService::getHtStatisticsFromCache ...
+        $query = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
+            ->where('disease_type', 'ht')
+            ->where('year', $year);
+
+        if ($month !== null) {
+            $query->where('month', $month);
+        }
+
+        $monthlyData = $query->get()->keyBy('month');
+
+        $totalPatients = $monthlyData->sum('total_count');
+        $standardPatients = $monthlyData->sum('standard_count');
+        $nonStandardPatients = $monthlyData->sum('non_standard_count');
+        $malePatients = $monthlyData->sum('male_count');
+        $femalePatients = $monthlyData->sum('female_count');
+
+        $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, 'ht', $year);
+        $yearlyTarget = $target ? (int)$target->target_count : 0;
+        // Build monthly breakdown
+        $monthlyBreakdown = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $data = $monthlyData->get($m);
+            $standard = $data ? (int)$data->standard_count : 0;
+            $monthlyBreakdown[$m] = [
+                'male' => $data ? $data->male_count : 0,
+                'female' => $data ? $data->female_count : 0,
+                'total' => $data ? $data->total_count : 0,
+                'standard' => $standard,
+                'non_standard' => $data ? $data->non_standard_count : 0,
+                'percentage' => $yearlyTarget > 0 ? round(($standard / $yearlyTarget) * 100, 2) : 0
+            ];
+        }
+
+        return [
+            'total_patients' => $totalPatients,
+            'standard_patients' => $standardPatients,
+            'non_standard_patients' => $nonStandardPatients,
+            'male_patients' => $malePatients,
+            'female_patients' => $femalePatients,
+            'monthly_data' => $monthlyBreakdown,
+        ];
     }
 }

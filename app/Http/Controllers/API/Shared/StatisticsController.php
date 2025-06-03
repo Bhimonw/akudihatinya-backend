@@ -45,13 +45,13 @@ class StatisticsController extends Controller
     {
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month ?? null;
-        $diseaseType = $request->type ?? 'all';
+        $diseaseType = $request->disease_type ?? 'all';
         $perPage = $request->per_page ?? 15;
 
         // Validasi nilai disease_type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
-                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+                'message' => 'Parameter disease_type tidak valid. Gunakan all, ht, atau dm.',
             ], 400);
         }
 
@@ -163,51 +163,22 @@ class StatisticsController extends Controller
 
             // Ambil data DM jika diperlukan
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'dm')
-                    ->where('year', $year)
-                    ->first();
-
                 $dmData = $this->statisticsService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
+                $data['dm'] = $dmData;
+            }
 
-                $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
-
-                $data['dm'] = [
-                    'target' => $dmTargetCount,
-                    'total_patients' => $dmData['total_patients'],
-                    'achievement_percentage' => $dmTargetCount > 0
-                        ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
-                        : 0,
-                    'standard_patients' => $dmData['standard_patients'],
-                    'non_standard_patients' => $dmData['non_standard_patients'],
-                    'male_patients' => $dmData['male_patients'],
-                    'female_patients' => $dmData['female_patients'],
-                    'monthly_data' => $dmData['monthly_data'],
-                ];
+            // Hapus field yang tidak perlu
+            if ($diseaseType === 'dm') {
+                unset($data['ht']);
+            }
+            if ($diseaseType === 'ht') {
+                unset($data['dm']);
             }
 
             $statistics[] = $data;
         }
 
-        // Sort by achievement percentage berdasarkan jenis penyakit
-        if ($diseaseType === 'ht') {
-            usort($statistics, function ($a, $b) {
-                return $b['ht']['achievement_percentage'] <=> $a['ht']['achievement_percentage'];
-            });
-        } elseif ($diseaseType === 'dm') {
-            usort($statistics, function ($a, $b) {
-                return $b['dm']['achievement_percentage'] <=> $a['dm']['achievement_percentage'];
-            });
-        } else {
-            // Sort by combined achievement percentage (HT + DM) for ranking
-            usort($statistics, function ($a, $b) {
-                $aTotal = ($a['ht']['achievement_percentage'] ?? 0) + ($a['dm']['achievement_percentage'] ?? 0);
-                $bTotal = ($b['ht']['achievement_percentage'] ?? 0) + ($b['dm']['achievement_percentage'] ?? 0);
-                return $bTotal <=> $aTotal;
-            });
-        }
-
-        // Add ranking
+        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
         foreach ($statistics as $index => $stat) {
             $statistics[$index]['ranking'] = $index + 1;
         }
@@ -245,13 +216,13 @@ class StatisticsController extends Controller
     public function dashboardStatistics(Request $request)
     {
         $year = $request->year ?? Carbon::now()->year;
-        $type = $request->type ?? 'all'; // Default 'all', bisa juga 'ht' atau 'dm'
+        $diseaseType = $request->disease_type ?? 'all'; // Default 'all', bisa juga 'ht' atau 'dm'
         $user = Auth::user();
 
-        // Validasi nilai type
-        if (!in_array($type, ['all', 'ht', 'dm'])) {
+        // Validasi nilai disease_type
+        if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
-                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+                'message' => 'Parameter disease_type tidak valid. Gunakan all, ht, atau dm.',
             ], 400);
         }
 
@@ -275,7 +246,7 @@ class StatisticsController extends Controller
             ];
 
             // Tambahkan data HT jika diperlukan
-            if ($type === 'all' || $type === 'ht') {
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
                 $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
                     ->where('disease_type', 'ht')
                     ->where('year', $year)
@@ -303,7 +274,7 @@ class StatisticsController extends Controller
             }
 
             // Tambahkan data DM jika diperlukan
-            if ($type === 'all' || $type === 'dm') {
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
                 $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
                     ->where('disease_type', 'dm')
                     ->where('year', $year)
@@ -333,25 +304,14 @@ class StatisticsController extends Controller
             $data[] = $puskesmasData;
         }
 
-        // Urutkan data berdasarkan achievement_percentage
-        usort($data, function ($a, $b) use ($type) {
-            $aValue = $type === 'dm' ?
-                ($a['dm']['achievement_percentage'] ?? 0) : ($a['ht']['achievement_percentage'] ?? 0);
-
-            $bValue = $type === 'dm' ?
-                ($b['dm']['achievement_percentage'] ?? 0) : ($b['ht']['achievement_percentage'] ?? 0);
-
-            return $bValue <=> $aValue;
-        });
-
-        // Tambahkan ranking
+        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
         foreach ($data as $index => $item) {
             $data[$index]['ranking'] = $index + 1;
         }
 
         return response()->json([
             'year' => $year,
-            'type' => $type,
+            'disease_type' => $diseaseType,
             'data' => $data
         ]);
     }
@@ -381,12 +341,12 @@ class StatisticsController extends Controller
     {
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month ?? null; // null = laporan tahunan
-        $diseaseType = $request->type ?? 'all'; // Nilai default: 'all', bisa juga 'ht' atau 'dm'
+        $diseaseType = $request->disease_type ?? 'all'; // Nilai default: 'all', bisa juga 'ht' atau 'dm'
 
         // Validasi nilai disease_type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
-                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+                'message' => 'Parameter disease_type tidak valid. Gunakan all, ht, atau dm.',
             ], 400);
         }
 
@@ -516,25 +476,7 @@ class StatisticsController extends Controller
             $statistics[] = $data;
         }
 
-        // Sort by achievement percentage berdasarkan jenis penyakit
-        if ($diseaseType === 'ht') {
-            usort($statistics, function ($a, $b) {
-                return $b['ht']['achievement_percentage'] <=> $a['ht']['achievement_percentage'];
-            });
-        } elseif ($diseaseType === 'dm') {
-            usort($statistics, function ($a, $b) {
-                return $b['dm']['achievement_percentage'] <=> $a['dm']['achievement_percentage'];
-            });
-        } else {
-            // Sort by combined achievement percentage (HT + DM) for ranking
-            usort($statistics, function ($a, $b) {
-                $aTotal = ($a['ht']['achievement_percentage'] ?? 0) + ($a['dm']['achievement_percentage'] ?? 0);
-                $bTotal = ($b['ht']['achievement_percentage'] ?? 0) + ($b['dm']['achievement_percentage'] ?? 0);
-                return $bTotal <=> $aTotal;
-            });
-        }
-
-        // Add ranking
+        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
         foreach ($statistics as $index => $stat) {
             $statistics[$index]['ranking'] = $index + 1;
         }
@@ -592,7 +534,7 @@ class StatisticsController extends Controller
      */
     public function exportHtStatistics(Request $request)
     {
-        $request->merge(['type' => 'ht']);
+        $request->merge(['disease_type' => 'ht']);
         return $this->exportStatistics($request);
     }
 
@@ -601,7 +543,7 @@ class StatisticsController extends Controller
      */
     public function exportDmStatistics(Request $request)
     {
-        $request->merge(['type' => 'dm']);
+        $request->merge(['disease_type' => 'dm']);
         return $this->exportStatistics($request);
     }
 
@@ -612,13 +554,13 @@ class StatisticsController extends Controller
     {
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month ?? Carbon::now()->month;
-        $diseaseType = $request->type ?? 'all';
+        $diseaseType = $request->disease_type ?? 'all';
         $format = $request->format ?? 'excel';
 
         // Validasi parameter
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
-                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+                'message' => 'Parameter disease_type tidak valid. Gunakan all, ht, atau dm.',
             ], 400);
         }
 
@@ -875,12 +817,12 @@ class StatisticsController extends Controller
 
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month; // Optional: null for yearly view, 1-12 for monthly view
-        $diseaseType = $request->type ?? 'all'; // all, ht, dm
+        $diseaseType = $request->disease_type ?? 'all'; // all, ht, dm
 
         // Validate disease type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
-                'message' => 'Parameter type tidak valid. Gunakan all, ht, atau dm.',
+                'message' => 'Parameter disease_type tidak valid. Gunakan all, ht, atau dm.',
             ], 400);
         }
 
@@ -954,16 +896,12 @@ class StatisticsController extends Controller
             if ($diseaseType === 'all' || $diseaseType === 'ht') {
                 // Use cached data if available
                 if (isset($htStats[$p->id])) {
-                    $data['ht'] = $this->processHtCachedStats($htStats[$p->id], $htTargets->get($p->id));
+                    $htArr = $this->processHtCachedStats($htStats[$p->id], $htTargets->get($p->id));
                 } else {
-                    // Fallback to direct calculation if cache not available
                     $htTarget = $htTargets->get($p->id);
                     $htTargetCount = $htTarget ? $htTarget->target_count : 0;
-
-                    // Use shorter function that reads from cache instead of recalculating
                     $htData = $this->getHtStatisticsFromCache($p->id, $year, $month);
-
-                    $data['ht'] = [
+                    $htArr = [
                         'target' => $htTargetCount,
                         'total_patients' => $htData['total_patients'],
                         'achievement_percentage' => $htTargetCount > 0
@@ -976,58 +914,96 @@ class StatisticsController extends Controller
                         'monthly_data' => $htData['monthly_data'],
                     ];
                 }
+                // Format ke string dan monthly_data sesuai permintaan
+                $htArr = [
+                    'target' => (string)($htArr['target'] ?? 0),
+                    'total_patients' => (string)($htArr['total_patients'] ?? 0),
+                    'standard_patients' => (string)($htArr['standard_patients'] ?? 0),
+                    'non_standard_patients' => (string)($htArr['non_standard_patients'] ?? 0),
+                    'male_patients' => (string)($htArr['male_patients'] ?? 0),
+                    'female_patients' => (string)($htArr['female_patients'] ?? 0),
+                    'achievement_percentage' => $htArr['achievement_percentage'] ?? 0,
+                    'monthly_data' => array_map(function ($m) {
+                        return [
+                            'male' => (string)($m['male'] ?? 0),
+                            'female' => (string)($m['female'] ?? 0),
+                            'total' => (string)($m['total'] ?? 0),
+                            'standard' => (string)($m['standard'] ?? 0),
+                            'non_standard' => (string)($m['non_standard'] ?? 0),
+                            'percentage' => isset($m['standard'], $m['target']) && $m['target'] > 0 ? round(($m['standard'] / $m['target']) * 100, 2) : 0,
+                        ];
+                    }, $htArr['monthly_data'] ?? []),
+                ];
+                $data['ht'] = $htArr;
             }
 
             // Get DM data if requested
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
                 // Use cached data if available
                 if (isset($dmStats[$p->id])) {
-                    $data['dm'] = $this->processDmCachedStats($dmStats[$p->id], $dmTargets->get($p->id));
+                    $dmArr = $this->processDmCachedStats($dmStats[$p->id], $dmTargets->get($p->id));
                 } else {
-                    // Fallback to direct calculation if cache not available
                     $dmTarget = $dmTargets->get($p->id);
                     $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
-
-                    // Use shorter function that reads from cache instead of recalculating
                     $dmData = $this->getDmStatisticsFromCache($p->id, $year, $month);
-
-                    $data['dm'] = [
+                    $dmArr = [
                         'target' => $dmTargetCount,
                         'total_patients' => $dmData['total_patients'],
                         'achievement_percentage' => $dmTargetCount > 0
-                            ? round(($dmData['total_standard'] / $dmTargetCount) * 100, 2)
+                            ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
                             : 0,
-                        'standard_patients' => $dmData['total_standard'],
-                        'non_standard_patients' => $dmData['total_patients'] - $dmData['total_standard'],
-                        'male_patients' => $dmData['male_patients'] ?? 0,
-                        'female_patients' => $dmData['female_patients'] ?? 0,
-                        'monthly_data' => $dmData['monthly_data'],
+                        'standard_patients' => $dmData['standard_patients'],
+                        'non_standard_patients' => $dmData['non_standard_patients'],
+                        'male_patients' => $dmData['male_patients'],
+                        'female_patients' => $dmData['female_patients'],
+                        'monthly_data' => array_map(function ($m) use ($dmTargetCount) {
+                            $standard = isset($m['standard']) ? (int)$m['standard'] : 0;
+                            return [
+                                'target' => (string)$dmTargetCount,
+                                'male' => (string)($m['male'] ?? 0),
+                                'female' => (string)($m['female'] ?? 0),
+                                'total' => (string)($m['total'] ?? 0),
+                                'standard' => (string)$standard,
+                                'non_standard' => (string)($m['non_standard'] ?? 0),
+                                'percentage' => $dmTargetCount > 0 ? round($standard / $dmTargetCount * 100, 2) : 0,
+                            ];
+                        }, $dmData['monthly_data'] ?? []),
                     ];
                 }
+                $dmArr = [
+                    'target' => (string)($dmArr['target'] ?? 0),
+                    'total_patients' => (string)($dmArr['total_patients'] ?? 0),
+                    'standard_patients' => (string)($dmArr['standard_patients'] ?? 0),
+                    'non_standard_patients' => (string)($dmArr['non_standard_patients'] ?? 0),
+                    'male_patients' => (string)($dmArr['male_patients'] ?? 0),
+                    'female_patients' => (string)($dmArr['female_patients'] ?? 0),
+                    'achievement_percentage' => $dmArr['achievement_percentage'] ?? 0,
+                    'monthly_data' => array_map(function ($m) {
+                        return [
+                            'male' => (string)($m['male'] ?? 0),
+                            'female' => (string)($m['female'] ?? 0),
+                            'total' => (string)($m['total'] ?? 0),
+                            'standard' => (string)($m['standard'] ?? 0),
+                            'non_standard' => (string)($m['non_standard'] ?? 0),
+                            'percentage' => isset($m['standard'], $m['target']) && $m['target'] > 0 ? round(($m['standard'] / $m['target']) * 100, 2) : 0,
+                        ];
+                    }, $dmArr['monthly_data'] ?? []),
+                ];
+                $data['dm'] = $dmArr;
+            }
+
+            // Hapus field yang tidak perlu
+            if ($diseaseType === 'dm') {
+                unset($data['ht']);
+            }
+            if ($diseaseType === 'ht') {
+                unset($data['dm']);
             }
 
             $statistics[] = $data;
         }
 
-        // Sort statistics based on achievement percentage
-        if ($diseaseType === 'ht') {
-            usort($statistics, function ($a, $b) {
-                return $b['ht']['achievement_percentage'] <=> $a['ht']['achievement_percentage'];
-            });
-        } elseif ($diseaseType === 'dm') {
-            usort($statistics, function ($a, $b) {
-                return $b['dm']['achievement_percentage'] <=> $a['dm']['achievement_percentage'];
-            });
-        } else {
-            // Sort by combined achievement percentage (HT + DM)
-            usort($statistics, function ($a, $b) {
-                $aTotal = ($a['ht']['achievement_percentage'] ?? 0) + ($a['dm']['achievement_percentage'] ?? 0);
-                $bTotal = ($b['ht']['achievement_percentage'] ?? 0) + ($b['dm']['achievement_percentage'] ?? 0);
-                return $bTotal <=> $aTotal;
-            });
-        }
-
-        // Add ranking
+        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
         foreach ($statistics as $index => $stat) {
             $statistics[$index]['ranking'] = $index + 1;
         }
@@ -1038,7 +1014,7 @@ class StatisticsController extends Controller
         // Prepare response with summary data
         $response = [
             'year' => $year,
-            'type' => $diseaseType,
+            'disease_type' => $diseaseType,
             'month' => $month,
             'month_name' => $month ? $this->getMonthName($month) : null,
             'total_puskesmas' => Puskesmas::count(),
@@ -1054,16 +1030,9 @@ class StatisticsController extends Controller
             ],
         ];
 
-        // Add chart data for visualization (from summary)
-        $response['chart_data'] = $this->prepareChartData(
-            $diseaseType,
-            $summary['ht']['monthly_data'] ?? [],
-            $summary['dm']['monthly_data'] ?? []
-        );
-
-        // Add top and bottom performers
-        // This requires getting top and bottom performers from database instead of full puskesmas list
-        $response['rankings'] = $this->getTopAndBottomPuskesmas($year, $diseaseType);
+        // Tambahkan data seluruh puskesmas (tanpa paginasi)
+        $allPuskesmas = Puskesmas::all(['id', 'name']);
+        $response['all_puskesmas'] = $allPuskesmas;
 
         return response()->json($response);
     }
