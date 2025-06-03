@@ -31,75 +31,70 @@ class DmStatisticsService
                 $query->whereYear('examination_date', $year)->orderBy(DB::raw('MONTH(examination_date)'));
             }])
             ->get();
-        $total_patients = $allPatients->count();
-        $male_patients = $allPatients->where('gender', 'male')->count();
-        $female_patients = $allPatients->where('gender', 'female')->count();
+        $cumulativePatientIds = collect();
+        $patientFirstMonth = [];
+        $patientMonthMap = [];
+        foreach ($allPatients as $patient) {
+            $months = $patient->dmExaminations->map(function ($exam) {
+                return Carbon::parse($exam->examination_date)->month;
+            })->unique()->sort()->values();
+            if ($months->isEmpty()) continue;
+            $firstMonth = $months->first();
+            $patientFirstMonth[$patient->id] = $firstMonth;
+            $patientMonthMap[$patient->id] = $months->toArray();
+        }
         for ($m = 1; $m <= 12; $m++) {
-            $monthlyPatients = $allPatients->filter(function ($patient) use ($m) {
-                return $patient->dmExaminations->filter(function ($exam) use ($m) {
-                    return Carbon::parse($exam->examination_date)->month == $m;
+            $activePatients = $allPatients->filter(function ($patient) use ($m, $patientMonthMap) {
+                $months = $patientMonthMap[$patient->id] ?? [];
+                return collect($months)->filter(function ($mon) use ($m) {
+                    return $mon <= $m;
                 })->count() > 0;
-            });
-            $monthly_total = $monthlyPatients->count();
-            $monthly_male = $monthlyPatients->where('gender', 'male')->count();
-            $monthly_female = $monthlyPatients->where('gender', 'female')->count();
+            })->pluck('id');
+            $cumulativePatientIds = $activePatients->merge($cumulativePatientIds)->unique();
+            \Log::debug("DM Kumulatif Bulan $m: ", $cumulativePatientIds->toArray());
+            $monthly_total = $cumulativePatientIds->count();
+            $monthly_male = $allPatients->whereIn('id', $cumulativePatientIds)->where('gender', 'male')->count();
+            $monthly_female = $allPatients->whereIn('id', $cumulativePatientIds)->where('gender', 'female')->count();
             $monthly_standard = 0;
-            foreach ($monthlyPatients as $patient) {
-                $firstExamMonth = $patient->dmExaminations->min(function ($exam) {
-                    return Carbon::parse($exam->examination_date)->month;
-                });
-                if ($firstExamMonth === null) continue;
-                if ($m == $firstExamMonth) {
-                    $monthly_standard++;
-                } else {
-                    $isStandard = true;
-                    for ($checkM = $firstExamMonth; $checkM <= $m; $checkM++) {
-                        $hasExam = $patient->dmExaminations->filter(function ($exam) use ($checkM) {
-                            return Carbon::parse($exam->examination_date)->month == $checkM;
-                        })->count() > 0;
-                        if (!$hasExam) {
-                            $isStandard = false;
-                            break;
-                        }
-                    }
-                    if ($isStandard) {
-                        $monthly_standard++;
+            $monthly_non_standard = 0;
+            $monthly_male_standard = 0;
+            $monthly_female_standard = 0;
+            foreach ($allPatients->whereIn('id', $cumulativePatientIds) as $patient) {
+                $firstMonth = $patientFirstMonth[$patient->id] ?? null;
+                if ($firstMonth === null || $firstMonth > $m) continue;
+                $isStandard = true;
+                for ($checkM = $firstMonth; $checkM <= $m; $checkM++) {
+                    if (!in_array($checkM, $patientMonthMap[$patient->id] ?? [])) {
+                        $isStandard = false;
+                        break;
                     }
                 }
+                if ($isStandard) {
+                    $monthly_standard++;
+                    if ($patient->gender === 'male') $monthly_male_standard++;
+                    if ($patient->gender === 'female') $monthly_female_standard++;
+                } else {
+                    $monthly_non_standard++;
+                }
             }
-            $monthly_non_standard = $monthly_total - $monthly_standard;
             $monthly_percentage = $target > 0 ? round(($monthly_standard / $target) * 100, 2) : 0;
             $monthly_data[$m] = [
                 'target' => (string)$target,
-                'male' => (string)$monthly_male,
-                'female' => (string)$monthly_female,
+                'male' => (string)$monthly_male_standard,
+                'female' => (string)$monthly_female_standard,
                 'total' => (string)$monthly_total,
                 'standard' => (string)$monthly_standard,
                 'non_standard' => (string)$monthly_non_standard,
                 'percentage' => $monthly_percentage,
             ];
         }
-        $standard_patients = 0;
-        foreach ($allPatients as $patient) {
-            $firstExamMonth = $patient->dmExaminations->min(function ($exam) {
-                return Carbon::parse($exam->examination_date)->month;
-            });
-            if ($firstExamMonth === null) continue;
-            $isStandard = true;
-            for ($m = $firstExamMonth; $m <= 12; $m++) {
-                $hasExam = $patient->dmExaminations->filter(function ($exam) use ($m) {
-                    return Carbon::parse($exam->examination_date)->month == $m;
-                })->count() > 0;
-                if (!$hasExam) {
-                    $isStandard = false;
-                    break;
-                }
-            }
-            if ($isStandard) {
-                $standard_patients++;
-            }
-        }
-        $non_standard_patients = $total_patients - $standard_patients;
+        // Summary ambil dari bulan 12
+        $summary_december = $monthly_data[12];
+        $total_patients = (int)$summary_december['total'];
+        $standard_patients = (int)$summary_december['standard'];
+        $non_standard_patients = (int)$summary_december['non_standard'];
+        $male_patients = (int)$summary_december['male'];
+        $female_patients = (int)$summary_december['female'];
         $achievement_percentage = $target > 0 ? round(($standard_patients / $target) * 100, 2) : 0;
         $standard_percentage = $total_patients > 0 ? round(($standard_patients / $total_patients) * 100, 2) : 0;
         return [

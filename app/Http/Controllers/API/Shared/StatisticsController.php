@@ -178,7 +178,22 @@ class StatisticsController extends Controller
             $statistics[] = $data;
         }
 
-        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
+        // Urutkan ranking sesuai disease_type
+        if ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
+            });
+        } elseif ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
+            });
+        } else {
+            usort($statistics, function ($a, $b) {
+                $aTotal = ($a['dm']['achievement_percentage'] ?? 0) + ($a['ht']['achievement_percentage'] ?? 0);
+                $bTotal = ($b['dm']['achievement_percentage'] ?? 0) + ($b['ht']['achievement_percentage'] ?? 0);
+                return $bTotal <=> $aTotal;
+            });
+        }
         foreach ($statistics as $index => $stat) {
             $statistics[$index]['ranking'] = $index + 1;
         }
@@ -476,7 +491,16 @@ class StatisticsController extends Controller
             $statistics[] = $data;
         }
 
-        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
+        // Urutkan ranking DM/HT jika disease_type=dm/ht
+        if ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
+            });
+        } elseif ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
+            });
+        }
         foreach ($statistics as $index => $stat) {
             $statistics[$index]['ranking'] = $index + 1;
         }
@@ -905,10 +929,10 @@ class StatisticsController extends Controller
                         'target' => $htTargetCount,
                         'total_patients' => $htData['total_patients'],
                         'achievement_percentage' => $htTargetCount > 0
-                            ? round(($htData['total_standard'] / $htTargetCount) * 100, 2)
+                            ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
                             : 0,
-                        'standard_patients' => $htData['total_standard'],
-                        'non_standard_patients' => $htData['total_patients'] - $htData['total_standard'],
+                        'standard_patients' => $htData['standard_patients'],
+                        'non_standard_patients' => $htData['total_patients'] - $htData['standard_patients'],
                         'male_patients' => $htData['male_patients'] ?? 0,
                         'female_patients' => $htData['female_patients'] ?? 0,
                         'monthly_data' => $htData['monthly_data'],
@@ -939,37 +963,8 @@ class StatisticsController extends Controller
 
             // Get DM data if requested
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                // Use cached data if available
-                if (isset($dmStats[$p->id])) {
-                    $dmArr = $this->processDmCachedStats($dmStats[$p->id], $dmTargets->get($p->id));
-                } else {
-                    $dmTarget = $dmTargets->get($p->id);
-                    $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
-                    $dmData = $this->getDmStatisticsFromCache($p->id, $year, $month);
-                    $dmArr = [
-                        'target' => $dmTargetCount,
-                        'total_patients' => $dmData['total_patients'],
-                        'achievement_percentage' => $dmTargetCount > 0
-                            ? round(($dmData['standard_patients'] / $dmTargetCount) * 100, 2)
-                            : 0,
-                        'standard_patients' => $dmData['standard_patients'],
-                        'non_standard_patients' => $dmData['non_standard_patients'],
-                        'male_patients' => $dmData['male_patients'],
-                        'female_patients' => $dmData['female_patients'],
-                        'monthly_data' => array_map(function ($m) use ($dmTargetCount) {
-                            $standard = isset($m['standard']) ? (int)$m['standard'] : 0;
-                            return [
-                                'target' => (string)$dmTargetCount,
-                                'male' => (string)($m['male'] ?? 0),
-                                'female' => (string)($m['female'] ?? 0),
-                                'total' => (string)($m['total'] ?? 0),
-                                'standard' => (string)$standard,
-                                'non_standard' => (string)($m['non_standard'] ?? 0),
-                                'percentage' => $dmTargetCount > 0 ? round($standard / $dmTargetCount * 100, 2) : 0,
-                            ];
-                        }, $dmData['monthly_data'] ?? []),
-                    ];
-                }
+                $dmData = $this->statisticsService->getDmStatisticsWithMonthlyBreakdown($p->id, $year, $month);
+                $dmArr = $dmData;
                 $dmArr = [
                     'target' => (string)($dmArr['target'] ?? 0),
                     'total_patients' => (string)($dmArr['total_patients'] ?? 0),
@@ -1003,13 +998,54 @@ class StatisticsController extends Controller
             $statistics[] = $data;
         }
 
-        // Tidak perlu mengurutkan data, ranking diisi sesuai urutan default
+        // Urutkan ranking DM/HT jika disease_type=dm/ht
+        if ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
+            });
+        } elseif ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
+            });
+        }
         foreach ($statistics as $index => $stat) {
             $statistics[$index]['ranking'] = $index + 1;
         }
 
         // Calculate summary data for all puskesmas
         $summary = $this->calculateSummaryStatistics($allPuskesmasIds, $year, $month, $diseaseType);
+
+        // --- PATCH: summary DM ambil dari bulan 12 semua puskesmas di halaman ini ---
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            $dmSummary = [
+                'target' => 0,
+                'total_patients' => 0,
+                'standard_patients' => 0,
+                'non_standard_patients' => 0,
+                'male_patients' => 0,
+                'female_patients' => 0,
+                'achievement_percentage' => 0,
+                'standard_percentage' => 0,
+                'monthly_data' => [],
+            ];
+            $totalTarget = 0;
+            foreach ($statistics as $stat) {
+                if (!isset($stat['dm']['monthly_data'][12])) continue;
+                $dm12 = $stat['dm']['monthly_data'][12];
+                $dmSummary['total_patients'] += (int)$dm12['total'];
+                $dmSummary['standard_patients'] += (int)$dm12['standard'];
+                $dmSummary['non_standard_patients'] += (int)$dm12['non_standard'];
+                $dmSummary['male_patients'] += (int)$dm12['male'];
+                $dmSummary['female_patients'] += (int)$dm12['female'];
+                $totalTarget += (int)($stat['dm']['target'] ?? 0);
+            }
+            $dmSummary['target'] = (string)$totalTarget;
+            $dmSummary['achievement_percentage'] = $totalTarget > 0 ? round(($dmSummary['standard_patients'] / $totalTarget) * 100, 2) : 0;
+            $dmSummary['standard_percentage'] = $dmSummary['total_patients'] > 0 ? round(($dmSummary['standard_patients'] / $dmSummary['total_patients']) * 100, 2) : 0;
+            // monthly_data tetap dari summary lama
+            $dmSummary['monthly_data'] = $summary['dm']['monthly_data'] ?? [];
+            $summary['dm'] = $dmSummary;
+        }
 
         // Prepare response with summary data
         $response = [
