@@ -69,12 +69,12 @@ class StatisticsController extends Controller
         $puskesmasQuery = Puskesmas::query();
 
         // Jika ada filter nama puskesmas (hanya untuk admin)
-        if (Auth::user()->is_admin && $request->has('name')) {
+        if (Auth::user()->isAdmin() && $request->has('name')) {
             $puskesmasQuery->where('name', 'like', '%' . $request->name . '%');
         }
 
         // Jika user bukan admin, filter data ke puskesmas user
-        if (!Auth::user()->is_admin) {
+        if (!Auth::user()->isAdmin()) {
             $userPuskesmas = Auth::user()->puskesmas_id;
             if ($userPuskesmas) {
                 $puskesmasQuery->where('id', $userPuskesmas);
@@ -128,57 +128,111 @@ class StatisticsController extends Controller
             ]);
         }
 
+        // OPTIMASI: Ambil semua cache statistik bulanan sekaligus
+        $puskesmasIds = $puskesmasAll->pluck('id')->toArray();
+        $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get();
+        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
+        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
         $statistics = [];
-
         foreach ($puskesmasAll as $puskesmas) {
             $data = [
                 'puskesmas_id' => $puskesmas->id,
                 'puskesmas_name' => $puskesmas->name,
             ];
-
-            // Ambil data HT jika diperlukan
             if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                $htArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
                     ->where('disease_type', 'ht')
                     ->where('year', $year)
                     ->first();
-
-                $htData = $this->statisticsService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
-
-                $htTargetCount = $htTarget ? $htTarget->target_count : 0;
-
-                $data['ht'] = [
-                    'target' => $htTargetCount,
-                    'total_patients' => $htData['total_patients'],
-                    'achievement_percentage' => $htTargetCount > 0
-                        ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
-                        : 0,
-                    'standard_patients' => $htData['standard_patients'],
-                    'non_standard_patients' => $htData['non_standard_patients'],
-                    'male_patients' => $htData['male_patients'],
-                    'female_patients' => $htData['female_patients'],
-                    'monthly_data' => $htData['monthly_data'],
-                ];
+                $targetCount = $target ? $target->target_count : 0;
+                $htArr['target'] = $targetCount;
+                if (isset($htStats[$puskesmas->id])) {
+                    $totalPatients = $htStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $htStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $htStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $htStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $htStats[$puskesmas->id]->sum('female_count');
+                    $htArr['total_patients'] = $totalPatients;
+                    $htArr['standard_patients'] = $standardPatients;
+                    $htArr['non_standard_patients'] = $nonStandardPatients;
+                    $htArr['male_patients'] = $malePatients;
+                    $htArr['female_patients'] = $femalePatients;
+                    $htArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($htStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $htArr['monthly_data'] = $monthlyData;
+                }
+                $data['ht'] = $htArr;
             }
-
-            // Ambil data DM jika diperlukan
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dmData = $this->statisticsService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
-                $data['dm'] = $dmData;
+                $dmArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $dmArr['target'] = $targetCount;
+                if (isset($dmStats[$puskesmas->id])) {
+                    $totalPatients = $dmStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $dmStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $dmStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $dmStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $dmStats[$puskesmas->id]->sum('female_count');
+                    $dmArr['total_patients'] = $totalPatients;
+                    $dmArr['standard_patients'] = $standardPatients;
+                    $dmArr['non_standard_patients'] = $nonStandardPatients;
+                    $dmArr['male_patients'] = $malePatients;
+                    $dmArr['female_patients'] = $femalePatients;
+                    $dmArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($dmStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $dmArr['monthly_data'] = $monthlyData;
+                }
+                $data['dm'] = $dmArr;
             }
-
-            // Hapus field yang tidak perlu
-            if ($diseaseType === 'dm') {
-                unset($data['ht']);
-            }
-            if ($diseaseType === 'ht') {
-                unset($data['dm']);
-            }
-
             $statistics[] = $data;
         }
 
-        // Urutkan ranking sesuai disease_type
+        // Urutkan ranking DM/HT jika disease_type=dm/ht
         if ($diseaseType === 'dm') {
             usort($statistics, function ($a, $b) {
                 return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
@@ -186,12 +240,6 @@ class StatisticsController extends Controller
         } elseif ($diseaseType === 'ht') {
             usort($statistics, function ($a, $b) {
                 return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
-            });
-        } else {
-            usort($statistics, function ($a, $b) {
-                $aTotal = ($a['dm']['achievement_percentage'] ?? 0) + ($a['ht']['achievement_percentage'] ?? 0);
-                $bTotal = ($b['dm']['achievement_percentage'] ?? 0) + ($b['ht']['achievement_percentage'] ?? 0);
-                return $bTotal <=> $aTotal;
             });
         }
         foreach ($statistics as $index => $stat) {
@@ -245,7 +293,7 @@ class StatisticsController extends Controller
         $puskesmasQuery = Puskesmas::query();
 
         // Filter berdasarkan role
-        if (!$user->isAdmin()) {
+        if (!Auth::user()->isAdmin()) {
             $puskesmasQuery->where('id', $user->puskesmas_id);
         }
 
@@ -387,7 +435,7 @@ class StatisticsController extends Controller
         $puskesmasQuery = Puskesmas::query();
 
         // Jika ada filter nama puskesmas (hanya untuk admin)
-        if (Auth::user()->is_admin && $request->has('name')) {
+        if (Auth::user()->isAdmin() && $request->has('name')) {
             $puskesmasQuery->where('name', 'like', '%' . $request->name . '%');
         }
 
@@ -396,7 +444,7 @@ class StatisticsController extends Controller
         // - User hanya dapat mencetak data miliknya sendiri
 
         // Jika user bukan admin, HARUS filter data ke puskesmas user
-        if (!Auth::user()->is_admin) {
+        if (!Auth::user()->isAdmin()) {
             $userPuskesmas = Auth::user()->puskesmas_id;
             if ($userPuskesmas) {
                 $puskesmasQuery->where('id', $userPuskesmas);
@@ -409,7 +457,7 @@ class StatisticsController extends Controller
         }
 
         // Cek apakah ini permintaan rekap (hanya untuk admin)
-        $isRecap = Auth::user()->is_admin && (!$request->has('puskesmas_id') || $puskesmasQuery->count() > 1);
+        $isRecap = Auth::user()->isAdmin() && (!$request->has('puskesmas_id') || $puskesmasQuery->count() > 1);
 
         $puskesmasAll = $puskesmasQuery->get();
 
@@ -418,91 +466,6 @@ class StatisticsController extends Controller
             return response()->json([
                 'message' => 'Tidak ada data puskesmas yang sesuai dengan filter.',
             ], 404);
-        }
-
-        $statistics = [];
-
-        foreach ($puskesmasAll as $puskesmas) {
-            $data = [
-                'puskesmas_id' => $puskesmas->id,
-                'puskesmas_name' => $puskesmas->name,
-            ];
-
-            // Ambil data HT jika diperlukan
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $htTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'ht')
-                    ->where('year', $year)
-                    ->first();
-
-                $htData = $this->statisticsService->getHtStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
-
-                // Jika filter bulan digunakan, kalkulasi persentase pencapaian berdasarkan target bulanan
-                $htTargetCount = $htTarget ? $htTarget->target_count : 0;
-                if ($month !== null && $htTargetCount > 0) {
-                    // Perkiraan target bulanan = target tahunan / 12
-                    $htTargetCount = ceil($htTargetCount / 12);
-                }
-
-                $data['ht'] = [
-                    'target' => $htTargetCount,
-                    'total_patients' => $htData['total_patients'],
-                    'achievement_percentage' => $htTargetCount > 0
-                        ? round(($htData['total_patients'] / $htTargetCount) * 100, 2)
-                        : 0,
-                    'standard_patients' => $htData['standard_patients'],
-                    'non_standard_patients' => $htData['non_standard_patients'],
-                    'male_patients' => $htData['male_patients'],
-                    'female_patients' => $htData['female_patients'],
-                    'monthly_data' => $htData['monthly_data'],
-                ];
-            }
-
-            // Ambil data DM jika diperlukan
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dmTarget = YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'dm')
-                    ->where('year', $year)
-                    ->first();
-
-                $dmData = $this->statisticsService->getDmStatisticsWithMonthlyBreakdown($puskesmas->id, $year, $month);
-
-                // Jika filter bulan digunakan, kalkulasi persentase pencapaian berdasarkan target bulanan
-                $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
-                if ($month !== null && $dmTargetCount > 0) {
-                    // Perkiraan target bulanan = target tahunan / 12
-                    $dmTargetCount = ceil($dmTargetCount / 12);
-                }
-
-                $data['dm'] = [
-                    'target' => $dmTargetCount,
-                    'total_patients' => $dmData['total_patients'],
-                    'achievement_percentage' => $dmTargetCount > 0
-                        ? round(($dmData['total_patients'] / $dmTargetCount) * 100, 2)
-                        : 0,
-                    'standard_patients' => $dmData['standard_patients'],
-                    'non_standard_patients' => $dmData['non_standard_patients'],
-                    'male_patients' => $dmData['male_patients'],
-                    'female_patients' => $dmData['female_patients'],
-                    'monthly_data' => $dmData['monthly_data'],
-                ];
-            }
-
-            $statistics[] = $data;
-        }
-
-        // Urutkan ranking DM/HT jika disease_type=dm/ht
-        if ($diseaseType === 'dm') {
-            usort($statistics, function ($a, $b) {
-                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
-            });
-        } elseif ($diseaseType === 'ht') {
-            usort($statistics, function ($a, $b) {
-                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
-            });
-        }
-        foreach ($statistics as $index => $stat) {
-            $statistics[$index]['ranking'] = $index + 1;
         }
 
         // Buat nama file
@@ -518,7 +481,7 @@ class StatisticsController extends Controller
         }
 
         // Tambahkan prefix "rekap" jika ini adalah rekap (untuk admin)
-        if (Auth::user()->is_admin && $isRecap) {
+        if (Auth::user()->isAdmin() && $isRecap) {
             $filename .= "rekap_";
         }
 
@@ -536,10 +499,10 @@ class StatisticsController extends Controller
 
         // Jika user bukan admin ATAU admin yang mencetak laporan spesifik puskesmas,
         // tambahkan nama puskesmas pada filename
-        if (!Auth::user()->is_admin) {
+        if (!Auth::user()->isAdmin()) {
             $puskesmasName = Puskesmas::find(Auth::user()->puskesmas_id)->name ?? '';
             $filename .= "_" . str_replace(' ', '_', strtolower($puskesmasName));
-        } elseif (Auth::user()->is_admin && !$isRecap) {
+        } elseif (Auth::user()->isAdmin() && !$isRecap) {
             // Admin mencetak laporan untuk satu puskesmas spesifik
             $puskesmasName = $puskesmasAll->first()->name ?? '';
             $filename .= "_" . str_replace(' ', '_', strtolower($puskesmasName));
@@ -547,9 +510,9 @@ class StatisticsController extends Controller
 
         // Proses export sesuai format
         if ($format === 'pdf') {
-            return $this->exportToPdf($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+            return $this->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
         } else {
-            return $this->exportToExcel($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+            return $this->exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
         }
     }
 
@@ -598,7 +561,7 @@ class StatisticsController extends Controller
         $puskesmasQuery = Puskesmas::query();
 
         // User bukan admin hanya bisa lihat puskesmasnya sendiri
-        if (!Auth::user()->is_admin) {
+        if (!Auth::user()->isAdmin()) {
             $userPuskesmas = Auth::user()->puskesmas_id;
             if ($userPuskesmas) {
                 $puskesmasQuery->where('id', $userPuskesmas);
@@ -643,17 +606,17 @@ class StatisticsController extends Controller
     /**
      * Export laporan statistik ke format PDF menggunakan Dompdf
      */
-    protected function exportToPdf($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
+    protected function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
     {
-        return $this->exportService->exportToPdf($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+        return $this->exportService->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
     }
 
     /**
      * Export laporan statistik ke format Excel menggunakan PhpSpreadsheet
      */
-    protected function exportToExcel($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
+    protected function exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
     {
-        return $this->exportService->exportToExcel($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+        return $this->exportService->exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
     }
 
     /**

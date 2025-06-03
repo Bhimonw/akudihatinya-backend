@@ -23,7 +23,7 @@ class PuskesmasRepository
 
     public function filterByUser($user)
     {
-        if ($user->is_admin) {
+        if ($user->isAdmin()) {
             return Puskesmas::query();
         }
         return Puskesmas::where('id', $user->puskesmas_id);

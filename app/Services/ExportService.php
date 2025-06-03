@@ -230,8 +230,111 @@ class ExportService
         return $data;
     }
 
-    public function exportToPdf($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
+    public function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
     {
+        // Ambil semua cache statistik bulanan sekaligus
+        $puskesmasIds = $puskesmasAll->pluck('id')->toArray();
+        $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get();
+        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
+        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
+        $statistics = [];
+        foreach ($puskesmasAll as $puskesmas) {
+            $data = [
+                'puskesmas_id' => $puskesmas->id,
+                'puskesmas_name' => $puskesmas->name,
+            ];
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $htArr['target'] = $targetCount;
+                if (isset($htStats[$puskesmas->id])) {
+                    $totalPatients = $htStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $htStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $htStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $htStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $htStats[$puskesmas->id]->sum('female_count');
+                    $htArr['total_patients'] = $totalPatients;
+                    $htArr['standard_patients'] = $standardPatients;
+                    $htArr['non_standard_patients'] = $nonStandardPatients;
+                    $htArr['male_patients'] = $malePatients;
+                    $htArr['female_patients'] = $femalePatients;
+                    $htArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($htStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $htArr['monthly_data'] = $monthlyData;
+                }
+                $data['ht'] = $htArr;
+            }
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $dmArr['target'] = $targetCount;
+                if (isset($dmStats[$puskesmas->id])) {
+                    $totalPatients = $dmStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $dmStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $dmStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $dmStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $dmStats[$puskesmas->id]->sum('female_count');
+                    $dmArr['total_patients'] = $totalPatients;
+                    $dmArr['standard_patients'] = $standardPatients;
+                    $dmArr['non_standard_patients'] = $nonStandardPatients;
+                    $dmArr['male_patients'] = $malePatients;
+                    $dmArr['female_patients'] = $femalePatients;
+                    $dmArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($dmStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $dmArr['monthly_data'] = $monthlyData;
+                }
+                $data['dm'] = $dmArr;
+            }
+            $statistics[] = $data;
+        }
         $title = "";
         $reportTypeLabel = $reportType === "laporan_tahunan"
             ? "Laporan Tahunan"
@@ -272,6 +375,10 @@ class ExportService
         ];
         $pdf = PDF::loadView('exports.statistics_pdf', $data);
         $pdf->setPaper('a4', 'landscape');
+        $exportPath = storage_path('app/public/exports');
+        if (!file_exists($exportPath)) {
+            mkdir($exportPath, 0755, true);
+        }
         $pdfFilename = $filename . '.pdf';
         \Storage::put('public/exports/' . $pdfFilename, $pdf->output());
         return \response()->download(storage_path('app/public/exports/' . $pdfFilename), $pdfFilename, [
@@ -279,8 +386,111 @@ class ExportService
         ])->deleteFileAfterSend(true);
     }
 
-    public function exportToExcel($statistics, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
+    public function exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
     {
+        // Ambil semua cache statistik bulanan sekaligus
+        $puskesmasIds = $puskesmasAll->pluck('id')->toArray();
+        $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get();
+        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
+        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
+        $statistics = [];
+        foreach ($puskesmasAll as $puskesmas) {
+            $data = [
+                'puskesmas_id' => $puskesmas->id,
+                'puskesmas_name' => $puskesmas->name,
+            ];
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $htArr['target'] = $targetCount;
+                if (isset($htStats[$puskesmas->id])) {
+                    $totalPatients = $htStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $htStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $htStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $htStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $htStats[$puskesmas->id]->sum('female_count');
+                    $htArr['total_patients'] = $totalPatients;
+                    $htArr['standard_patients'] = $standardPatients;
+                    $htArr['non_standard_patients'] = $nonStandardPatients;
+                    $htArr['male_patients'] = $malePatients;
+                    $htArr['female_patients'] = $femalePatients;
+                    $htArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($htStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $htArr['monthly_data'] = $monthlyData;
+                }
+                $data['ht'] = $htArr;
+            }
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $dmArr['target'] = $targetCount;
+                if (isset($dmStats[$puskesmas->id])) {
+                    $totalPatients = $dmStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $dmStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $dmStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $dmStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $dmStats[$puskesmas->id]->sum('female_count');
+                    $dmArr['total_patients'] = $totalPatients;
+                    $dmArr['standard_patients'] = $standardPatients;
+                    $dmArr['non_standard_patients'] = $nonStandardPatients;
+                    $dmArr['male_patients'] = $malePatients;
+                    $dmArr['female_patients'] = $femalePatients;
+                    $dmArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($dmStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $dmArr['monthly_data'] = $monthlyData;
+                }
+                $data['dm'] = $dmArr;
+            }
+            $statistics[] = $data;
+        }
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $reportTypeLabel = $reportType === "laporan_tahunan"
@@ -358,6 +568,13 @@ class ExportService
         $sheet->getStyle($headerRange)->getAlignment()
             ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
             ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        // Tambahkan ranking jika isRecap
+        if ($isRecap) {
+            foreach ($statistics as $i => &$stat) {
+                $stat['ranking'] = $i + 1;
+            }
+            unset($stat);
+        }
         foreach ($statistics as $index => $stat) {
             $row++;
             if ($isRecap) {
@@ -394,9 +611,13 @@ class ExportService
                 $this->addMonthlyDataSheet($spreadsheet, $statistics, 'dm', $year, $isRecap);
             }
         }
+        $exportPath = storage_path('app/public/exports');
+        if (!file_exists($exportPath)) {
+            mkdir($exportPath, 0755, true);
+        }
         $writer = new Xlsx($spreadsheet);
         $excelFilename = $filename . '.xlsx';
-        $path = storage_path('app/public/exports/' . $excelFilename);
+        $path = $exportPath . '/' . $excelFilename;
         $writer->save($path);
         return \response()->download($path, $excelFilename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -441,6 +662,10 @@ class ExportService
         ];
         $pdf = PDF::loadView('exports.monitoring_pdf', $data);
         $pdf->setPaper('a4', 'landscape');
+        $exportPath = storage_path('app/public/exports');
+        if (!file_exists($exportPath)) {
+            mkdir($exportPath, 0755, true);
+        }
         $pdfFilename = $filename . '.pdf';
         \Storage::put('public/exports/' . $pdfFilename, $pdf->output());
         return \response()->download(storage_path('app/public/exports/' . $pdfFilename), $pdfFilename, [
@@ -453,9 +678,13 @@ class ExportService
         $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
         $spreadsheet = new Spreadsheet();
         $this->createMonitoringSheet($spreadsheet, $patientData, $puskesmas, $year, $month, $diseaseType, $daysInMonth);
+        $exportPath = storage_path('app/public/exports');
+        if (!file_exists($exportPath)) {
+            mkdir($exportPath, 0755, true);
+        }
         $writer = new Xlsx($spreadsheet);
         $excelFilename = $filename . '.xlsx';
-        $path = storage_path('app/public/exports/' . $excelFilename);
+        $path = $exportPath . '/' . $excelFilename;
         $writer->save($path);
         return \response()->download($path, $excelFilename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
