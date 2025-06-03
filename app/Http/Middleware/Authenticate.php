@@ -7,16 +7,17 @@ use Illuminate\Auth\Middleware\Authenticate as Middleware;
 class Authenticate extends Middleware
 {
     /**
-     * Get the path the user should be redirected to when not authenticated.
+     * Override: Return JSON response if unauthenticated (expired token, dsb)
      */
-    protected function redirectTo($request): ?string
+    protected function unauthenticated($request, array $guards)
     {
-        if ($request->expectsJson()) {
-            return response()->json([
-                'message' => 'Unauthenticated.',
-            ], 401);
-        }
+        abort(response()->json([
+            'message' => 'Unauthenticated.',
+        ], 401));
+    }
 
+    protected function redirectTo($request)
+    {
         return null;
     }
 }
