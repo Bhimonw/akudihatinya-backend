@@ -9,6 +9,7 @@ use App\Observers\HtExaminationObserver;
 use App\Observers\DmExaminationObserver;
 use App\Services\StatisticsCacheService;
 use App\Services\ArchiveService;
+use App\Formatters\AdminMonthlyFormatter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ArchiveService::class, function ($app) {
             return new ArchiveService();
+        });
+
+        // Register formatters
+        $this->app->singleton(AdminMonthlyFormatter::class, function ($app) {
+            return new AdminMonthlyFormatter($app->make(\App\Services\StatisticsService::class));
         });
     }
 

@@ -18,17 +18,23 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Formatters\AdminAllFormatter;
+use App\Formatters\AdminMonthlyFormatter;
 use App\Services\StatisticsService;
 
 class ExportService
 {
     protected $statisticsService;
     protected $adminAllFormatter;
+    protected $adminMonthlyFormatter;
 
-    public function __construct(StatisticsService $statisticsService, AdminAllFormatter $adminAllFormatter)
-    {
+    public function __construct(
+        StatisticsService $statisticsService,
+        AdminAllFormatter $adminAllFormatter,
+        AdminMonthlyFormatter $adminMonthlyFormatter
+    ) {
         $this->statisticsService = $statisticsService;
         $this->adminAllFormatter = $adminAllFormatter;
+        $this->adminMonthlyFormatter = $adminMonthlyFormatter;
     }
 
     /**
@@ -245,13 +251,18 @@ class ExportService
 
     public function exportToExcel($diseaseType, $year, $puskesmasId = null, $tableType = 'all')
     {
-        // Load template
-        $templatePath = base_path('resources/views/exports/formatLaporanAkudihatinya/all.xlsx');
+        // Load template based on table type
+        $templatePath = base_path('resources/views/exports/formatLaporanAkudihatinya/' .
+            ($tableType === 'monthly' ? 'monthly.xlsx' : 'all.xlsx'));
         $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
         $spreadsheet = $reader->load($templatePath);
 
-        // Format using AdminAllFormatter
-        $spreadsheet = $this->adminAllFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+        // Choose formatter based on table type
+        if ($tableType === 'monthly') {
+            $spreadsheet = $this->adminMonthlyFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+        } else {
+            $spreadsheet = $this->adminAllFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+        }
 
         // Save and return
         $filename = "laporan_" . ($diseaseType === 'all' ? 'ht_dm' : $diseaseType) . "_" . $year;
@@ -259,7 +270,7 @@ class ExportService
             $puskesmas = Puskesmas::find($puskesmasId);
             $filename .= "_" . str_replace(' ', '_', strtolower($puskesmas->name));
         }
-        $filename .= ".xlsx";
+        $filename .= "_" . $tableType . ".xlsx";
 
         $exportPath = storage_path('app/public/exports/' . $filename);
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
