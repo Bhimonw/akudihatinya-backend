@@ -88,19 +88,66 @@ class AdminAllFormatter
 
     protected function formatData($data)
     {
+        $totals = [
+            'target' => 0,
+            'monthly_data' => array_fill(1, 12, [
+                'male' => 0,
+                'female' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'total' => 0,
+                'percentage' => 0
+            ])
+        ];
+
+        // First pass: calculate total target and standard patients
+        foreach ($data['data'] as $puskesmasData) {
+            $diseaseData = $puskesmasData[$data['type']] ?? [];
+            $totals['target'] += $diseaseData['target'] ?? 0;
+
+            if (isset($diseaseData['monthly_data'])) {
+                foreach ($diseaseData['monthly_data'] as $month => $monthData) {
+                    $totals['monthly_data'][$month]['male'] += $monthData['male'] ?? 0;
+                    $totals['monthly_data'][$month]['female'] += $monthData['female'] ?? 0;
+                    $totals['monthly_data'][$month]['standard'] += $monthData['standard'] ?? 0;
+                    $totals['monthly_data'][$month]['non_standard'] += $monthData['non_standard'] ?? 0;
+                    $totals['monthly_data'][$month]['total'] += $monthData['total'] ?? 0;
+                }
+            }
+        }
+
+        // Calculate percentages based on aggregated totals
+        foreach ($totals['monthly_data'] as $month => &$monthData) {
+            $monthData['percentage'] = $totals['target'] > 0
+                ? round(($monthData['standard'] / $totals['target']) * 100, 2)
+                : 0;
+        }
+
+        // Second pass: format individual puskesmas data
         foreach ($data['data'] as $index => $puskesmasData) {
             $this->sheet->setCellValue('A' . $this->currentRow, $index + 1); // Nomor
             $this->sheet->setCellValue('B' . $this->currentRow, $puskesmasData['puskesmas_name']); // Nama Puskesmas
             $diseaseData = $puskesmasData[$data['type']] ?? [];
             $this->sheet->setCellValue('C' . $this->currentRow, $diseaseData['target'] ?? 0); // Sasaran
+
             $this->formatMonthlyAndQuarterlyData($diseaseData['monthly_data'] ?? []);
             $this->formatYearlyAchievement($diseaseData);
             $this->currentRow++;
         }
-        // Setelah data, pastikan baris berikutnya kosong hingga baris 34
-        while ($this->currentRow < 34) {
-            $this->currentRow++;
-        }
+
+        // Add total row at row 34
+        $this->currentRow = 34;
+        $this->sheet->setCellValue('A' . $this->currentRow, 'Total');
+        $this->sheet->setCellValue('B' . $this->currentRow, '');
+        $this->sheet->setCellValue('C' . $this->currentRow, $totals['target']);
+
+        $this->formatMonthlyAndQuarterlyData($totals['monthly_data']);
+        $this->formatYearlyAchievement(['monthly_data' => $totals['monthly_data']]);
+
+        // Apply bold style to total row
+        $this->sheet->getStyle('A' . $this->currentRow . ':' . $this->sheet->getHighestColumn() . $this->currentRow)
+            ->getFont()
+            ->setBold(true);
     }
 
     protected function formatMonthlyAndQuarterlyData($monthlyData)
@@ -191,14 +238,14 @@ class AdminAllFormatter
         $this->sheet->setCellValue($yearlyColumns[1] . $this->currentRow, $lastMonthData['female']);    // P (Perempuan Standar)
         $this->sheet->setCellValue($yearlyColumns[2] . $this->currentRow, $lastMonthData['standard']);  // Total (Total Standar)
         $this->sheet->setCellValue($yearlyColumns[3] . $this->currentRow, $lastMonthData['non_standard']); // TS (Tidak Standar)
-        $this->sheet->setCellValue($yearlyColumns[4] . $this->currentRow, $lastMonthData['total']);     // Total Pasien (dari bulan terakhir)
+        $this->sheet->setCellValue($yearlyColumns[4] . $this->currentRow, $lastMonthData['total']);     // Total Pasien
         $this->sheet->setCellValue($yearlyColumns[5] . $this->currentRow, $lastMonthData['percentage']); // Persentase Tahunan (tanpa %)
     }
 
     protected function applyStyles()
     {
         // Apply number format to all numeric cells
-        $numericRange = 'D9:' . $this->sheet->getHighestColumn() . $this->currentRow;
+        $numericRange = 'D9:CC' . $this->currentRow;
         $this->sheet->getStyle($numericRange)->getNumberFormat()->setFormatCode('#,##0');
 
         // Apply percentage format to percentage columns
@@ -228,16 +275,28 @@ class AdminAllFormatter
                 ->setFormatCode('0.00"%"');
         }
 
-        // Apply borders
-        $this->sheet->getStyle('A9:' . $this->sheet->getHighestColumn() . $this->currentRow)
+        // Apply borders only up to column CC
+        $this->sheet->getStyle('A9:CC' . $this->currentRow)
             ->getBorders()
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
 
-        // Center align all cells
-        $this->sheet->getStyle('A9:' . $this->sheet->getHighestColumn() . $this->currentRow)
+        // Center align all cells up to column CC
+        $this->sheet->getStyle('A9:CC' . $this->currentRow)
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER)
             ->setVertical(Alignment::VERTICAL_CENTER);
+
+        // Clear any data after column CC
+        $highestColumn = $this->sheet->getHighestColumn();
+        if ($highestColumn > 'CC') {
+            $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+            $ccColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('CC');
+            $columnsToRemove = $highestColumnIndex - $ccColumnIndex;
+
+            if ($columnsToRemove > 0) {
+                $this->sheet->removeColumn('CD', $columnsToRemove);
+            }
+        }
     }
 }
