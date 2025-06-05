@@ -20,21 +20,25 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Formatters\AdminAllFormatter;
 use App\Formatters\AdminMonthlyFormatter;
 use App\Services\StatisticsService;
+use App\Formatters\AdminQuarterlyFormatter;
 
 class ExportService
 {
     protected $statisticsService;
     protected $adminAllFormatter;
     protected $adminMonthlyFormatter;
+    protected $adminQuarterlyFormatter;
 
     public function __construct(
         StatisticsService $statisticsService,
         AdminAllFormatter $adminAllFormatter,
-        AdminMonthlyFormatter $adminMonthlyFormatter
+        AdminMonthlyFormatter $adminMonthlyFormatter,
+        AdminQuarterlyFormatter $adminQuarterlyFormatter
     ) {
         $this->statisticsService = $statisticsService;
         $this->adminAllFormatter = $adminAllFormatter;
         $this->adminMonthlyFormatter = $adminMonthlyFormatter;
+        $this->adminQuarterlyFormatter = $adminQuarterlyFormatter;
     }
 
     /**
@@ -249,34 +253,48 @@ class ExportService
         ])->deleteFileAfterSend(true);
     }
 
-    public function exportToExcel($diseaseType, $year, $puskesmasId = null, $tableType = 'all')
+    public function exportToExcel($diseaseType = 'dm', $year, $puskesmasId = null, $tableType = 'all')
     {
-        // Load template based on table type
-        $templatePath = base_path('resources/views/exports/formatLaporanAkudihatinya/' .
-            ($tableType === 'monthly' ? 'monthly.xlsx' : 'all.xlsx'));
-        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
-        $spreadsheet = $reader->load($templatePath);
+        // Ensure disease type is 'dm' if not specified or invalid
+        $diseaseType = in_array($diseaseType, ['dm', 'ht']) ? $diseaseType : 'dm';
 
-        // Choose formatter based on table type
-        if ($tableType === 'monthly') {
-            $spreadsheet = $this->adminMonthlyFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
-        } else {
-            $spreadsheet = $this->adminAllFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+        // Load the appropriate template based on table type
+        $templatePath = resource_path('templates/');
+        $templateFile = match ($tableType) {
+            'monthly' => 'monthly.xlsx',
+            'quarterly' => 'quarterly.xlsx',
+            default => 'all.xlsx'
+        };
+        $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($templatePath . $templateFile);
+
+        // Pilih formatter sesuai tableType
+        $formatter = match ($tableType) {
+            'monthly' => $this->adminMonthlyFormatter,
+            'quarterly' => $this->adminQuarterlyFormatter,
+            default => $this->adminAllFormatter
+        };
+        $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+
+        // Generate filename
+        $filename = sprintf(
+            'laporan_%s_%d_%s.xlsx',
+            $diseaseType,
+            $year,
+            $tableType
+        );
+
+        // Create reports directory if it doesn't exist
+        $reportsPath = storage_path('app/public/reports');
+        if (!is_dir($reportsPath)) {
+            mkdir($reportsPath, 0755, true);
         }
 
-        // Save and return
-        $filename = "laporan_" . ($diseaseType === 'all' ? 'ht_dm' : $diseaseType) . "_" . $year;
-        if ($puskesmasId) {
-            $puskesmas = Puskesmas::find($puskesmasId);
-            $filename .= "_" . str_replace(' ', '_', strtolower($puskesmas->name));
-        }
-        $filename .= "_" . $tableType . ".xlsx";
-
-        $exportPath = storage_path('app/public/exports/' . $filename);
+        // Save file
+        $finalPath = $reportsPath . DIRECTORY_SEPARATOR . $filename;
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $writer->save($exportPath);
+        $writer->save($finalPath);
 
-        return response()->download($exportPath)->deleteFileAfterSend(true);
+        return response()->download($finalPath)->deleteFileAfterSend(true);
     }
 
     private function applyExcelStyles($sheet, $lastRow)

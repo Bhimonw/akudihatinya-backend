@@ -10,6 +10,12 @@ use App\Observers\DmExaminationObserver;
 use App\Services\StatisticsCacheService;
 use App\Services\ArchiveService;
 use App\Formatters\AdminMonthlyFormatter;
+use App\Formatters\AdminQuarterlyFormatter;
+use App\Services\StatisticsService;
+use App\Formatters\AdminAllFormatter;
+use App\Services\DiseaseStatisticsService;
+use App\Repositories\PuskesmasRepository;
+use App\Repositories\YearlyTargetRepository;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -18,6 +24,31 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Register repositories first
+        $this->app->singleton(PuskesmasRepository::class, function ($app) {
+            return new PuskesmasRepository();
+        });
+
+        $this->app->singleton(YearlyTargetRepository::class, function ($app) {
+            return new YearlyTargetRepository();
+        });
+
+        // Register DiseaseStatisticsService with its dependency
+        $this->app->singleton(DiseaseStatisticsService::class, function ($app) {
+            return new DiseaseStatisticsService(
+                $app->make(YearlyTargetRepository::class)
+            );
+        });
+
+        // Register StatisticsService with all required dependencies
+        $this->app->singleton(StatisticsService::class, function ($app) {
+            return new StatisticsService(
+                $app->make(PuskesmasRepository::class),
+                $app->make(YearlyTargetRepository::class),
+                $app->make(DiseaseStatisticsService::class)
+            );
+        });
+
         // Register services
         $this->app->singleton(StatisticsCacheService::class, function ($app) {
             return new StatisticsCacheService();
@@ -27,9 +58,17 @@ class AppServiceProvider extends ServiceProvider
             return new ArchiveService();
         });
 
-        // Register formatters
+        // Register formatters with StatisticsService dependency
+        $this->app->singleton(AdminAllFormatter::class, function ($app) {
+            return new AdminAllFormatter($app->make(StatisticsService::class));
+        });
+
         $this->app->singleton(AdminMonthlyFormatter::class, function ($app) {
-            return new AdminMonthlyFormatter($app->make(\App\Services\StatisticsService::class));
+            return new AdminMonthlyFormatter($app->make(StatisticsService::class));
+        });
+
+        $this->app->singleton(AdminQuarterlyFormatter::class, function ($app) {
+            return new AdminQuarterlyFormatter($app->make(StatisticsService::class));
         });
     }
 

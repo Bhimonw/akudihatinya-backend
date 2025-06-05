@@ -7,16 +7,10 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class AdminAllFormatter
+class AdminAllFormatter extends BaseAdminFormatter
 {
-    protected $statisticsService;
     protected $sheet;
-    protected $currentRow = 9;
-
-    public function __construct(StatisticsService $statisticsService)
-    {
-        $this->statisticsService = $statisticsService;
-    }
+    protected $currentRow = 9; // Start from row 9
 
     public function format($spreadsheet, $diseaseType, $year, $puskesmasId = null)
     {
@@ -25,28 +19,8 @@ class AdminAllFormatter
         // Replace placeholders
         $this->replacePlaceholders($diseaseType, $year);
 
-        // Get data using statistics service
-        if ($puskesmasId) {
-            // Single puskesmas data
-            $data = [
-                'data' => [
-                    [
-                        'puskesmas_id' => $puskesmasId,
-                        'puskesmas_name' => \App\Models\Puskesmas::find($puskesmasId)->name,
-                        'ht' => $this->statisticsService->getHtStatisticsFromCache($puskesmasId, $year),
-                        'dm' => $this->statisticsService->getDmStatisticsFromCache($puskesmasId, $year)
-                    ]
-                ],
-                'type' => $diseaseType
-            ];
-        } else {
-            // All puskesmas data using admin service
-            $request = new \Illuminate\Http\Request([
-                'year' => $year,
-                'type' => $diseaseType
-            ]);
-            $data = app(\App\Services\StatisticsAdminService::class)->getAdminStatistics($request);
-        }
+        // Get data using statistics service from base class
+        $data = $this->getStatisticsData($diseaseType, $year, $puskesmasId);
 
         // Format the data
         $this->formatData($data);
@@ -124,6 +98,7 @@ class AdminAllFormatter
         }
 
         // Second pass: format individual puskesmas data
+        $startRow = $this->currentRow;
         foreach ($data['data'] as $index => $puskesmasData) {
             $this->sheet->setCellValue('A' . $this->currentRow, $index + 1); // Nomor
             $this->sheet->setCellValue('B' . $this->currentRow, $puskesmasData['puskesmas_name']); // Nama Puskesmas
@@ -135,8 +110,17 @@ class AdminAllFormatter
             $this->currentRow++;
         }
 
-        // Add total row at row 34
-        $this->currentRow = 34;
+        // Dinamis baris total
+        $userCount = count($data['data']);
+        $defaultRows = 25;
+        $totalRow = $startRow + $userCount;
+        if ($userCount < $defaultRows) {
+            $this->sheet->removeRow($totalRow, $defaultRows - $userCount);
+        } elseif ($userCount > $defaultRows) {
+            $this->sheet->insertNewRowBefore($startRow + $defaultRows, $userCount - $defaultRows);
+            $totalRow = $startRow + $userCount;
+        }
+        $this->currentRow = $totalRow;
         $this->sheet->setCellValue('A' . $this->currentRow, 'Total');
         $this->sheet->setCellValue('B' . $this->currentRow, '');
         $this->sheet->setCellValue('C' . $this->currentRow, $totals['target']);

@@ -6,8 +6,9 @@ use App\Services\StatisticsService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
+use App\Helpers\QuarterHelper;
 
-class AdminMonthlyFormatter extends BaseAdminFormatter
+class AdminQuarterlyFormatter extends BaseAdminFormatter
 {
     protected $statisticsService;
     protected $sheet;
@@ -70,7 +71,7 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
     {
         $totals = [
             'target' => 0,
-            'monthly_data' => array_fill(1, 12, [
+            'quarterly_data' => array_fill(1, 4, [
                 'male' => 0,
                 'female' => 0,
                 'standard' => 0,
@@ -79,33 +80,27 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
                 'percentage' => 0
             ])
         ];
+        $allMonthlyData = [];
 
+        // Agregasi total target dan kumpulkan monthly_data
         foreach ($data['data'] as $puskesmasData) {
             $diseaseData = $puskesmasData[$data['type']] ?? [];
             $totals['target'] += $diseaseData['target'] ?? 0;
             if (isset($diseaseData['monthly_data'])) {
-                foreach ($diseaseData['monthly_data'] as $month => $monthData) {
-                    $totals['monthly_data'][$month]['male'] += $monthData['male'] ?? 0;
-                    $totals['monthly_data'][$month]['female'] += $monthData['female'] ?? 0;
-                    $totals['monthly_data'][$month]['standard'] += $monthData['standard'] ?? 0;
-                    $totals['monthly_data'][$month]['non_standard'] += $monthData['non_standard'] ?? 0;
-                    $totals['monthly_data'][$month]['total'] += $monthData['total'] ?? 0;
-                }
+                $allMonthlyData[] = $diseaseData['monthly_data'];
             }
         }
-        foreach ($totals['monthly_data'] as $month => &$monthData) {
-            $monthData['percentage'] = $totals['target'] > 0
-                ? round(($monthData['standard'] / $totals['target']) * 100, 2)
-                : 0;
-        }
+        // Hitung total summary triwulan seluruh puskesmas
+        $quarterTotals = \App\Helpers\QuarterHelper::getQuarterTotals($allMonthlyData, $totals['target']);
 
+        // Isi data per puskesmas
         $startRow = $this->currentRow;
         foreach ($data['data'] as $index => $puskesmasData) {
             $this->sheet->setCellValue('A' . $this->currentRow, $index + 1);
             $this->sheet->setCellValue('B' . $this->currentRow, $puskesmasData['puskesmas_name']);
             $diseaseData = $puskesmasData[$data['type']] ?? [];
             $this->sheet->setCellValue('C' . $this->currentRow, $diseaseData['target'] ?? 0);
-            $this->formatMonthlyData($diseaseData['monthly_data'] ?? []);
+            $this->formatQuarterlyData($diseaseData['monthly_data'] ?? []);
             $this->formatYearlyAchievement($diseaseData);
             $this->currentRow++;
         }
@@ -124,76 +119,90 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
         $this->sheet->setCellValue('A' . $this->currentRow, 'Total');
         $this->sheet->setCellValue('B' . $this->currentRow, '');
         $this->sheet->setCellValue('C' . $this->currentRow, $totals['target']);
-        $this->formatMonthlyData($totals['monthly_data']);
-        // Kolom summary tahunan (misal: BL, BM, BN, BO, BP, BQ)
-        $allMonthlyData = [];
-        foreach ($data['data'] as $puskesmasData) {
-            $diseaseData = $puskesmasData[$data['type']] ?? [];
-            if (isset($diseaseData['monthly_data'])) {
-                $allMonthlyData[] = $diseaseData['monthly_data'];
+
+        // Kolom per triwulan: S L, S P, S Total, TS, %S
+        $quarterColumns = [
+            1 => ['D', 'E', 'F', 'G', 'H'],
+            2 => ['I', 'J', 'K', 'L', 'M'],
+            3 => ['N', 'O', 'P', 'Q', 'R'],
+            4 => ['S', 'T', 'U', 'V', 'W']
+        ];
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $q = $quarterTotals[$quarter];
+            $cols = $quarterColumns[$quarter];
+            $this->sheet->setCellValue($cols[0] . $this->currentRow, $q['male']);
+            $this->sheet->setCellValue($cols[1] . $this->currentRow, $q['female']);
+            $this->sheet->setCellValue($cols[2] . $this->currentRow, $q['standard']);
+            $this->sheet->setCellValue($cols[3] . $this->currentRow, $q['non_standard']);
+            $percent = $totals['target'] > 0 ? round(($q['standard'] / $totals['target']) * 100, 2) : 0;
+            $this->sheet->setCellValue($cols[4] . $this->currentRow, $percent);
+        }
+
+        // Kolom capaian tahunan (misal: X, Y, Z, AA, AB, AC)
+        $decSummary = [
+            'male' => 0,
+            'female' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total' => 0
+        ];
+        foreach ($allMonthlyData as $monthlyData) {
+            if (isset($monthlyData[12])) {
+                $decSummary['male'] += $monthlyData[12]['male'] ?? 0;
+                $decSummary['female'] += $monthlyData[12]['female'] ?? 0;
+                $decSummary['standard'] += $monthlyData[12]['standard'] ?? 0;
+                $decSummary['non_standard'] += $monthlyData[12]['non_standard'] ?? 0;
+                $decSummary['total'] += $monthlyData[12]['total'] ?? 0;
             }
         }
-        $yearlyCols = ['BL', 'BM', 'BN', 'BO', 'BP', 'BQ'];
+        $yearlyCols = ['X', 'Y', 'Z', 'AA', 'AB', 'AC'];
+        $this->sheet->setCellValue($yearlyCols[0] . $this->currentRow, $decSummary['male']);
+        $this->sheet->setCellValue($yearlyCols[1] . $this->currentRow, $decSummary['female']);
+        $this->sheet->setCellValue($yearlyCols[2] . $this->currentRow, $decSummary['standard']);
+        $this->sheet->setCellValue($yearlyCols[3] . $this->currentRow, $decSummary['non_standard']);
+        $this->sheet->setCellValue($yearlyCols[4] . $this->currentRow, $decSummary['total']);
         $yearlySummary = $this->getYearlySummary($allMonthlyData, $totals['target']);
-        $this->sheet->setCellValue($yearlyCols[2] . $this->currentRow, $yearlySummary['standard']);
-        $this->sheet->setCellValue($yearlyCols[4] . $this->currentRow, $yearlySummary['total']);
         $this->sheet->setCellValue($yearlyCols[5] . $this->currentRow, $yearlySummary['percentage']);
         $this->sheet->getStyle('A' . $this->currentRow . ':' . $this->sheet->getHighestColumn() . $this->currentRow)
             ->getFont()
             ->setBold(true);
     }
 
-    protected function formatMonthlyData($monthlyData)
+    protected function formatQuarterlyData($monthlyData)
     {
-        // Column mappings for monthly data
-        $monthColumns = [
-            1 => ['D', 'E', 'F', 'G', 'H'],     // Jan: L, P, Total, TS, %S
-            2 => ['I', 'J', 'K', 'L', 'M'],     // Feb: L, P, Total, TS, %S
-            3 => ['N', 'O', 'P', 'Q', 'R'],     // Mar: L, P, Total, TS, %S
-            4 => ['S', 'T', 'U', 'V', 'W'],     // Apr: L, P, Total, TS, %S
-            5 => ['X', 'Y', 'Z', 'AA', 'AB'],   // May: L, P, Total, TS, %S
-            6 => ['AC', 'AD', 'AE', 'AF', 'AG'], // Jun: L, P, Total, TS, %S
-            7 => ['AH', 'AI', 'AJ', 'AK', 'AL'], // Jul: L, P, Total, TS, %S
-            8 => ['AM', 'AN', 'AO', 'AP', 'AQ'], // Aug: L, P, Total, TS, %S
-            9 => ['AR', 'AS', 'AT', 'AU', 'AV'], // Sep: L, P, Total, TS, %S
-            10 => ['AW', 'AX', 'AY', 'AZ', 'BA'], // Oct: L, P, Total, TS, %S
-            11 => ['BB', 'BC', 'BD', 'BE', 'BF'], // Nov: L, P, Total, TS, %S
-            12 => ['BG', 'BH', 'BI', 'BJ', 'BK']  // Dec: L, P, Total, TS, %S
+        // Column mappings for quarterly data
+        $quarterColumns = [
+            1 => ['D', 'E', 'F', 'G', 'H'],     // Triwulan I: L, P, Total, TS, %S
+            2 => ['I', 'J', 'K', 'L', 'M'],     // Triwulan II: L, P, Total, TS, %S
+            3 => ['N', 'O', 'P', 'Q', 'R'],     // Triwulan III: L, P, Total, TS, %S
+            4 => ['S', 'T', 'U', 'V', 'W']      // Triwulan IV: L, P, Total, TS, %S
         ];
 
-        // Fill monthly data
-        for ($month = 1; $month <= 12; $month++) {
-            $monthData = $monthlyData[$month] ?? [
-                'male' => 0,
-                'female' => 0,
-                'total' => 0,
-                'standard' => 0,
-                'non_standard' => 0,
-                'percentage' => 0
-            ];
-            $columns = $monthColumns[$month];
-
-            $this->sheet->setCellValue($columns[0] . $this->currentRow, $monthData['male']);      // L (Laki-laki Standar)
-            $this->sheet->setCellValue($columns[1] . $this->currentRow, $monthData['female']);    // P (Perempuan Standar)
-            $this->sheet->setCellValue($columns[2] . $this->currentRow, $monthData['standard']);  // Total (Total Standar)
-            $this->sheet->setCellValue($columns[3] . $this->currentRow, $monthData['non_standard']); // TS (Tidak Standar)
-            $this->sheet->setCellValue($columns[4] . $this->currentRow, $monthData['percentage']); // %S (tanpa %)
+        // Process quarterly data
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $quarterData = QuarterHelper::getQuarterSummary($monthlyData, $quarter);
+            $columns = $quarterColumns[$quarter];
+            $this->sheet->setCellValue($columns[0] . $this->currentRow, $quarterData['male']);      // L (Laki-laki Standar)
+            $this->sheet->setCellValue($columns[1] . $this->currentRow, $quarterData['female']);    // P (Perempuan Standar)
+            $this->sheet->setCellValue($columns[2] . $this->currentRow, $quarterData['standard']);  // Total (Total Standar)
+            $this->sheet->setCellValue($columns[3] . $this->currentRow, $quarterData['non_standard']); // TS (Tidak Standar)
+            $this->sheet->setCellValue($columns[4] . $this->currentRow, $quarterData['percentage']); // %S (tanpa %)
         }
     }
 
     protected function formatYearlyAchievement($diseaseData)
     {
         $yearlyColumns = [
-            'BL', // L (Laki-laki Standar)
-            'BM', // P (Perempuan Standar)
-            'BN', // Total (Total Standar)
-            'BO', // TS (Tidak Standar)
-            'BP', // Total Pasien
-            'BQ'  // Persentase Tahunan
+            'X', // L (Laki-laki Standar)
+            'Y', // P (Perempuan Standar)
+            'Z', // Total (Total Standar)
+            'AA', // TS (Tidak Standar)
+            'AB', // Total Pasien
+            'AC'  // Persentase Tahunan
         ];
 
-        // Get data from last month (December)
-        $lastMonthData = $diseaseData['monthly_data'][12] ?? [
+        // Get data from last quarter (Q4)
+        $lastQuarterData = $diseaseData['monthly_data'][12] ?? [
             'male' => 0,
             'female' => 0,
             'standard' => 0,
@@ -202,18 +211,18 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             'percentage' => 0
         ];
 
-        $this->sheet->setCellValue($yearlyColumns[0] . $this->currentRow, $lastMonthData['male']);      // L (Laki-laki Standar)
-        $this->sheet->setCellValue($yearlyColumns[1] . $this->currentRow, $lastMonthData['female']);    // P (Perempuan Standar)
-        $this->sheet->setCellValue($yearlyColumns[2] . $this->currentRow, $lastMonthData['standard']);  // Total (Total Standar)
-        $this->sheet->setCellValue($yearlyColumns[3] . $this->currentRow, $lastMonthData['non_standard']); // TS (Tidak Standar)
-        $this->sheet->setCellValue($yearlyColumns[4] . $this->currentRow, $lastMonthData['total']);     // Total Pasien
-        $this->sheet->setCellValue($yearlyColumns[5] . $this->currentRow, $lastMonthData['percentage']); // Persentase Tahunan (tanpa %)
+        $this->sheet->setCellValue($yearlyColumns[0] . $this->currentRow, $lastQuarterData['male']);      // L (Laki-laki Standar)
+        $this->sheet->setCellValue($yearlyColumns[1] . $this->currentRow, $lastQuarterData['female']);    // P (Perempuan Standar)
+        $this->sheet->setCellValue($yearlyColumns[2] . $this->currentRow, $lastQuarterData['standard']);  // Total (Total Standar)
+        $this->sheet->setCellValue($yearlyColumns[3] . $this->currentRow, $lastQuarterData['non_standard']); // TS (Tidak Standar)
+        $this->sheet->setCellValue($yearlyColumns[4] . $this->currentRow, $lastQuarterData['total']);     // Total Pasien
+        $this->sheet->setCellValue($yearlyColumns[5] . $this->currentRow, $lastQuarterData['percentage']); // Persentase Tahunan (tanpa %)
     }
 
     protected function applyStyles()
     {
         // Apply number format to all numeric cells
-        $numericRange = 'D8:BQ' . $this->currentRow;
+        $numericRange = 'D8:AC' . $this->currentRow;
         $this->sheet->getStyle($numericRange)->getNumberFormat()->setFormatCode('#,##0');
 
         // Apply percentage format to percentage columns
@@ -221,16 +230,8 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             'H',
             'M',
             'R',
-            'W',
-            'AB',
-            'AG',
-            'AL',
-            'AQ',
-            'AV',
-            'BA',
-            'BF',
-            'BK', // Monthly percentages
-            'BQ' // Persentase Tahunan
+            'W', // Quarterly percentages
+            'AC' // Persentase Tahunan
         ];
 
         foreach ($percentageColumns as $col) {
@@ -240,26 +241,26 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
         }
 
         // Apply borders
-        $this->sheet->getStyle('A8:BQ' . $this->currentRow)
+        $this->sheet->getStyle('A8:AC' . $this->currentRow)
             ->getBorders()
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
 
         // Center align all cells
-        $this->sheet->getStyle('A8:BQ' . $this->currentRow)
+        $this->sheet->getStyle('A8:AC' . $this->currentRow)
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER)
             ->setVertical(Alignment::VERTICAL_CENTER);
 
-        // Clear any data after column BQ
+        // Clear any data after column AC
         $highestColumn = $this->sheet->getHighestColumn();
-        if ($highestColumn > 'BQ') {
+        if ($highestColumn > 'AC') {
             $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-            $bqColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('BQ');
-            $columnsToRemove = $highestColumnIndex - $bqColumnIndex;
+            $acColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('AC');
+            $columnsToRemove = $highestColumnIndex - $acColumnIndex;
 
             if ($columnsToRemove > 0) {
-                $this->sheet->removeColumn('BR', $columnsToRemove);
+                $this->sheet->removeColumn('AD', $columnsToRemove);
             }
         }
     }
