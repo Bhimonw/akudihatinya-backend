@@ -13,9 +13,24 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Illuminate\Support\Facades\Auth;
+use App\Models\MonthlyStatisticsCache;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use App\Formatters\AdminAllFormatter;
+use App\Services\StatisticsService;
 
 class ExportService
 {
+    protected $statisticsService;
+    protected $adminAllFormatter;
+
+    public function __construct(StatisticsService $statisticsService, AdminAllFormatter $adminAllFormatter)
+    {
+        $this->statisticsService = $statisticsService;
+        $this->adminAllFormatter = $adminAllFormatter;
+    }
+
     /**
      * Generate PDF report for HT or DM statistics
      */
@@ -37,194 +52,120 @@ class ExportService
      */
     public function generateExcelReport($diseaseType, $year, $puskesmasId = null)
     {
-        $data = $this->getReportData($diseaseType, $year, $puskesmasId);
+        $puskesmasQuery = Puskesmas::query();
+        if ($puskesmasId) {
+            $puskesmasQuery->where('id', $puskesmasId);
+        }
+        $puskesmasAll = $puskesmasQuery->get();
 
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-
-        // Set headers
-        $sheet->setCellValue('A1', 'Laporan ' . ($diseaseType === 'ht' ? 'Hipertensi' : 'Diabetes Mellitus'));
-        $sheet->setCellValue('A2', 'Tahun ' . $year);
-
+        $filename = "laporan_" . ($diseaseType === 'all' ? 'ht_dm' : $diseaseType) . "_" . $year;
         if ($puskesmasId) {
             $puskesmas = Puskesmas::find($puskesmasId);
-            $sheet->setCellValue('A3', $puskesmas->name);
-        } else {
-            $sheet->setCellValue('A3', 'Seluruh Puskesmas');
+            $filename .= "_" . str_replace(' ', '_', strtolower($puskesmas->name));
         }
 
-        // Set column headers
-        $sheet->setCellValue('A5', 'Bulan');
-        $sheet->setCellValue('B5', 'Laki-laki');
-        $sheet->setCellValue('C5', 'Perempuan');
-        $sheet->setCellValue('D5', 'Total');
-        $sheet->setCellValue('E5', 'Pasien Standar');
-        $sheet->setCellValue('F5', 'Pasien Terkendali');
-
-        // Fill data
-        $row = 6;
-        foreach ($data['monthly_data'] as $index => $month) {
-            $sheet->setCellValue('A' . $row, $month['month_name']);
-            $sheet->setCellValue('B' . $row, $month['male']);
-            $sheet->setCellValue('C' . $row, $month['female']);
-            $sheet->setCellValue('D' . $row, $month['total']);
-            $sheet->setCellValue('E' . $row, $month['standard_patients']);
-            $sheet->setCellValue('F' . $row, $month['controlled_patients']);
-            $row++;
-        }
-
-        // Add summary
-        $row += 2;
-        $sheet->setCellValue('A' . $row, 'Total Pasien');
-        $sheet->setCellValue('D' . $row, $data['summary']['total_patients']);
-
-        $row++;
-        $sheet->setCellValue('A' . $row, 'Total Pasien Standar');
-        $sheet->setCellValue('D' . $row, $data['summary']['standard_patients']);
-
-        $row++;
-        $sheet->setCellValue('A' . $row, 'Total Pasien Terkendali');
-        $sheet->setCellValue('D' . $row, $data['summary']['controlled_patients']);
-
-        $row++;
-        $sheet->setCellValue('A' . $row, 'Sasaran');
-        $sheet->setCellValue('D' . $row, $data['summary']['target']);
-
-        $row++;
-        $sheet->setCellValue('A' . $row, 'Persentase Capaian');
-        $sheet->setCellValue('D' . $row, $data['summary']['achievement_percentage'] . '%');
-
-        // Format the document
-        foreach (range('A', 'F') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-        }
-
-        // Create writer and save file
-        $writer = new Xlsx($spreadsheet);
-        $filename = "laporan_{$diseaseType}_{$year}.xlsx";
-        $tempPath = storage_path('app/temp/' . $filename);
-
-        if (!file_exists(storage_path('app/temp'))) {
-            mkdir(storage_path('app/temp'), 0755, true);
-        }
-
-        $writer->save($tempPath);
-
-        return $tempPath;
+        return $this->exportToExcel($diseaseType, $year, $puskesmasId);
     }
 
     /**
      * Get report data for export
      */
-    private function getReportData($diseaseType, $year, $puskesmasId = null)
+    protected function getReportData($puskesmasId, $year, $diseaseType, $tableType = 'all')
     {
         $data = [
+            'target' => 0,
             'monthly_data' => [],
-            'summary' => [],
+            'quarterly_data' => [],
+            'summary' => []
         ];
 
+        // Get target
+        $target = YearlyTarget::where('puskesmas_id', $puskesmasId)
+            ->where('year', $year)
+            ->where('disease_type', $diseaseType)
+            ->first();
+
+        if ($target) {
+            $data['target'] = $target->target_count;
+        }
+
+        // Get monthly data from cache
+        $monthlyStats = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
+            ->where('year', $year)
+            ->where('disease_type', $diseaseType)
+            ->get();
+
         // Process monthly data
-        for ($month = 1; $month <= 12; $month++) {
-            $monthData = [
-                'month' => $month,
-                'month_name' => Carbon::createFromDate($year, $month, 1)->locale('id')->monthName,
+        $monthlyData = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyData[$m] = [
+                'month' => $m,
+                'month_name' => Carbon::createFromDate($year, $m, 1)->locale('id')->monthName,
                 'male' => 0,
                 'female' => 0,
                 'total' => 0,
-                'standard_patients' => 0,
-                'controlled_patients' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'percentage' => 0
             ];
-
-            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
-
-            if ($diseaseType === 'ht') {
-                $query = HtExamination::whereBetween('examination_date', [$startDate, $endDate]);
-
-                if ($puskesmasId) {
-                    $query->where('puskesmas_id', $puskesmasId);
-                }
-
-                $examinations = $query->get();
-
-                // Count unique patients by gender
-                $patientIds = $examinations->pluck('patient_id')->unique();
-                $patients = Patient::whereIn('id', $patientIds)->get();
-
-                $monthData['male'] = $patients->where('gender', 'male')->count();
-                $monthData['female'] = $patients->where('gender', 'female')->count();
-                $monthData['total'] = $patientIds->count();
-
-                // Standard and controlled calculations would go here
-                // These are simplified for this example
-                $monthData['standard_patients'] = 0;
-                $monthData['controlled_patients'] = 0;
-            } else { // DM
-                $query = DmExamination::whereBetween('examination_date', [$startDate, $endDate]);
-
-                if ($puskesmasId) {
-                    $query->where('puskesmas_id', $puskesmasId);
-                }
-
-                $examinations = $query->get();
-
-                // Count unique patients by gender
-                $patientIds = $examinations->pluck('patient_id')->unique();
-                $patients = Patient::whereIn('id', $patientIds)->get();
-
-                $monthData['male'] = $patients->where('gender', 'male')->count();
-                $monthData['female'] = $patients->where('gender', 'female')->count();
-                $monthData['total'] = $patientIds->count();
-
-                // Standard and controlled calculations would go here
-                // These are simplified for this example
-                $monthData['standard_patients'] = 0;
-                $monthData['controlled_patients'] = 0;
-            }
-
-            $data['monthly_data'][] = $monthData;
         }
 
-        // Summary data
-        $targetQuery = YearlyTarget::where('disease_type', $diseaseType)
-            ->where('year', $year);
-
-        if ($puskesmasId) {
-            $targetQuery->where('puskesmas_id', $puskesmasId);
-
-            $target = $targetQuery->first();
-            $targetValue = $target ? $target->target_count : 0;
-
-            $patientsQuery = Patient::where('puskesmas_id', $puskesmasId);
-            if ($diseaseType === 'ht') {
-                $patientsQuery->where('has_ht', true);
-            } else {
-                $patientsQuery->where('has_dm', true);
-            }
-
-            $patientsCount = $patientsQuery->count();
-        } else {
-            $targetValue = $targetQuery->sum('target_count');
-
-            if ($diseaseType === 'ht') {
-                $patientsCount = Patient::where('has_ht', true)->count();
-            } else {
-                $patientsCount = Patient::where('has_dm', true)->count();
-            }
+        foreach ($monthlyStats as $stat) {
+            $month = $stat->month;
+            $monthlyData[$month] = [
+                'month' => $month,
+                'month_name' => Carbon::createFromDate($year, $month, 1)->locale('id')->monthName,
+                'male' => $stat->male_count,
+                'female' => $stat->female_count,
+                'total' => $stat->total_count,
+                'standard' => $stat->standard_count,
+                'non_standard' => $stat->non_standard_count,
+                'percentage' => $data['target'] > 0 ? round(($stat->standard_count / $data['target']) * 100, 2) : 0
+            ];
         }
 
-        $achievementPercentage = $targetValue > 0 ? round(($patientsCount / $targetValue) * 100, 2) : 0;
+        $data['monthly_data'] = $monthlyData;
 
-        // Standard and controlled calculations would be more complex in a real implementation
-        $standardPatients = 0;
-        $controlledPatients = 0;
+        // Process quarterly data if needed
+        if ($tableType === 'quarterly' || $tableType === 'all') {
+            $quarterlyData = [];
+            for ($q = 1; $q <= 4; $q++) {
+                $startMonth = ($q - 1) * 3 + 1;
+                $endMonth = $q * 3;
 
+                // Get the last month's data in the quarter that has data
+                $lastMonthWithData = null;
+                for ($m = $endMonth; $m >= $startMonth; $m--) {
+                    if ($monthlyData[$m]['total'] > 0) {
+                        $lastMonthWithData = $m;
+                        break;
+                    }
+                }
+
+                if ($lastMonthWithData) {
+                    $quarterlyData[$q] = $monthlyData[$lastMonthWithData];
+                } else {
+                    $quarterlyData[$q] = [
+                        'male' => 0,
+                        'female' => 0,
+                        'total' => 0,
+                        'standard' => 0,
+                        'non_standard' => 0,
+                        'percentage' => 0
+                    ];
+                }
+            }
+            $data['quarterly_data'] = $quarterlyData;
+        }
+
+        // Calculate summary data
         $data['summary'] = [
-            'total_patients' => $patientsCount,
-            'standard_patients' => $standardPatients,
-            'controlled_patients' => $controlledPatients,
-            'target' => $targetValue,
-            'achievement_percentage' => $achievementPercentage,
+            'total_patients' => collect($monthlyData)->sum('total'),
+            'standard_patients' => collect($monthlyData)->sum('standard'),
+            'non_standard_patients' => collect($monthlyData)->sum('non_standard'),
+            'target' => $data['target'],
+            'achievement_percentage' => $data['target'] > 0 ?
+                round((collect($monthlyData)->sum('standard') / $data['target']) * 100, 2) : 0
         ];
 
         return $data;
@@ -232,396 +173,188 @@ class ExportService
 
     public function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
     {
-        // Ambil semua cache statistik bulanan sekaligus
-        $puskesmasIds = $puskesmasAll->pluck('id')->toArray();
-        $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
-            ->whereIn('puskesmas_id', $puskesmasIds)
-            ->get();
-        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
-        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
-        $statistics = [];
-        foreach ($puskesmasAll as $puskesmas) {
-            $data = [
-                'puskesmas_id' => $puskesmas->id,
-                'puskesmas_name' => $puskesmas->name,
-            ];
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $htArr = [
-                    'target' => 0,
-                    'total_patients' => 0,
-                    'achievement_percentage' => 0,
-                    'standard_patients' => 0,
-                    'non_standard_patients' => 0,
-                    'male_patients' => 0,
-                    'female_patients' => 0,
-                    'monthly_data' => [],
-                ];
-                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'ht')
-                    ->where('year', $year)
-                    ->first();
-                $targetCount = $target ? $target->target_count : 0;
-                $htArr['target'] = $targetCount;
-                if (isset($htStats[$puskesmas->id])) {
-                    $totalPatients = $htStats[$puskesmas->id]->sum('total_count');
-                    $standardPatients = $htStats[$puskesmas->id]->sum('standard_count');
-                    $nonStandardPatients = $htStats[$puskesmas->id]->sum('non_standard_count');
-                    $malePatients = $htStats[$puskesmas->id]->sum('male_count');
-                    $femalePatients = $htStats[$puskesmas->id]->sum('female_count');
-                    $htArr['total_patients'] = $totalPatients;
-                    $htArr['standard_patients'] = $standardPatients;
-                    $htArr['non_standard_patients'] = $nonStandardPatients;
-                    $htArr['male_patients'] = $malePatients;
-                    $htArr['female_patients'] = $femalePatients;
-                    $htArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
-                    $monthlyData = [];
-                    foreach ($htStats[$puskesmas->id] as $stat) {
-                        $monthlyData[$stat->month] = [
-                            'male' => $stat->male_count,
-                            'female' => $stat->female_count,
-                            'total' => $stat->total_count,
-                            'standard' => $stat->standard_count,
-                            'non_standard' => $stat->non_standard_count,
-                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
-                        ];
-                    }
-                    $htArr['monthly_data'] = $monthlyData;
-                }
-                $data['ht'] = $htArr;
-            }
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dmArr = [
-                    'target' => 0,
-                    'total_patients' => 0,
-                    'achievement_percentage' => 0,
-                    'standard_patients' => 0,
-                    'non_standard_patients' => 0,
-                    'male_patients' => 0,
-                    'female_patients' => 0,
-                    'monthly_data' => [],
-                ];
-                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'dm')
-                    ->where('year', $year)
-                    ->first();
-                $targetCount = $target ? $target->target_count : 0;
-                $dmArr['target'] = $targetCount;
-                if (isset($dmStats[$puskesmas->id])) {
-                    $totalPatients = $dmStats[$puskesmas->id]->sum('total_count');
-                    $standardPatients = $dmStats[$puskesmas->id]->sum('standard_count');
-                    $nonStandardPatients = $dmStats[$puskesmas->id]->sum('non_standard_count');
-                    $malePatients = $dmStats[$puskesmas->id]->sum('male_count');
-                    $femalePatients = $dmStats[$puskesmas->id]->sum('female_count');
-                    $dmArr['total_patients'] = $totalPatients;
-                    $dmArr['standard_patients'] = $standardPatients;
-                    $dmArr['non_standard_patients'] = $nonStandardPatients;
-                    $dmArr['male_patients'] = $malePatients;
-                    $dmArr['female_patients'] = $femalePatients;
-                    $dmArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
-                    $monthlyData = [];
-                    foreach ($dmStats[$puskesmas->id] as $stat) {
-                        $monthlyData[$stat->month] = [
-                            'male' => $stat->male_count,
-                            'female' => $stat->female_count,
-                            'total' => $stat->total_count,
-                            'standard' => $stat->standard_count,
-                            'non_standard' => $stat->non_standard_count,
-                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
-                        ];
-                    }
-                    $dmArr['monthly_data'] = $monthlyData;
-                }
-                $data['dm'] = $dmArr;
-            }
-            $statistics[] = $data;
-        }
-        $title = "";
-        $reportTypeLabel = $reportType === "laporan_tahunan"
-            ? "Laporan Tahunan"
-            : "Laporan Bulanan";
-        if ($diseaseType === 'ht') {
-            $title = "$reportTypeLabel Hipertensi (HT)";
-        } elseif ($diseaseType === 'dm') {
-            $title = "$reportTypeLabel Diabetes Mellitus (DM)";
-        } else {
-            $title = "$reportTypeLabel Hipertensi (HT) dan Diabetes Mellitus (DM)";
-        }
+        // Get statistics data
+        $statistics = $this->prepareStatisticsData($puskesmasAll, $year, $month, $diseaseType);
+
+        // Prepare title and data based on export type
         if ($isRecap) {
-            $title = "Rekap " . $title;
-        }
-        if (!$isRecap) {
-            $puskesmasName = $statistics[0]['puskesmas_name'];
-            $title .= " - " . $puskesmasName;
-        }
-        if ($month !== null) {
-            $monthName = $this->getMonthName($month);
-            $subtitle = "Bulan $monthName Tahun $year";
+            // Admin/Dinas export
+            $title = "Laporan " . ($diseaseType === 'ht' ? 'Hipertensi (HT)' : 'Diabetes Mellitus (DM)') . " " . $year;
+            $data = [
+                'title' => $title,
+                'year' => $year,
+                'type' => $diseaseType,
+                'statistics' => $statistics,
+                'is_recap' => true,
+                'generated_at' => Carbon::now()->format('d F Y H:i'),
+                'generated_by' => Auth::user()->name,
+                'user_role' => Auth::user()->is_admin ? 'Admin' : 'Petugas Puskesmas',
+                'headers' => [
+                    'puskesmas' => 'Puskesmas',
+                    'target' => 'Sasaran',
+                    'month' => 'Bulan',
+                    'male' => 'Standar (Laki-laki)',
+                    'female' => 'Standar (Perempuan)',
+                    'non_standard' => 'Tidak Standar',
+                    'standard' => 'Total Standar',
+                    'percentage' => 'Persentase (%)'
+                ]
+            ];
+            $view = 'exports.admin_statistics_pdf';
         } else {
-            $subtitle = "Tahun $year";
+            // Puskesmas export
+            $puskesmasName = $statistics[0]['puskesmas_name'];
+            $title = "Laporan " . $puskesmasName . " " .
+                ($diseaseType === 'ht' ? 'Hipertensi (HT)' : 'Diabetes Mellitus (DM)') . " " . $year;
+            $data = [
+                'title' => $title,
+                'year' => $year,
+                'type' => $diseaseType,
+                'statistics' => $statistics[0], // Only first puskesmas data
+                'is_recap' => false,
+                'generated_at' => Carbon::now()->format('d F Y H:i'),
+                'generated_by' => Auth::user()->name,
+                'user_role' => Auth::user()->is_admin ? 'Admin' : 'Petugas Puskesmas',
+                'headers' => [
+                    'month' => 'Bulan',
+                    'male' => 'Standar (Laki-laki)',
+                    'female' => 'Standar (Perempuan)',
+                    'non_standard' => 'Tidak Standar',
+                    'standard' => 'Total Standar',
+                    'percentage' => 'Persentase (%)'
+                ]
+            ];
+            $view = 'exports.puskesmas_statistics_pdf';
         }
-        $data = [
-            'title' => $title,
-            'subtitle' => $subtitle,
-            'year' => $year,
-            'month' => $month,
-            'month_name' => $month !== null ? $this->getMonthName($month) : null,
-            'type' => $diseaseType,
-            'statistics' => $statistics,
-            'is_recap' => $isRecap,
-            'report_type' => $reportType,
-            'generated_at' => Carbon::now()->format('d F Y H:i'),
-            'generated_by' => Auth::user()->name,
-            'user_role' => Auth::user()->is_admin ? 'Admin' : 'Petugas Puskesmas',
-        ];
-        $pdf = PDF::loadView('exports.statistics_pdf', $data);
+
+        $pdf = PDF::loadView($view, $data);
         $pdf->setPaper('a4', 'landscape');
+
         $exportPath = storage_path('app/public/exports');
         if (!file_exists($exportPath)) {
             mkdir($exportPath, 0755, true);
         }
+
         $pdfFilename = $filename . '.pdf';
         \Storage::put('public/exports/' . $pdfFilename, $pdf->output());
+
         return \response()->download(storage_path('app/public/exports/' . $pdfFilename), $pdfFilename, [
             'Content-Type' => 'application/pdf',
         ])->deleteFileAfterSend(true);
     }
 
-    public function exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
+    public function exportToExcel($diseaseType, $year, $puskesmasId = null, $tableType = 'all')
     {
-        // Ambil semua cache statistik bulanan sekaligus
+        // Load template
+        $templatePath = base_path('resources/views/exports/formatLaporanAkudihatinya/all.xlsx');
+        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
+        $spreadsheet = $reader->load($templatePath);
+
+        // Format using AdminAllFormatter
+        $spreadsheet = $this->adminAllFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+
+        // Save and return
+        $filename = "laporan_" . ($diseaseType === 'all' ? 'ht_dm' : $diseaseType) . "_" . $year;
+        if ($puskesmasId) {
+            $puskesmas = Puskesmas::find($puskesmasId);
+            $filename .= "_" . str_replace(' ', '_', strtolower($puskesmas->name));
+        }
+        $filename .= ".xlsx";
+
+        $exportPath = storage_path('app/public/exports/' . $filename);
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->save($exportPath);
+
+        return response()->download($exportPath)->deleteFileAfterSend(true);
+    }
+
+    private function applyExcelStyles($sheet, $lastRow)
+    {
+        // Apply number format to all numeric cells
+        $numericRange = 'D9:' . $sheet->getHighestColumn() . $lastRow;
+        $sheet->getStyle($numericRange)->getNumberFormat()->setFormatCode('#,##0');
+
+        // Apply percentage format to percentage columns
+        $percentageColumns = [
+            'H',
+            'M',
+            'R',
+            'Z',
+            'AE',
+            'AJ',
+            'AR',
+            'AW',
+            'BB',
+            'BJ',
+            'BO',
+            'BT', // Monthly percentages
+            'U',
+            'AM',
+            'BE',
+            'BW', // Quarterly percentages
+            'CC' // Persentase Tahunan
+        ];
+
+        foreach ($percentageColumns as $col) {
+            $sheet->getStyle($col . '9:' . $col . $lastRow)
+                ->getNumberFormat()
+                ->setFormatCode('0.00"%"');
+        }
+
+        // Apply borders
+        $sheet->getStyle('A9:' . $sheet->getHighestColumn() . $lastRow)
+            ->getBorders()
+            ->getAllBorders()
+            ->setBorderStyle(Border::BORDER_THIN);
+
+        // Center align all cells
+        $sheet->getStyle('A9:' . $sheet->getHighestColumn() . $lastRow)
+            ->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    private function prepareStatisticsData($puskesmasAll, $year, $month, $diseaseType)
+    {
         $puskesmasIds = $puskesmasAll->pluck('id')->toArray();
         $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
             ->whereIn('puskesmas_id', $puskesmasIds)
             ->get();
-        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
-        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
+
+        $stats = $monthlyStats->where('disease_type', $diseaseType)->groupBy('puskesmas_id');
         $statistics = [];
+
         foreach ($puskesmasAll as $puskesmas) {
             $data = [
                 'puskesmas_id' => $puskesmas->id,
                 'puskesmas_name' => $puskesmas->name,
+                'target' => 0,
+                'monthly_data' => [],
             ];
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $htArr = [
-                    'target' => 0,
-                    'total_patients' => 0,
-                    'achievement_percentage' => 0,
-                    'standard_patients' => 0,
-                    'non_standard_patients' => 0,
-                    'male_patients' => 0,
-                    'female_patients' => 0,
-                    'monthly_data' => [],
-                ];
-                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'ht')
-                    ->where('year', $year)
-                    ->first();
-                $targetCount = $target ? $target->target_count : 0;
-                $htArr['target'] = $targetCount;
-                if (isset($htStats[$puskesmas->id])) {
-                    $totalPatients = $htStats[$puskesmas->id]->sum('total_count');
-                    $standardPatients = $htStats[$puskesmas->id]->sum('standard_count');
-                    $nonStandardPatients = $htStats[$puskesmas->id]->sum('non_standard_count');
-                    $malePatients = $htStats[$puskesmas->id]->sum('male_count');
-                    $femalePatients = $htStats[$puskesmas->id]->sum('female_count');
-                    $htArr['total_patients'] = $totalPatients;
-                    $htArr['standard_patients'] = $standardPatients;
-                    $htArr['non_standard_patients'] = $nonStandardPatients;
-                    $htArr['male_patients'] = $malePatients;
-                    $htArr['female_patients'] = $femalePatients;
-                    $htArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
-                    $monthlyData = [];
-                    foreach ($htStats[$puskesmas->id] as $stat) {
-                        $monthlyData[$stat->month] = [
-                            'male' => $stat->male_count,
-                            'female' => $stat->female_count,
-                            'total' => $stat->total_count,
-                            'standard' => $stat->standard_count,
-                            'non_standard' => $stat->non_standard_count,
-                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
-                        ];
-                    }
-                    $htArr['monthly_data'] = $monthlyData;
+
+            $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                ->where('disease_type', $diseaseType)
+                ->where('year', $year)
+                ->first();
+            $data['target'] = $target ? $target->target_count : 0;
+
+            if (isset($stats[$puskesmas->id])) {
+                foreach ($stats[$puskesmas->id] as $stat) {
+                    $data['monthly_data'][$stat->month] = [
+                        'male' => $stat->male_count,
+                        'female' => $stat->female_count,
+                        'standard' => $stat->standard_count,
+                        'non_standard' => $stat->non_standard_count,
+                        'percentage' => $data['target'] > 0 ?
+                            round(($stat->standard_count / $data['target']) * 100, 2) : 0,
+                    ];
                 }
-                $data['ht'] = $htArr;
             }
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dmArr = [
-                    'target' => 0,
-                    'total_patients' => 0,
-                    'achievement_percentage' => 0,
-                    'standard_patients' => 0,
-                    'non_standard_patients' => 0,
-                    'male_patients' => 0,
-                    'female_patients' => 0,
-                    'monthly_data' => [],
-                ];
-                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
-                    ->where('disease_type', 'dm')
-                    ->where('year', $year)
-                    ->first();
-                $targetCount = $target ? $target->target_count : 0;
-                $dmArr['target'] = $targetCount;
-                if (isset($dmStats[$puskesmas->id])) {
-                    $totalPatients = $dmStats[$puskesmas->id]->sum('total_count');
-                    $standardPatients = $dmStats[$puskesmas->id]->sum('standard_count');
-                    $nonStandardPatients = $dmStats[$puskesmas->id]->sum('non_standard_count');
-                    $malePatients = $dmStats[$puskesmas->id]->sum('male_count');
-                    $femalePatients = $dmStats[$puskesmas->id]->sum('female_count');
-                    $dmArr['total_patients'] = $totalPatients;
-                    $dmArr['standard_patients'] = $standardPatients;
-                    $dmArr['non_standard_patients'] = $nonStandardPatients;
-                    $dmArr['male_patients'] = $malePatients;
-                    $dmArr['female_patients'] = $femalePatients;
-                    $dmArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
-                    $monthlyData = [];
-                    foreach ($dmStats[$puskesmas->id] as $stat) {
-                        $monthlyData[$stat->month] = [
-                            'male' => $stat->male_count,
-                            'female' => $stat->female_count,
-                            'total' => $stat->total_count,
-                            'standard' => $stat->standard_count,
-                            'non_standard' => $stat->non_standard_count,
-                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
-                        ];
-                    }
-                    $dmArr['monthly_data'] = $monthlyData;
-                }
-                $data['dm'] = $dmArr;
-            }
+
             $statistics[] = $data;
         }
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $reportTypeLabel = $reportType === "laporan_tahunan"
-            ? "Laporan Tahunan"
-            : "Laporan Bulanan";
-        if ($diseaseType === 'ht') {
-            $title = "$reportTypeLabel Hipertensi (HT)";
-        } elseif ($diseaseType === 'dm') {
-            $title = "$reportTypeLabel Diabetes Mellitus (DM)";
-        } else {
-            $title = "$reportTypeLabel Hipertensi (HT) dan Diabetes Mellitus (DM)";
-        }
-        if ($isRecap) {
-            $title = "Rekap " . $title;
-        }
-        if (!$isRecap) {
-            $puskesmasName = $statistics[0]['puskesmas_name'];
-            $title .= " - " . $puskesmasName;
-        }
-        if ($month !== null) {
-            $monthName = $this->getMonthName($month);
-            $title .= " - Bulan $monthName Tahun $year";
-        } else {
-            $title .= " - Tahun $year";
-        }
-        $sheet->setCellValue('A1', $title);
-        $sheet->mergeCells('A1:K1');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        $exportInfo = "Diekspor oleh: " . Auth::user()->name . " (" .
-            (Auth::user()->is_admin ? "Admin" : "Petugas Puskesmas") . ")";
-        $sheet->setCellValue('A2', $exportInfo);
-        $sheet->mergeCells('A2:K2');
-        $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
-        $sheet->setCellValue('A3', 'Generated: ' . Carbon::now()->format('d F Y H:i'));
-        $sheet->mergeCells('A3:K3');
-        $sheet->getStyle('A3')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        $sheet->setCellValue('A4', '');
-        $row = 5;
-        if ($isRecap) {
-            $sheet->setCellValue('A' . $row, 'No');
-            $sheet->setCellValue('B' . $row, 'Puskesmas');
-            $col = 'C';
-        } else {
-            $col = 'A';
-        }
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $sheet->setCellValue($col++ . $row, 'Target HT');
-            $sheet->setCellValue($col++ . $row, 'Total Pasien HT');
-            $sheet->setCellValue($col++ . $row, 'Pencapaian HT (%)');
-            $sheet->setCellValue($col++ . $row, 'Pasien Standar HT');
-            $sheet->setCellValue($col++ . $row, 'Pasien Tidak Standar HT');
-            $sheet->setCellValue($col++ . $row, 'Pasien Laki-laki HT');
-            $sheet->setCellValue($col++ . $row, 'Pasien Perempuan HT');
-        }
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $sheet->setCellValue($col++ . $row, 'Target DM');
-            $sheet->setCellValue($col++ . $row, 'Total Pasien DM');
-            $sheet->setCellValue($col++ . $row, 'Pencapaian DM (%)');
-            $sheet->setCellValue($col++ . $row, 'Pasien Standar DM');
-            $sheet->setCellValue($col++ . $row, 'Pasien Tidak Standar DM');
-            $sheet->setCellValue($col++ . $row, 'Pasien Laki-laki DM');
-            $sheet->setCellValue($col++ . $row, 'Pasien Perempuan DM');
-        }
-        $lastCol = --$col;
-        $headerColStart = $isRecap ? 'A' : 'A';
-        $headerRange = $headerColStart . $row . ':' . $lastCol . $row;
-        $sheet->getStyle($headerRange)->getFont()->setBold(true);
-        $sheet->getStyle($headerRange)->getFill()
-            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-            ->getStartColor()->setRGB('D3D3D3');
-        $sheet->getStyle($headerRange)->getBorders()
-            ->getAllBorders()
-            ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-        $sheet->getStyle($headerRange)->getAlignment()
-            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
-            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
-        // Tambahkan ranking jika isRecap
-        if ($isRecap) {
-            foreach ($statistics as $i => &$stat) {
-                $stat['ranking'] = $i + 1;
-            }
-            unset($stat);
-        }
-        foreach ($statistics as $index => $stat) {
-            $row++;
-            if ($isRecap) {
-                $sheet->setCellValue('A' . $row, $stat['ranking']);
-                $sheet->setCellValue('B' . $row, $stat['puskesmas_name']);
-                $col = 'C';
-            } else {
-                $col = 'A';
-            }
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $sheet->setCellValue($col++ . $row, $stat['ht']['target'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['ht']['total_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['ht']['achievement_percentage'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['ht']['standard_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['ht']['non_standard_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['ht']['male_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['ht']['female_patients'] ?? 0);
-            }
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $sheet->setCellValue($col++ . $row, $stat['dm']['target'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['dm']['total_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['dm']['achievement_percentage'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['dm']['standard_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['dm']['non_standard_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['dm']['male_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $stat['dm']['female_patients'] ?? 0);
-            }
-        }
-        if ($month === null) {
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $this->addMonthlyDataSheet($spreadsheet, $statistics, 'ht', $year, $isRecap);
-            }
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $this->addMonthlyDataSheet($spreadsheet, $statistics, 'dm', $year, $isRecap);
-            }
-        }
-        $exportPath = storage_path('app/public/exports');
-        if (!file_exists($exportPath)) {
-            mkdir($exportPath, 0755, true);
-        }
-        $writer = new Xlsx($spreadsheet);
-        $excelFilename = $filename . '.xlsx';
-        $path = $exportPath . '/' . $excelFilename;
-        $writer->save($path);
-        return \response()->download($path, $excelFilename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ])->deleteFileAfterSend(true);
+
+        return $statistics;
     }
 
     public function getMonthName($month)

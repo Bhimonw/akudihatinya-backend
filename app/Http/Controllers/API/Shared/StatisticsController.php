@@ -405,11 +405,19 @@ class StatisticsController extends Controller
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month ?? null; // null = laporan tahunan
         $diseaseType = $request->disease_type ?? 'all'; // Nilai default: 'all', bisa juga 'ht' atau 'dm'
+        $tableType = $request->table_type ?? 'all'; // Nilai default: 'all', bisa juga 'quarterly' atau 'monthly'
 
         // Validasi nilai disease_type
         if (!in_array($diseaseType, ['all', 'ht', 'dm'])) {
             return response()->json([
                 'message' => 'Parameter disease_type tidak valid. Gunakan all, ht, atau dm.',
+            ], 400);
+        }
+
+        // Validasi nilai table_type
+        if (!in_array($tableType, ['all', 'quarterly', 'monthly'])) {
+            return response()->json([
+                'message' => 'Parameter table_type tidak valid. Gunakan all, quarterly, atau monthly.',
             ], 400);
         }
 
@@ -439,61 +447,20 @@ class StatisticsController extends Controller
             $puskesmasQuery->where('name', 'like', '%' . $request->name . '%');
         }
 
-        // Implementasi logika ekspor:
-        // - Admin dapat mencetak rekap atau laporan puskesmas tertentu
-        // - User hanya dapat mencetak data miliknya sendiri
-
-        // Jika user bukan admin, HARUS filter data ke puskesmas user
+        // Jika user bukan admin, filter data ke puskesmas user
         if (!Auth::user()->isAdmin()) {
-            $userPuskesmas = Auth::user()->puskesmas_id;
-            if ($userPuskesmas) {
-                $puskesmasQuery->where('id', $userPuskesmas);
-            } else {
-                // Jika user bukan admin dan tidak terkait dengan puskesmas, kembalikan error
-                return response()->json([
-                    'message' => 'Anda tidak memiliki akses untuk mencetak statistik.',
-                ], 403);
-            }
+            $puskesmasQuery->where('id', Auth::user()->puskesmas_id);
         }
-
-        // Cek apakah ini permintaan rekap (hanya untuk admin)
-        $isRecap = Auth::user()->isAdmin() && (!$request->has('puskesmas_id') || $puskesmasQuery->count() > 1);
 
         $puskesmasAll = $puskesmasQuery->get();
 
-        // Jika tidak ada puskesmas yang ditemukan
-        if ($puskesmasAll->isEmpty()) {
-            return response()->json([
-                'message' => 'Tidak ada data puskesmas yang sesuai dengan filter.',
-            ], 404);
-        }
+        // Tentukan apakah ini laporan rekap (admin) atau laporan puskesmas
+        $isRecap = Auth::user()->isAdmin() && !$request->has('puskesmas_id');
+        $reportType = $isRecap ? 'recap' : 'single';
 
         // Buat nama file
-        $filename = "";
-
-        // Tentukan jenis laporan berdasarkan parameter
-        if ($month === null) {
-            // Laporan tahunan
-            $reportType = "laporan_tahunan";
-        } else {
-            // Laporan bulanan
-            $reportType = "laporan_bulanan";
-        }
-
-        // Tambahkan prefix "rekap" jika ini adalah rekap (untuk admin)
-        if (Auth::user()->isAdmin() && $isRecap) {
-            $filename .= "rekap_";
-        }
-
-        $filename .= $reportType . "_";
-
-        if ($diseaseType !== 'all') {
-            $filename .= $diseaseType . "_";
-        }
-
-        $filename .= $year;
-
-        if ($month !== null) {
+        $filename = "laporan_" . ($diseaseType === 'all' ? 'ht_dm' : $diseaseType) . "_" . $year;
+        if ($month) {
             $filename .= "_" . str_pad($month, 2, '0', STR_PAD_LEFT);
         }
 
@@ -508,11 +475,20 @@ class StatisticsController extends Controller
             $filename .= "_" . str_replace(' ', '_', strtolower($puskesmasName));
         }
 
+        // Tambahkan table_type ke filename jika admin
+        if (Auth::user()->isAdmin()) {
+            $filename .= "_" . $tableType;
+        }
+
         // Proses export sesuai format
         if ($format === 'pdf') {
             return $this->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
         } else {
-            return $this->exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+            if (Auth::user()->isAdmin()) {
+                return $this->exportService->exportToExcel($diseaseType, $year, $request->puskesmas_id, $tableType);
+            } else {
+                return $this->exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+            }
         }
     }
 
