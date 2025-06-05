@@ -954,38 +954,6 @@ class StatisticsController extends Controller
         // Calculate summary data for all puskesmas
         $summary = $this->calculateSummaryStatistics($allPuskesmasIds, $year, $month, $diseaseType);
 
-        // --- PATCH: summary DM ambil dari bulan 12 semua puskesmas di halaman ini ---
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $dmSummary = [
-                'target' => 0,
-                'total_patients' => 0,
-                'standard_patients' => 0,
-                'non_standard_patients' => 0,
-                'male_patients' => 0,
-                'female_patients' => 0,
-                'achievement_percentage' => 0,
-                'standard_percentage' => 0,
-                'monthly_data' => [],
-            ];
-            $totalTarget = 0;
-            foreach ($statistics as $stat) {
-                if (!isset($stat['dm']['monthly_data'][12])) continue;
-                $dm12 = $stat['dm']['monthly_data'][12];
-                $dmSummary['total_patients'] += (int)$dm12['total'];
-                $dmSummary['standard_patients'] += (int)$dm12['standard'];
-                $dmSummary['non_standard_patients'] += (int)$dm12['non_standard'];
-                $dmSummary['male_patients'] += (int)$dm12['male'];
-                $dmSummary['female_patients'] += (int)$dm12['female'];
-                $totalTarget += (int)($stat['dm']['target'] ?? 0);
-            }
-            $dmSummary['target'] = (string)$totalTarget;
-            $dmSummary['achievement_percentage'] = $totalTarget > 0 ? round(($dmSummary['standard_patients'] / $totalTarget) * 100, 2) : 0;
-            $dmSummary['standard_percentage'] = $dmSummary['total_patients'] > 0 ? round(($dmSummary['standard_patients'] / $dmSummary['total_patients']) * 100, 2) : 0;
-            // monthly_data tetap dari summary lama
-            $dmSummary['monthly_data'] = $summary['dm']['monthly_data'] ?? [];
-            $summary['dm'] = $dmSummary;
-        }
-
         // Prepare response with summary data
         $response = [
             'year' => $year,

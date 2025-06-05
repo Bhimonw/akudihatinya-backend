@@ -73,6 +73,7 @@ class StatisticsService
     {
         $summary = [];
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
+            // First try to get month 12 data
             $htStats = DB::table('monthly_statistics_cache')
                 ->select(
                     DB::raw('SUM(total_count) as total_patients'),
@@ -83,13 +84,39 @@ class StatisticsService
                 )
                 ->where('disease_type', 'ht')
                 ->where('year', $year)
+                ->where('month', 12)
                 ->whereIn('puskesmas_id', $puskesmasIds)
-                ->when($month, function ($query) use ($month) {
-                    return $query->where('month', $month);
-                })
                 ->first();
+
+            // If month 12 data is not found or has no patients, get the latest month's data
+            if (!$htStats || ($htStats->total_patients ?? 0) == 0) {
+                $latestMonth = DB::table('monthly_statistics_cache')
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->whereIn('puskesmas_id', $puskesmasIds)
+                    ->where('total_count', '>', 0)
+                    ->max('month');
+
+                if ($latestMonth) {
+                    $htStats = DB::table('monthly_statistics_cache')
+                        ->select(
+                            DB::raw('SUM(total_count) as total_patients'),
+                            DB::raw('SUM(standard_count) as standard_patients'),
+                            DB::raw('SUM(non_standard_count) as non_standard_patients'),
+                            DB::raw('SUM(male_count) as male_patients'),
+                            DB::raw('SUM(female_count) as female_patients')
+                        )
+                        ->where('disease_type', 'ht')
+                        ->where('year', $year)
+                        ->where('month', $latestMonth)
+                        ->whereIn('puskesmas_id', $puskesmasIds)
+                        ->first();
+                }
+            }
+
             $htTargetTotal = $this->yearlyTargetRepository->getTotalTargetCount($puskesmasIds, 'ht', $year);
             $htMonthlyData = $this->getMonthlyAggregatedStats('ht', $puskesmasIds, $year, $htTargetTotal);
+
             $summary['ht'] = [
                 'target' => $htTargetTotal,
                 'total_patients' => $htStats->total_patients ?? 0,
@@ -104,6 +131,7 @@ class StatisticsService
             ];
         }
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            // First try to get month 12 data
             $dmStats = DB::table('monthly_statistics_cache')
                 ->select(
                     DB::raw('SUM(total_count) as total_patients'),
@@ -114,13 +142,39 @@ class StatisticsService
                 )
                 ->where('disease_type', 'dm')
                 ->where('year', $year)
+                ->where('month', 12)
                 ->whereIn('puskesmas_id', $puskesmasIds)
-                ->when($month, function ($query) use ($month) {
-                    return $query->where('month', $month);
-                })
                 ->first();
+
+            // If month 12 data is not found or has no patients, get the latest month's data
+            if (!$dmStats || ($dmStats->total_patients ?? 0) == 0) {
+                $latestMonth = DB::table('monthly_statistics_cache')
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->whereIn('puskesmas_id', $puskesmasIds)
+                    ->where('total_count', '>', 0)
+                    ->max('month');
+
+                if ($latestMonth) {
+                    $dmStats = DB::table('monthly_statistics_cache')
+                        ->select(
+                            DB::raw('SUM(total_count) as total_patients'),
+                            DB::raw('SUM(standard_count) as standard_patients'),
+                            DB::raw('SUM(non_standard_count) as non_standard_patients'),
+                            DB::raw('SUM(male_count) as male_patients'),
+                            DB::raw('SUM(female_count) as female_patients')
+                        )
+                        ->where('disease_type', 'dm')
+                        ->where('year', $year)
+                        ->where('month', $latestMonth)
+                        ->whereIn('puskesmas_id', $puskesmasIds)
+                        ->first();
+                }
+            }
+
             $dmTargetTotal = $this->yearlyTargetRepository->getTotalTargetCount($puskesmasIds, 'dm', $year);
             $dmMonthlyData = $this->getMonthlyAggregatedStats('dm', $puskesmasIds, $year, $dmTargetTotal);
+
             $summary['dm'] = [
                 'target' => $dmTargetTotal,
                 'total_patients' => $dmStats->total_patients ?? 0,
