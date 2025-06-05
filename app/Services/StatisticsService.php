@@ -2,71 +2,68 @@
 
 namespace App\Services;
 
-use App\Models\DmExamination;
-use App\Models\HtExamination;
-use App\Models\Patient;
 use App\Models\YearlyTarget;
 use App\Models\MonthlyStatisticsCache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
-use App\Services\HtStatisticsService;
-use App\Services\DmStatisticsService;
+use App\Services\DiseaseStatisticsService;
 
 class StatisticsService
 {
     protected $puskesmasRepository;
     protected $yearlyTargetRepository;
-    protected $htStatisticsService;
-    protected $dmStatisticsService;
+    protected $diseaseStatisticsService;
 
-    public function __construct(PuskesmasRepository $puskesmasRepository, YearlyTargetRepository $yearlyTargetRepository, HtStatisticsService $htStatisticsService, DmStatisticsService $dmStatisticsService)
-    {
+    public function __construct(
+        PuskesmasRepository $puskesmasRepository,
+        YearlyTargetRepository $yearlyTargetRepository,
+        DiseaseStatisticsService $diseaseStatisticsService
+    ) {
         $this->puskesmasRepository = $puskesmasRepository;
         $this->yearlyTargetRepository = $yearlyTargetRepository;
-        $this->htStatisticsService = $htStatisticsService;
-        $this->dmStatisticsService = $dmStatisticsService;
+        $this->diseaseStatisticsService = $diseaseStatisticsService;
     }
 
     public function getHtStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month = null)
     {
-        return $this->htStatisticsService->getHtStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month);
+        return $this->diseaseStatisticsService->getStatisticsWithMonthlyBreakdown($puskesmasId, $year, 'ht', $month);
     }
 
     public function getDmStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month = null)
     {
-        return $this->dmStatisticsService->getDmStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month);
+        return $this->diseaseStatisticsService->getStatisticsWithMonthlyBreakdown($puskesmasId, $year, 'dm', $month);
     }
 
     public function getHtStatistics($puskesmasId, $year, $month = null)
     {
-        return $this->htStatisticsService->getHtStatistics($puskesmasId, $year, $month);
+        return $this->diseaseStatisticsService->getStatistics($puskesmasId, $year, 'ht', $month);
     }
 
     public function getDmStatistics($puskesmasId, $year, $month = null)
     {
-        return $this->dmStatisticsService->getDmStatistics($puskesmasId, $year, $month);
+        return $this->diseaseStatisticsService->getStatistics($puskesmasId, $year, 'dm', $month);
     }
 
     public function processHtCachedStats($statsList, $target = null)
     {
-        return $this->htStatisticsService->processHtCachedStats($statsList, $target);
+        return $this->diseaseStatisticsService->processCachedStats($statsList, $target);
     }
 
     public function processDmCachedStats($statsList, $target = null)
     {
-        return $this->dmStatisticsService->processDmCachedStats($statsList, $target);
+        return $this->diseaseStatisticsService->processCachedStats($statsList, $target);
     }
 
     public function getHtStatisticsFromCache($puskesmasId, $year, $month = null)
     {
-        return $this->htStatisticsService->getHtStatisticsFromCache($puskesmasId, $year, $month);
+        return $this->diseaseStatisticsService->getStatisticsFromCache($puskesmasId, $year, 'ht', $month);
     }
 
     public function getDmStatisticsFromCache($puskesmasId, $year, $month = null)
     {
-        return $this->dmStatisticsService->getDmStatisticsFromCache($puskesmasId, $year, $month);
+        return $this->diseaseStatisticsService->getStatisticsFromCache($puskesmasId, $year, 'dm', $month);
     }
 
     public function calculateSummaryStatistics($puskesmasIds, $year, $month, $diseaseType)
@@ -321,7 +318,7 @@ class StatisticsService
         ];
     }
 
-    public function prepareChartData($diseaseType, $htMonthlyData, $dmMonthlyData)
+    public function prepareChartData($diseaseType, $htMonthlyData = [], $dmMonthlyData = [])
     {
         $shortMonths = [
             'Jan',

@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\HtExamination;
 use App\Models\Patient;
 use App\Models\MonthlyStatisticsCache;
 use Carbon\Carbon;
 use App\Repositories\YearlyTargetRepository;
+use Illuminate\Support\Facades\DB;
 
-class HtStatisticsService
+class DiseaseStatisticsService
 {
     protected $yearlyTargetRepository;
 
@@ -17,31 +17,37 @@ class HtStatisticsService
         $this->yearlyTargetRepository = $yearlyTargetRepository;
     }
 
-    public function getHtStatisticsWithMonthlyBreakdown($puskesmasId, $year, $month = null)
+    public function getStatisticsWithMonthlyBreakdown($puskesmasId, $year, $diseaseType, $month = null)
     {
-        $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, 'ht', $year);
+        $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, $diseaseType, $year);
         $target = $target ? $target->target_count : 0;
         $monthly_data = [];
+
+        $examinationRelation = $diseaseType === 'ht' ? 'htExaminations' : 'dmExaminations';
         $allPatients = Patient::where('puskesmas_id', $puskesmasId)
-            ->whereHas('htExaminations', function ($query) use ($year) {
+            ->whereHas($examinationRelation, function ($query) use ($year) {
                 $query->whereYear('examination_date', $year);
             })
-            ->with(['htExaminations' => function ($query) use ($year) {
+            ->with([$examinationRelation => function ($query) use ($year) {
                 $query->whereYear('examination_date', $year)->orderBy('month');
             }])
             ->get();
+
         $cumulativePatientIds = collect();
         $patientFirstMonth = [];
         $patientMonthMap = [];
+
         foreach ($allPatients as $patient) {
-            $months = $patient->htExaminations->map(function ($exam) {
+            $months = $patient->$examinationRelation->map(function ($exam) {
                 return Carbon::parse($exam->examination_date)->month;
             })->unique()->sort()->values();
+
             if ($months->isEmpty()) continue;
             $firstMonth = $months->first();
             $patientFirstMonth[$patient->id] = $firstMonth;
             $patientMonthMap[$patient->id] = $months->toArray();
         }
+
         for ($m = 1; $m <= 12; $m++) {
             $activePatients = $allPatients->filter(function ($patient) use ($m, $patientMonthMap) {
                 $months = $patientMonthMap[$patient->id] ?? [];
@@ -49,6 +55,7 @@ class HtStatisticsService
                     return $mon <= $m;
                 })->count() > 0;
             })->pluck('id');
+
             $cumulativePatientIds = $activePatients->merge($cumulativePatientIds)->unique();
             $monthly_total = $cumulativePatientIds->count();
             $monthly_male = $allPatients->whereIn('id', $cumulativePatientIds)->where('gender', 'male')->count();
@@ -57,6 +64,7 @@ class HtStatisticsService
             $monthly_non_standard = 0;
             $monthly_male_standard = 0;
             $monthly_female_standard = 0;
+
             foreach ($allPatients->whereIn('id', $cumulativePatientIds) as $patient) {
                 $firstMonth = $patientFirstMonth[$patient->id] ?? null;
                 if ($firstMonth === null || $firstMonth > $m) continue;
@@ -75,6 +83,7 @@ class HtStatisticsService
                     $monthly_non_standard++;
                 }
             }
+
             $monthly_percentage = $target > 0 ? round(($monthly_standard / $target) * 100, 2) : 0;
             $monthly_data[$m] = [
                 'target' => (string)$target,
@@ -86,6 +95,7 @@ class HtStatisticsService
                 'percentage' => $monthly_percentage,
             ];
         }
+
         // Summary ambil dari bulan 12
         $summary_december = $monthly_data[12];
         $total_patients = (int)$summary_december['total'];
@@ -95,6 +105,7 @@ class HtStatisticsService
         $female_patients = (int)$summary_december['female'];
         $achievement_percentage = $target > 0 ? round(($standard_patients / $target) * 100, 2) : 0;
         $standard_percentage = $total_patients > 0 ? round(($standard_patients / $total_patients) * 100, 2) : 0;
+
         return [
             'target' => (string)$target,
             'total_patients' => (string)$total_patients,
@@ -108,12 +119,12 @@ class HtStatisticsService
         ];
     }
 
-    public function getHtStatistics($puskesmasId, $year, $month = null)
+    public function getStatistics($puskesmasId, $year, $diseaseType, $month = null)
     {
-        // ... salin isi dari StatisticsService::getHtStatistics ...
+        return $this->getStatisticsWithMonthlyBreakdown($puskesmasId, $year, $diseaseType, $month);
     }
 
-    public function processHtCachedStats($statsList, $target = null)
+    public function processCachedStats($statsList, $target = null)
     {
         $totalPatients = $statsList->sum('total_count');
         $standardPatients = $statsList->sum('standard_count');
@@ -123,6 +134,7 @@ class HtStatisticsService
         $targetCount = $target ? $target->target_count : 0;
         $achievement = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
         $monthlyData = [];
+
         foreach ($statsList as $stat) {
             $monthlyData[$stat->month] = [
                 'target' => (string)$targetCount,
@@ -134,6 +146,7 @@ class HtStatisticsService
                 'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
             ];
         }
+
         return [
             'target' => $targetCount,
             'total_patients' => $totalPatients,
@@ -146,10 +159,10 @@ class HtStatisticsService
         ];
     }
 
-    public function getHtStatisticsFromCache($puskesmasId, $year, $month = null)
+    public function getStatisticsFromCache($puskesmasId, $year, $diseaseType, $month = null)
     {
         $query = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
-            ->where('disease_type', 'ht')
+            ->where('disease_type', $diseaseType)
             ->where('year', $year);
 
         if ($month !== null) {
@@ -164,8 +177,9 @@ class HtStatisticsService
         $malePatients = $monthlyData->sum('male_count');
         $femalePatients = $monthlyData->sum('female_count');
 
-        $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, 'ht', $year);
+        $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, $diseaseType, $year);
         $yearlyTarget = $target ? (int)$target->target_count : 0;
+
         // Build monthly breakdown
         $monthlyBreakdown = [];
         for ($m = 1; $m <= 12; $m++) {
