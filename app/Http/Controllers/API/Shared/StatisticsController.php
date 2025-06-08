@@ -482,7 +482,13 @@ class StatisticsController extends Controller
 
         // Proses export sesuai format
         if ($format === 'pdf') {
-            return $this->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+            // Untuk PDF, gunakan format dashboard custom
+            if ($tableType === 'all') {
+                return $this->exportService->exportDashboardToPdf($diseaseType, $year, $request->puskesmas_id);
+            } else {
+                // Untuk tipe tabel lain, gunakan metode PDF yang lama
+                return $this->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
+            }
         } else {
             if (Auth::user()->isAdmin()) {
                 return $this->exportService->exportToExcel($diseaseType, $year, $request->puskesmas_id, $tableType);

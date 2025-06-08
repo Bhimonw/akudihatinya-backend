@@ -2,25 +2,26 @@
 
 namespace App\Services;
 
-use App\Models\DmExamination;
-use App\Models\HtExamination;
+use Carbon\Carbon;
 use App\Models\Patient;
 use App\Models\Puskesmas;
 use App\Models\YearlyTarget;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
+use App\Models\DmExamination;
+use App\Models\HtExamination;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
+use App\Services\StatisticsService;
+use Illuminate\Support\Facades\Auth;
+use App\Formatters\AdminAllFormatter;
+use App\Services\DashboardPdfService;
+use App\Models\MonthlyStatisticsCache;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use App\Formatters\AdminMonthlyFormatter;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Illuminate\Support\Facades\Auth;
-use App\Models\MonthlyStatisticsCache;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use App\Formatters\AdminAllFormatter;
-use App\Formatters\AdminMonthlyFormatter;
-use App\Services\StatisticsService;
 use App\Formatters\AdminQuarterlyFormatter;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class ExportService
 {
@@ -405,58 +406,243 @@ class ExportService
         $sheet->mergeCells('A1:K1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        // ... kode lanjutan addMonthlyDataSheet jika ada ...
-    }
-
-    public function exportMonitoringToPdf($patientData, $puskesmas, $year, $month, $diseaseType, $filename)
-    {
-        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-        $data = [
-            'patients' => $patientData,
-            'puskesmas' => $puskesmas,
-            'year' => $year,
-            'month' => $month,
-            'disease_type' => $diseaseType,
-            'days_in_month' => $daysInMonth,
-            'month_name' => $this->getMonthName($month),
-            'generated_at' => Carbon::now()->format('d F Y H:i'),
-            'generated_by' => Auth::user()->name,
+        
+        // Set headers
+        $headers = ['No', 'Puskesmas', 'Target'];
+        $monthNames = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+            'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
         ];
-        $pdf = PDF::loadView('exports.monitoring_pdf', $data);
-        $pdf->setPaper('a4', 'landscape');
-        $exportPath = storage_path('app/public/exports');
-        if (!file_exists($exportPath)) {
-            mkdir($exportPath, 0755, true);
+        
+        // Add month headers
+        foreach ($monthNames as $month) {
+            $headers[] = $month . ' (L)';
+            $headers[] = $month . ' (P)';
+            $headers[] = $month . ' (Total)';
+            $headers[] = $month . ' (TS)';
+            $headers[] = $month . ' (%)';
         }
-        $pdfFilename = $filename . '.pdf';
-        \Storage::put('public/exports/' . $pdfFilename, $pdf->output());
-        return \response()->download(storage_path('app/public/exports/' . $pdfFilename), $pdfFilename, [
-            'Content-Type' => 'application/pdf',
-        ])->deleteFileAfterSend(true);
-    }
-
-    public function exportMonitoringToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename)
-    {
-        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-        $spreadsheet = new Spreadsheet();
-        $this->createMonitoringSheet($spreadsheet, $patientData, $puskesmas, $year, $month, $diseaseType, $daysInMonth);
-        $exportPath = storage_path('app/public/exports');
-        if (!file_exists($exportPath)) {
-            mkdir($exportPath, 0755, true);
+        
+        // Set header row
+        $row = 3;
+        $col = 1;
+        foreach ($headers as $header) {
+            $sheet->setCellValueByColumnAndRow($col, $row, $header);
+            $sheet->getStyleByColumnAndRow($col, $row)->getFont()->setBold(true);
+            $sheet->getStyleByColumnAndRow($col, $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $col++;
         }
-        $writer = new Xlsx($spreadsheet);
-        $excelFilename = $filename . '.xlsx';
-        $path = $exportPath . '/' . $excelFilename;
-        $writer->save($path);
-        return \response()->download($path, $excelFilename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ])->deleteFileAfterSend(true);
+        
+        // Add data rows
+        $dataRow = 4;
+        foreach ($statistics as $index => $puskesmasData) {
+            $col = 1;
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $index + 1); // No
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $puskesmasData['puskesmas_name']); // Puskesmas
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $puskesmasData['target']); // Target
+            
+            // Add monthly data
+            for ($month = 1; $month <= 12; $month++) {
+                $monthData = $puskesmasData['monthly_data'][$month] ?? [
+                    'male' => 0,
+                    'female' => 0,
+                    'standard' => 0,
+                    'non_standard' => 0,
+                    'percentage' => 0
+                ];
+                
+                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['male']); // L
+                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['female']); // P
+                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['standard']); // Total
+                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['non_standard']); // TS
+                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['percentage']); // %
+            }
+            
+            $dataRow++;
+        }
+        
+        // Apply styling
+        $lastRow = $dataRow - 1;
+        $lastCol = $col - 1;
+        
+        // Apply borders
+        $range = 'A3:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol) . $lastRow;
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        
+        // Auto-size columns
+        for ($i = 1; $i <= $lastCol; $i++) {
+            $sheet->getColumnDimensionByColumn($i)->setAutoSize(true);
+        }
     }
 
     public function createMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth)
     {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Monitoring');
-        // ... kode lanjutan createMonitoringSheet jika ada ...
+        
+        // Set title
+        $diseaseLabel = $diseaseType === 'ht' ? 'Hipertensi (HT)' : 'Diabetes Mellitus (DM)';
+        $monthName = $this->getMonthName($month);
+        $title = "Monitoring Pasien {$diseaseLabel} - {$puskesmas->name} - {$monthName} {$year}";
+        
+        $sheet->setCellValue('A1', $title);
+        $sheet->mergeCells('A1:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5 + $daysInMonth) . '1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        // Set headers
+        $headers = ['No', 'No. RM', 'Nama Pasien', 'Jenis Kelamin', 'Umur'];
+        
+        // Add day headers
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $headers[] = $day;
+        }
+        
+        // Set header row
+        $headerRow = 3;
+        $col = 1;
+        foreach ($headers as $header) {
+            $sheet->setCellValueByColumnAndRow($col, $headerRow, $header);
+            $sheet->getStyleByColumnAndRow($col, $headerRow)->getFont()->setBold(true);
+            $sheet->getStyleByColumnAndRow($col, $headerRow)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            $col++;
+        }
+        
+        // Add patient data
+        $dataRow = 4;
+        foreach ($patients as $index => $patient) {
+            $col = 1;
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $index + 1); // No
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['medical_record_number'] ?? ''); // No. RM
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['name']); // Nama Pasien
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['gender'] === 'male' ? 'L' : 'P'); // Jenis Kelamin
+            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['age'] ?? ''); // Umur
+            
+            // Add examination data for each day
+            $examinations = $patient['examinations'] ?? [];
+            for ($day = 1; $day <= $daysInMonth; $day++) {
+                $hasExam = false;
+                foreach ($examinations as $exam) {
+                    $examDate = \Carbon\Carbon::parse($exam['examination_date']);
+                    if ($examDate->day == $day && $examDate->month == $month && $examDate->year == $year) {
+                        $sheet->setCellValueByColumnAndRow($col, $dataRow, '✓');
+                        $hasExam = true;
+                        break;
+                    }
+                }
+                if (!$hasExam) {
+                    $sheet->setCellValueByColumnAndRow($col, $dataRow, '');
+                }
+                $col++;
+            }
+            
+            $dataRow++;
+        }
+        
+        // Apply styling
+        $lastRow = $dataRow - 1;
+        $lastCol = 5 + $daysInMonth;
+        
+        // Apply borders
+        $range = 'A3:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol) . $lastRow;
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        
+        // Set column widths
+        $sheet->getColumnDimension('A')->setWidth(5);  // No
+        $sheet->getColumnDimension('B')->setWidth(12); // No. RM
+        $sheet->getColumnDimension('C')->setWidth(25); // Nama Pasien
+        $sheet->getColumnDimension('D')->setWidth(8);  // Jenis Kelamin
+        $sheet->getColumnDimension('E')->setWidth(8);  // Umur
+        
+        // Set day columns width
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5 + $day);
+            $sheet->getColumnDimension($colLetter)->setWidth(4);
+        }
+        
+        // Center align all cells
+        $sheet->getStyle($range)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle($range)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+    }
+
+    /**
+     * Export dashboard to PDF with puskesmas filter support
+     */
+    public function exportDashboardToPdf($diseaseType, $year, $puskesmasId = null)
+    {
+        try {
+            // Gunakan DashboardPdfService yang sudah diupdate
+            $dashboardPdfService = app(DashboardPdfService::class);
+            $preparedData = $dashboardPdfService->prepareData($year, $diseaseType, $puskesmasId);
+
+            // Filter data berdasarkan puskesmas jika diperlukan
+            if ($puskesmasId) {
+                $preparedData['puskesmas_data'] = array_filter(
+                    $preparedData['puskesmas_data'],
+                    function ($puskesmas) use ($puskesmasId) {
+                        // Asumsi ada field puskesmas_id atau bisa dicocokkan dengan nama
+                        return isset($puskesmas['puskesmas_id']) && $puskesmas['puskesmas_id'] == $puskesmasId;
+                    }
+                );
+
+                // Recalculate grand total untuk filtered data
+                if (!empty($preparedData['puskesmas_data'])) {
+                    $preparedData['grand_total'] = $dashboardPdfService->getGrandTotals(
+                        array_values($preparedData['puskesmas_data']),
+                        [] // Empty raw data since we're recalculating
+                    );
+                }
+            }
+
+            $main_title = 'LAPORAN REKAPITULASI DATA PELAYANAN KESEHATAN';
+            // Safely access disease_type_label with a default value
+            $disease_type_label = $preparedData['disease_type_label'] ?? 'Unknown Disease';
+
+            $export_meta = [
+                'generated_by' => Auth::user()->name,
+                'user_role' => Auth::user()->isAdmin() ? 'Admin' : 'Petugas Puskesmas',
+                'generated_at' => now()->format('d F Y H:i'),
+            ];
+
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.dashboard_pdf', [
+                'title' => $main_title,
+                'main_title' => $main_title,
+                'disease_type_label' => $disease_type_label,
+                'year' => $year,
+                'months' => $preparedData['months'] ?? [],
+                'puskesmasData' => $preparedData['puskesmas_data'] ?? [], // Ensure this is passed
+                'grandTotalData' => $preparedData['grand_total'] ?? [], // Ensure this is passed
+                'export_meta' => $export_meta,
+            ]);
+
+            $pdf->setPaper('a4', 'landscape');
+            $filename = 'laporan_' . strtolower(str_replace([' ', '(', ')'], ['_', '', ''], $disease_type_label)) . '_' . $year;
+            if ($puskesmasId) {
+                $puskesmasName = \App\Models\Puskesmas::find($puskesmasId)->name ?? 'puskesmas';
+                $filename .= '_' . strtolower(str_replace(' ', '_', $puskesmasName));
+            }
+            $filename .= '.pdf';
+
+            $exportPath = storage_path('app/public/exports');
+            if (!file_exists($exportPath)) {
+                mkdir($exportPath, 0755, true);
+            }
+            $pdfPath = $exportPath . DIRECTORY_SEPARATOR . $filename;
+            $pdf->save($pdfPath);
+
+            if (!file_exists($pdfPath)) {
+                throw new \Exception("Failed to generate PDF file");
+            }
+
+            return response()->download($pdfPath, $filename, [
+                'Content-Type' => 'application/pdf',
+            ])->deleteFileAfterSend(true);
+        } catch (\Exception $e) {
+            \Log::error('PDF Export Error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'message' => 'Gagal generate PDF',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

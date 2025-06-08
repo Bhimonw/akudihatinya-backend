@@ -16,6 +16,7 @@ use App\Formatters\AdminAllFormatter;
 use App\Services\DiseaseStatisticsService;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
+use App\Services\DashboardPdfService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -56,6 +57,13 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ArchiveService::class, function ($app) {
             return new ArchiveService();
+        });
+
+        // Register DashboardPdfService with StatisticsService dependency
+        $this->app->singleton(DashboardPdfService::class, function ($app) {
+            return new DashboardPdfService(
+                $app->make(StatisticsService::class)
+            );
         });
 
         // Register formatters with StatisticsService dependency

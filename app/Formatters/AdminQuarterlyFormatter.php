@@ -201,12 +201,12 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
             'AC'  // Persentase Tahunan
         ];
 
-        // Get data from last quarter (Q4)
+        // Get data from last quarter (Q4) - data terakhir triwulan
         $lastQuarterData = $diseaseData['monthly_data'][12] ?? [
             'male' => 0,
             'female' => 0,
-            'standard' => 0,
-            'non_standard' => 0,
+            'standard' => 0,     // S Total
+            'non_standard' => 0, // TS
             'total' => 0,
             'percentage' => 0
         ];
