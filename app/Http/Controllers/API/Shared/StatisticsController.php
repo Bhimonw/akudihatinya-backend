@@ -484,7 +484,7 @@ class StatisticsController extends Controller
         if ($format === 'pdf') {
             // Untuk PDF, gunakan format dashboard custom
             if ($tableType === 'all') {
-                return $this->exportService->exportDashboardToPdf($diseaseType, $year, $request->puskesmas_id);
+                return $this->exportService->exportToPdf($puskesmasAll, $year, null, $diseaseType, $filename, true, 'dashboard');
             } else {
                 // Untuk tipe tabel lain, gunakan metode PDF yang lama
                 return $this->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
@@ -606,7 +606,7 @@ class StatisticsController extends Controller
      */
     protected function addMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap = false)
     {
-        return $this->exportService->addMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap);
+return $this->exportService->createMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap);
     }
 
     /**
@@ -703,7 +703,7 @@ class StatisticsController extends Controller
      */
     protected function exportMonitoringToPdf($patientData, $puskesmas, $year, $month, $diseaseType, $filename)
     {
-        return $this->exportService->exportMonitoringToPdf($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
+        return $this->exportService->exportToPdf($patientData, $puskesmas, $year, $month, $diseaseType, $filename, 'monitoring');
     }
 
     /**
@@ -711,7 +711,7 @@ class StatisticsController extends Controller
      */
     protected function exportMonitoringToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename)
     {
-        return $this->exportService->exportMonitoringToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
+        return $this->exportService->exportToExcel($patientData, $puskesmas, $year, $month, $diseaseType, $filename);
     }
 
     /**
@@ -719,7 +719,7 @@ class StatisticsController extends Controller
      */
     protected function createMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth)
     {
-        return $this->exportService->createMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth);
+return $this->exportService->exportMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth);
     }
 
     /**

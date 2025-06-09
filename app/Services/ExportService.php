@@ -392,257 +392,277 @@ class ExportService
         return Carbon::create()->month($month)->locale('id')->monthName;
     }
 
-    public function addMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap = false)
+
+
+    protected function prepareDataForPdf($diseaseType, $year, $puskesmasId = null)
     {
-        $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('Data Bulanan ' . strtoupper($diseaseType));
-        $title = $diseaseType === 'ht'
-            ? "Data Bulanan Hipertensi (HT) - Tahun " . $year
-            : "Data Bulanan Diabetes Mellitus (DM) - Tahun " . $year;
-        if ($isRecap) {
-            $title = "Rekap " . $title;
-        }
-        $sheet->setCellValue('A1', $title);
-        $sheet->mergeCells('A1:K1');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        
-        // Set headers
-        $headers = ['No', 'Puskesmas', 'Target'];
-        $monthNames = [
-            'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-            'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'
+        $data = $this->getReportData($puskesmasId, $year, $diseaseType);
+
+        $formattedData = [];
+        $grandTotalData = [
+            'target' => 0,
+            'monthly' => array_fill(1, 12, ['male' => 0, 'female' => 0, 'total' => 0, 'non_standard' => 0, 'percentage' => 0]),
+            'quarterly' => array_fill(1, 4, ['total' => 0, 'non_standard' => 0, 'percentage' => 0]),
+            'total_patients' => 0,
+            'total_yearly_standard' => 0,
+            'yearly_achievement_percentage' => 0,
         ];
-        
-        // Add month headers
-        foreach ($monthNames as $month) {
-            $headers[] = $month . ' (L)';
-            $headers[] = $month . ' (P)';
-            $headers[] = $month . ' (Total)';
-            $headers[] = $month . ' (TS)';
-            $headers[] = $month . ' (%)';
-        }
-        
-        // Set header row
-        $row = 3;
-        $col = 1;
-        foreach ($headers as $header) {
-            $sheet->setCellValueByColumnAndRow($col, $row, $header);
-            $sheet->getStyleByColumnAndRow($col, $row)->getFont()->setBold(true);
-            $sheet->getStyleByColumnAndRow($col, $row)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $col++;
-        }
-        
-        // Add data rows
-        $dataRow = 4;
-        foreach ($statistics as $index => $puskesmasData) {
-            $col = 1;
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $index + 1); // No
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $puskesmasData['puskesmas_name']); // Puskesmas
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $puskesmasData['target']); // Target
-            
-            // Add monthly data
-            for ($month = 1; $month <= 12; $month++) {
-                $monthData = $puskesmasData['monthly_data'][$month] ?? [
-                    'male' => 0,
-                    'female' => 0,
-                    'standard' => 0,
-                    'non_standard' => 0,
-                    'percentage' => 0
+
+        $diseaseTypeLabel = $this->getDiseaseTypeLabel($diseaseType);
+        $months = $this->getDefaultMonths(); // Ensure months are always available
+
+        if (!empty($data['data'])) {
+            foreach ($data['data'] as $puskesmas) {
+                $formattedPuskesmas = [
+                    'name' => $puskesmas['puskesmas_name'], // Changed from puskesmas_name to name
+                    'target' => $puskesmas['target'] ?? 0,
+                    'monthly' => [], // Changed from monthly_data to monthly
+                    'quarterly' => [], // Changed from quarterly_data to quarterly
+                    'total_pasien' => $puskesmas['total_patients'] ?? 0, // Changed from total_patients to total_pasien
+                    'total_yearly_standard' => $puskesmas['total_yearly_standard'] ?? 0,
+                    'persen_capaian_tahunan' => $puskesmas['yearly_achievement_percentage'] ?? 0, // Changed from yearly_achievement_percentage to persen_capaian_tahunan
                 ];
-                
-                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['male']); // L
-                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['female']); // P
-                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['standard']); // Total
-                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['non_standard']); // TS
-                $sheet->setCellValueByColumnAndRow($col++, $dataRow, $monthData['percentage']); // %
+
+                // Format monthly data
+                foreach ($months as $monthNumber => $monthName) {
+                    $monthData = $puskesmas['monthly_statistics'][$monthNumber] ?? ['male' => 0, 'female' => 0, 'total' => 0, 'non_standard' => 0, 'percentage' => 0];
+                    $formattedPuskesmas['monthly'][$monthNumber] = [
+                        'l' => $monthData['male'],
+                        'p' => $monthData['female'],
+                        'total' => $monthData['total'],
+                        'ts' => $monthData['non_standard'],
+                        'ps' => $monthData['percentage'],
+                    ];
+
+                    // Accumulate monthly grand totals
+                    $grandTotalData['monthly'][$monthNumber]['male'] += $monthData['male'];
+                    $grandTotalData['monthly'][$monthNumber]['female'] += $monthData['female'];
+                    $grandTotalData['monthly'][$monthNumber]['total'] += $monthData['total'];
+                    $grandTotalData['monthly'][$monthNumber]['non_standard'] += $monthData['non_standard'];
+                }
+
+                // Format quarterly data (using data from the last month of each quarter)
+                $quarterMonths = [3, 6, 9, 12];
+                foreach ($quarterMonths as $quarterIndex => $monthNumber) {
+                    $quarterData = $puskesmas['monthly_statistics'][$monthNumber] ?? ['total' => 0, 'non_standard' => 0, 'percentage' => 0];
+                    $formattedPuskesmas['quarterly'][$quarterIndex + 1] = [
+                        'total' => $quarterData['total'],
+                        'non_standard' => $quarterData['non_standard'],
+                        'percentage' => $quarterData['percentage'],
+                    ];
+
+                    // Accumulate quarterly grand totals
+                    $grandTotalData['quarterly'][$quarterIndex + 1]['total'] += $quarterData['total'];
+                    $grandTotalData['quarterly'][$quarterIndex + 1]['non_standard'] += $quarterData['non_standard'];
+                }
+
+                // Accumulate grand totals
+                $grandTotalData['target'] += $formattedPuskesmas['target'];
+                $grandTotalData['total_patients'] += $formattedPuskesmas['total_pasien']; // Use total_pasien for accumulation
+                $grandTotalData['total_yearly_standard'] += $formattedPuskesmas['total_yearly_standard'];
+
+                $formattedData[] = $formattedPuskesmas;
             }
-            
-            $dataRow++;
+
+            // Calculate percentages for monthly grand totals
+            foreach ($grandTotalData['monthly'] as $monthNumber => $monthData) {
+                $grandTotalData['monthly'][$monthNumber]['percentage'] = $monthData['total'] > 0 ? round(($monthData['total'] - $monthData['non_standard']) / $monthData['total'] * 100, 2) : 0;
+            }
+
+            // Calculate percentages for quarterly grand totals
+            foreach ($grandTotalData['quarterly'] as $quarterNumber => $quarterData) {
+                $grandTotalData['quarterly'][$quarterNumber]['percentage'] = $quarterData['total'] > 0 ? round(($quarterData['total'] - $quarterData['non_standard']) / $quarterData['total'] * 100, 2) : 0;
+            }
+
+            // Calculate yearly achievement percentage for grand total based on total_yearly_standard and target
+            $grandTotalData['yearly_achievement_percentage'] = $grandTotalData['target'] > 0 ? round($grandTotalData['total_yearly_standard'] / $grandTotalData['target'] * 100, 2) : 0;
         }
-        
-        // Apply styling
-        $lastRow = $dataRow - 1;
-        $lastCol = $col - 1;
-        
-        // Apply borders
-        $range = 'A3:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol) . $lastRow;
-        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-        
-        // Auto-size columns
-        for ($i = 1; $i <= $lastCol; $i++) {
-            $sheet->getColumnDimensionByColumn($i)->setAutoSize(true);
+
+        return [
+            'puskesmasData' => $formattedData,
+            'grandTotalData' => $grandTotalData,
+            'diseaseTypeLabel' => $diseaseTypeLabel,
+            'months' => $months,
+        ];
+    }
+
+    protected function getDiseaseTypeLabel($diseaseType)
+    {
+        switch ($diseaseType) {
+            case 'ht':
+                return 'Hipertensi';
+            case 'dm':
+                return 'Diabetes Melitus';
+            default:
+                return 'Unknown';
         }
     }
 
-    public function createMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth)
+    private function getDefaultMonths(): array
     {
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Monitoring');
-        
-        // Set title
-        $diseaseLabel = $diseaseType === 'ht' ? 'Hipertensi (HT)' : 'Diabetes Mellitus (DM)';
-        $monthName = $this->getMonthName($month);
-        $title = "Monitoring Pasien {$diseaseLabel} - {$puskesmas->name} - {$monthName} {$year}";
-        
-        $sheet->setCellValue('A1', $title);
-        $sheet->mergeCells('A1:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5 + $daysInMonth) . '1');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        
-        // Set headers
-        $headers = ['No', 'No. RM', 'Nama Pasien', 'Jenis Kelamin', 'Umur'];
-        
-        // Add day headers
-        for ($day = 1; $day <= $daysInMonth; $day++) {
-            $headers[] = $day;
-        }
-        
-        // Set header row
-        $headerRow = 3;
-        $col = 1;
-        foreach ($headers as $header) {
-            $sheet->setCellValueByColumnAndRow($col, $headerRow, $header);
-            $sheet->getStyleByColumnAndRow($col, $headerRow)->getFont()->setBold(true);
-            $sheet->getStyleByColumnAndRow($col, $headerRow)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            $col++;
-        }
-        
-        // Add patient data
-        $dataRow = 4;
-        foreach ($patients as $index => $patient) {
-            $col = 1;
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $index + 1); // No
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['medical_record_number'] ?? ''); // No. RM
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['name']); // Nama Pasien
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['gender'] === 'male' ? 'L' : 'P'); // Jenis Kelamin
-            $sheet->setCellValueByColumnAndRow($col++, $dataRow, $patient['age'] ?? ''); // Umur
-            
-            // Add examination data for each day
-            $examinations = $patient['examinations'] ?? [];
-            for ($day = 1; $day <= $daysInMonth; $day++) {
-                $hasExam = false;
-                foreach ($examinations as $exam) {
-                    $examDate = \Carbon\Carbon::parse($exam['examination_date']);
-                    if ($examDate->day == $day && $examDate->month == $month && $examDate->year == $year) {
-                        $sheet->setCellValueByColumnAndRow($col, $dataRow, '✓');
-                        $hasExam = true;
-                        break;
-                    }
-                }
-                if (!$hasExam) {
-                    $sheet->setCellValueByColumnAndRow($col, $dataRow, '');
-                }
-                $col++;
-            }
-            
-            $dataRow++;
-        }
-        
-        // Apply styling
-        $lastRow = $dataRow - 1;
-        $lastCol = 5 + $daysInMonth;
-        
-        // Apply borders
-        $range = 'A3:' . \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($lastCol) . $lastRow;
-        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-        
-        // Set column widths
-        $sheet->getColumnDimension('A')->setWidth(5);  // No
-        $sheet->getColumnDimension('B')->setWidth(12); // No. RM
-        $sheet->getColumnDimension('C')->setWidth(25); // Nama Pasien
-        $sheet->getColumnDimension('D')->setWidth(8);  // Jenis Kelamin
-        $sheet->getColumnDimension('E')->setWidth(8);  // Umur
-        
-        // Set day columns width
-        for ($day = 1; $day <= $daysInMonth; $day++) {
-            $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5 + $day);
-            $sheet->getColumnDimension($colLetter)->setWidth(4);
-        }
-        
-        // Center align all cells
-        $sheet->getStyle($range)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle($range)->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        return [
+            1 => 'Januari',
+            2 => 'Februari',
+            3 => 'Maret',
+            4 => 'April',
+            5 => 'Mei',
+            6 => 'Juni',
+            7 => 'Juli',
+            8 => 'Agustus',
+            9 => 'September',
+            10 => 'Oktober',
+            11 => 'November',
+            12 => 'Desember'
+        ];
     }
 
     /**
-     * Export dashboard to PDF with puskesmas filter support
+     * Create monthly data sheet for yearly report
      */
-    public function exportDashboardToPdf($diseaseType, $year, $puskesmasId = null)
+    public function createMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap = false)
     {
-        try {
-            // Gunakan DashboardPdfService yang sudah diupdate
-            $dashboardPdfService = app(DashboardPdfService::class);
-            $preparedData = $dashboardPdfService->prepareData($year, $diseaseType, $puskesmasId);
-
-            // Filter data berdasarkan puskesmas jika diperlukan
-            if ($puskesmasId) {
-                $preparedData['puskesmas_data'] = array_filter(
-                    $preparedData['puskesmas_data'],
-                    function ($puskesmas) use ($puskesmasId) {
-                        // Asumsi ada field puskesmas_id atau bisa dicocokkan dengan nama
-                        return isset($puskesmas['puskesmas_id']) && $puskesmas['puskesmas_id'] == $puskesmasId;
-                    }
-                );
-
-                // Recalculate grand total untuk filtered data
-                if (!empty($preparedData['puskesmas_data'])) {
-                    $preparedData['grand_total'] = $dashboardPdfService->getGrandTotals(
-                        array_values($preparedData['puskesmas_data']),
-                        [] // Empty raw data since we're recalculating
-                    );
-                }
-            }
-
-            $main_title = 'LAPORAN REKAPITULASI DATA PELAYANAN KESEHATAN';
-            // Safely access disease_type_label with a default value
-            $disease_type_label = $preparedData['disease_type_label'] ?? 'Unknown Disease';
-
-            $export_meta = [
-                'generated_by' => Auth::user()->name,
-                'user_role' => Auth::user()->isAdmin() ? 'Admin' : 'Petugas Puskesmas',
-                'generated_at' => now()->format('d F Y H:i'),
-            ];
-
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.dashboard_pdf', [
-                'title' => $main_title,
-                'main_title' => $main_title,
-                'disease_type_label' => $disease_type_label,
-                'year' => $year,
-                'months' => $preparedData['months'] ?? [],
-                'puskesmasData' => $preparedData['puskesmas_data'] ?? [], // Ensure this is passed
-                'grandTotalData' => $preparedData['grand_total'] ?? [], // Ensure this is passed
-                'export_meta' => $export_meta,
-            ]);
-
-            $pdf->setPaper('a4', 'landscape');
-            $filename = 'laporan_' . strtolower(str_replace([' ', '(', ')'], ['_', '', ''], $disease_type_label)) . '_' . $year;
-            if ($puskesmasId) {
-                $puskesmasName = \App\Models\Puskesmas::find($puskesmasId)->name ?? 'puskesmas';
-                $filename .= '_' . strtolower(str_replace(' ', '_', $puskesmasName));
-            }
-            $filename .= '.pdf';
-
-            $exportPath = storage_path('app/public/exports');
-            if (!file_exists($exportPath)) {
-                mkdir($exportPath, 0755, true);
-            }
-            $pdfPath = $exportPath . DIRECTORY_SEPARATOR . $filename;
-            $pdf->save($pdfPath);
-
-            if (!file_exists($pdfPath)) {
-                throw new \Exception("Failed to generate PDF file");
-            }
-
-            return response()->download($pdfPath, $filename, [
-                'Content-Type' => 'application/pdf',
-            ])->deleteFileAfterSend(true);
-        } catch (\Exception $e) {
-            \Log::error('PDF Export Error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return response()->json([
-                'message' => 'Gagal generate PDF',
-                'error' => $e->getMessage(),
-            ], 500);
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('Data Bulanan ' . $year);
+        
+        // Set headers
+        $headers = ['No', 'Puskesmas', 'Target'];
+        $months = $this->getDefaultMonths();
+        foreach ($months as $month) {
+            $headers[] = $month;
         }
+        $headers[] = 'Total';
+        $headers[] = 'Persentase';
+        
+        // Write headers
+        $col = 1;
+        foreach ($headers as $header) {
+            $sheet->setCellValueByColumnAndRow($col, 1, $header);
+            $col++;
+        }
+        
+        // Write data
+        $row = 2;
+        foreach ($statistics as $index => $stat) {
+            $sheet->setCellValueByColumnAndRow(1, $row, $index + 1);
+            $sheet->setCellValueByColumnAndRow(2, $row, $stat['puskesmas_name']);
+            $sheet->setCellValueByColumnAndRow(3, $row, $stat['target'] ?? 0);
+            
+            $col = 4;
+            $total = 0;
+            for ($month = 1; $month <= 12; $month++) {
+                $monthData = $stat['monthly_data'][$month] ?? ['standard' => 0];
+                $value = $monthData['standard'] ?? 0;
+                $sheet->setCellValueByColumnAndRow($col, $row, $value);
+                $total += $value;
+                $col++;
+            }
+            
+            $sheet->setCellValueByColumnAndRow($col, $row, $total);
+            $percentage = ($stat['target'] ?? 0) > 0 ? round(($total / $stat['target']) * 100, 2) : 0;
+            $sheet->setCellValueByColumnAndRow($col + 1, $row, $percentage . '%');
+            
+            $row++;
+        }
+        
+        // Apply basic styling
+        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')
+            ->getFont()->setBold(true);
+        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . $row)
+            ->getBorders()->getAllBorders()
+            ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+            
+        return $spreadsheet;
+    }
+    
+    /**
+     * Export monitoring sheet for patient attendance
+     */
+    public function exportMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth)
+    {
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Monitoring ' . $this->getMonthName($month) . ' ' . $year);
+        
+        // Set title
+        $title = 'LAPORAN MONITORING KEHADIRAN PASIEN ' . strtoupper($diseaseType) . ' - ' . $puskesmas->name;
+        $sheet->setCellValue('A1', $title);
+        $sheet->mergeCells('A1:' . $this->getColLetter($daysInMonth + 5) . '1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        // Set period info
+        $periodText = 'Periode: ' . $this->getMonthName($month) . ' ' . $year;
+        $sheet->setCellValue('A2', $periodText);
+        $sheet->mergeCells('A2:' . $this->getColLetter($daysInMonth + 5) . '2');
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        // Set headers
+        $headers = ['No', 'Nama Pasien', 'Jenis Kelamin', 'Umur', 'Alamat'];
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $headers[] = $day;
+        }
+        $headers[] = 'Total Hadir';
+        $headers[] = 'Persentase';
+        
+        $row = 4;
+        $col = 1;
+        foreach ($headers as $header) {
+            $sheet->setCellValueByColumnAndRow($col, $row, $header);
+            $col++;
+        }
+        
+        // Write patient data
+        $row = 5;
+        foreach ($patients as $index => $patient) {
+            $sheet->setCellValueByColumnAndRow(1, $row, $index + 1);
+            $sheet->setCellValueByColumnAndRow(2, $row, $patient['name']);
+            $sheet->setCellValueByColumnAndRow(3, $row, $patient['gender'] === 'male' ? 'L' : 'P');
+            $sheet->setCellValueByColumnAndRow(4, $row, $patient['age'] ?? '-');
+            $sheet->setCellValueByColumnAndRow(5, $row, $patient['address'] ?? '-');
+            
+            $col = 6;
+            $totalAttendance = 0;
+            for ($day = 1; $day <= $daysInMonth; $day++) {
+                $attended = isset($patient['attendance'][$day]) ? '✓' : '-';
+                if ($attended === '✓') $totalAttendance++;
+                $sheet->setCellValueByColumnAndRow($col, $row, $attended);
+                $col++;
+            }
+            
+            $sheet->setCellValueByColumnAndRow($col, $row, $totalAttendance);
+            $percentage = $daysInMonth > 0 ? round(($totalAttendance / $daysInMonth) * 100, 2) : 0;
+            $sheet->setCellValueByColumnAndRow($col + 1, $row, $percentage . '%');
+            
+            $row++;
+        }
+        
+        // Apply styling
+        $sheet->getStyle('A4:' . $sheet->getHighestColumn() . '4')
+            ->getFont()->setBold(true);
+        $sheet->getStyle('A4:' . $sheet->getHighestColumn() . ($row - 1))
+            ->getBorders()->getAllBorders()
+            ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        $sheet->getStyle('A4:' . $sheet->getHighestColumn() . ($row - 1))
+            ->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+            
+        // Auto-size columns
+        foreach (range('A', $sheet->getHighestColumn()) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        
+        return $spreadsheet;
+    }
+    
+    /**
+     * Helper to get Excel column letter from number
+     */
+    private function getColLetter($number)
+    {
+        $letter = '';
+        while ($number > 0) {
+            $number--;
+            $letter = chr(65 + ($number % 26)) . $letter;
+            $number = intval($number / 26);
+        }
+        return $letter;
     }
 }

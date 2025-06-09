@@ -54,7 +54,23 @@ class DashboardPdfService
             'type' => $diseaseType
         ]);
         $adminStatisticsData = app(\App\Services\StatisticsAdminService::class)->getAdminStatistics($request);
-
+    
+        // Pastikan data tidak kosong
+        if (empty($adminStatisticsData['data'])) {
+            return [
+                'puskesmas_data' => [],
+                'grand_total' => [
+                    'target' => 0,
+                    'monthly' => array_fill(0, 12, ['l' => 0, 'p' => 0, 'total' => 0, 'ts' => 0, 'ps' => 0]),
+                    'quarterly' => array_fill(0, 4, ['l' => 0, 'p' => 0, 'total' => 0, 'ts' => 0, 'ps' => 0]),
+                    'total_pasien' => 0,
+                    'persen_capaian_tahunan' => 0
+                ],
+                'disease_type_label' => $this->getDiseaseTypeLabel($diseaseType),
+                'months' => $this->getMonthNames()
+            ];
+        }
+    
         $formattedData = [];
         $grandTotals = [
             'target' => 0,
@@ -73,25 +89,23 @@ class DashboardPdfService
                 'ps' => 0
             ]),
             'total_pasien' => 0,
-            'total_ts_tahunan' => 0,
             'persen_capaian_tahunan' => 0
         ];
-
+    
         foreach ($adminStatisticsData['data'] as $puskesmasData) {
             $diseaseData = $puskesmasData[$adminStatisticsData['type']] ?? [];
             $target = $diseaseData['target'] ?? 0;
             $grandTotals['target'] += $target;
-
+    
             $formattedPuskesmas = [
                 'name' => $puskesmasData['puskesmas_name'],
                 'target' => $target,
                 'monthly' => [],
                 'quarterly' => [],
                 'total_pasien' => 0,
-                'total_ts_tahunan' => 0,
                 'persen_capaian_tahunan' => 0
             ];
-
+    
             // Format monthly data (1-12 to 0-11 index)
             for ($month = 1; $month <= 12; $month++) {
                 $monthData = $diseaseData['monthly_data'][$month] ?? [
@@ -102,7 +116,7 @@ class DashboardPdfService
                     'total' => 0,
                     'percentage' => 0
                 ];
-
+    
                 $formattedMonth = [
                     'l' => $monthData['male'],
                     'p' => $monthData['female'],
@@ -110,17 +124,17 @@ class DashboardPdfService
                     'ts' => $monthData['non_standard'],
                     'ps' => $target > 0 ? round(($monthData['standard'] / $target) * 100, 2) : 0
                 ];
-
+    
                 $formattedPuskesmas['monthly'][$month - 1] = $formattedMonth;
-
+    
                 // Akumulasi untuk grand totals
                 $grandTotals['monthly'][$month - 1]['l'] += $formattedMonth['l'];
                 $grandTotals['monthly'][$month - 1]['p'] += $formattedMonth['p'];
                 $grandTotals['monthly'][$month - 1]['total'] += $formattedMonth['total'];
                 $grandTotals['monthly'][$month - 1]['ts'] += $formattedMonth['ts'];
             }
-
-            // Format quarterly data
+    
+            // Format quarterly data - menggunakan data bulan terakhir di setiap triwulan
             for ($quarter = 0; $quarter < 4; $quarter++) {
                 $endMonthIndex = ($quarter + 1) * 3 - 1; // 2, 5, 8, 11
                 $lastMonthOfQuarterData = $formattedPuskesmas['monthly'][$endMonthIndex] ?? [
@@ -131,15 +145,15 @@ class DashboardPdfService
                     'ps' => 0
                 ];
                 $formattedPuskesmas['quarterly'][$quarter] = $lastMonthOfQuarterData;
-
+    
                 // Akumulasi untuk grand totals quarterly
                 $grandTotals['quarterly'][$quarter]['l'] += $lastMonthOfQuarterData['l'];
                 $grandTotals['quarterly'][$quarter]['p'] += $lastMonthOfQuarterData['p'];
                 $grandTotals['quarterly'][$quarter]['total'] += $lastMonthOfQuarterData['total'];
                 $grandTotals['quarterly'][$quarter]['ts'] += $lastMonthOfQuarterData['ts'];
             }
-
-            // PERUBAHAN UTAMA: Gunakan data bulan Desember (index 11) seperti AdminAllFormatter
+    
+            // Gunakan data bulan Desember (index 11) seperti AdminAllFormatter
             $decemberData = $formattedPuskesmas['monthly'][11]; // Desember adalah index 11
             
             // Calculate TOTAL PASIEN berdasarkan data Desember
@@ -147,44 +161,51 @@ class DashboardPdfService
             
             // Calculate % CAPAIAN PELAYANAN SESUAI STANDAR TAHUNAN berdasarkan data Desember
             $formattedPuskesmas['persen_capaian_tahunan'] = $decemberData['ps'];
-
+    
             $grandTotals['total_pasien'] += $formattedPuskesmas['total_pasien'];
-
+    
             $formattedData[] = $formattedPuskesmas;
         }
-
+    
         // Hitung persentase untuk grand totals
         foreach ($grandTotals['monthly'] as &$monthTotal) {
             $monthTotal['ps'] = $grandTotals['target'] > 0
                 ? round(($monthTotal['total'] / $grandTotals['target']) * 100, 2)
                 : 0;
         }
-
+    
         foreach ($grandTotals['quarterly'] as &$quarterTotal) {
             $quarterTotal['ps'] = $grandTotals['target'] > 0
                 ? round(($quarterTotal['total'] / $grandTotals['target']) * 100, 2)
                 : 0;
         }
-
-        // PERUBAHAN UTAMA: Gunakan data Desember untuk grand total seperti AdminAllFormatter
+    
+        // Gunakan data Desember untuk grand total seperti AdminAllFormatter
         $grandTotalDecemberData = $grandTotals['monthly'][11]; // Desember
         $grandTotals['persen_capaian_tahunan'] = $grandTotalDecemberData['ps'];
+    
+        return [
+            'puskesmas_data' => $formattedData,
+            'grand_total' => $grandTotals,
+            'disease_type_label' => $this->getDiseaseTypeLabel($diseaseType),
+            'months' => $this->getMonthNames()
+        ];
+    }
 
+    private function getDiseaseTypeLabel(string $diseaseType): string
+    {
         $labels = [
             'dm' => 'DIABETES MELITUS (DM)',
             'ht' => 'HIPERTENSI (HT)',
         ];
+        return $labels[$diseaseType] ?? strtoupper($diseaseType);
+    }
 
-        $monthNames = [
+    private function getMonthNames(): array
+    {
+        return [
             'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
             'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-        ];
-
-        return [
-            'puskesmas_data' => $formattedData,
-            'grand_total' => $grandTotals,
-            'disease_type_label' => $labels[$diseaseType] ?? strtoupper($diseaseType),
-            'months' => $monthNames
         ];
     }
 
