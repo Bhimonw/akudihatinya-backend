@@ -614,7 +614,7 @@ class ExportService
             // Generate title based on report type and disease type
             $diseaseLabel = match($diseaseType) {
                 'ht' => 'Hipertensi',
-                'dm' => 'Diabetes Mellitus',
+                'dm' => 'Diabetes Mellitus', 
                 'all' => 'Hipertensi & Diabetes Mellitus',
                 default => 'Statistik Kesehatan'
             };
@@ -623,9 +623,52 @@ class ExportService
             $monthName = $month ? date('F', mktime(0, 0, 0, $month, 1)) : 'Tahunan';
             $title = "{$reportLabel} {$diseaseLabel} - {$monthName} {$year}";
             
+            // Generate current timestamp for generated_at
+            $generated_at = now()->format('d F Y H:i:s');
+            
+            // Prepare disease types data for summary view
+            $disease_types = [];
+            $diseaseData = [];
+            
+            if ($isRecap) {
+                // For summary PDF, prepare aggregated data
+                if ($diseaseType === 'all') {
+                    $disease_types = ['ht', 'dm'];
+                } else {
+                    $disease_types = [$diseaseType];
+                }
+                
+                foreach ($disease_types as $type) {
+                    $typeStats = $this->prepareStatisticsData($puskesmasAll, $year, $month, $type);
+                    $totalTarget = 0;
+                    $totalPatients = 0;
+                    $totalStandard = 0;
+                    $puskesmasCount = count($puskesmasAll);
+                    
+                    foreach ($typeStats as $stat) {
+                        $totalTarget += $stat['target'] ?? 0;
+                        $totalPatients += array_sum(array_column($stat['monthly_data'], 'total'));
+                        $totalStandard += array_sum(array_column($stat['monthly_data'], 'standard'));
+                    }
+                    
+                    $achievement = $totalTarget > 0 ? round(($totalStandard / $totalTarget) * 100, 2) : 0;
+                    
+                    $diseaseData[$type] = [
+                        'label' => $type === 'ht' ? 'Hipertensi' : 'Diabetes Mellitus',
+                        'total_target' => $totalTarget,
+                        'total_patients' => $totalPatients,
+                        'total_standard' => $totalStandard,
+                        'total_achievement' => $achievement,
+                        'puskesmas_count' => $puskesmasCount
+                    ];
+                }
+            }
+            
             // Prepare data for PDF generation
             $data = [
                 'title' => $title,
+                'generated_at' => $generated_at,
+                'disease_types' => $disease_types,
                 'statistics' => $statisticsData,
                 'puskesmasAll' => $puskesmasAll,
                 'year' => $year,
@@ -636,6 +679,11 @@ class ExportService
                 'reportType' => $reportType,
                 'filename' => $filename
             ];
+            
+            // Add disease-specific data to the main data array
+            foreach ($diseaseData as $type => $typeData) {
+                $data[$type] = $typeData;
+            }
             
             // Generate PDF using PdfService
             $pdf = PDF::loadView($viewTemplate, $data);
