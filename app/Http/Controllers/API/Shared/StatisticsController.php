@@ -482,13 +482,16 @@ class StatisticsController extends Controller
 
         // Proses export sesuai format
         if ($format === 'pdf') {
-            // Untuk PDF, gunakan format dashboard custom
-            if ($tableType === 'all') {
-                return $this->exportService->exportToPdf($puskesmasAll, $year, null, $diseaseType, $filename, true, 'dashboard');
-            } else {
-                // Untuk tipe tabel lain, gunakan metode PDF yang lama
-                return $this->exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
-            }
+            // Panggil metode exportToPdf dari service tanpa logika tambahan di sini
+            return $this->exportService->exportToPdf(
+                $puskesmasAll,
+                $year,
+                $month,
+                $diseaseType,
+                $filename,
+                $isRecap,
+                $reportType
+            );
         } else {
             if (Auth::user()->isAdmin()) {
                 return $this->exportService->exportToExcel($diseaseType, $year, $request->puskesmas_id, $tableType);
@@ -606,7 +609,7 @@ class StatisticsController extends Controller
      */
     protected function addMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap = false)
     {
-return $this->exportService->createMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap);
+        return $this->exportService->createMonthlyDataSheet($spreadsheet, $statistics, $diseaseType, $year, $isRecap);
     }
 
     /**
@@ -719,7 +722,7 @@ return $this->exportService->createMonthlyDataSheet($spreadsheet, $statistics, $
      */
     protected function createMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth)
     {
-return $this->exportService->exportMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth);
+        return $this->exportService->exportMonitoringSheet($spreadsheet, $patients, $puskesmas, $year, $month, $diseaseType, $daysInMonth);
     }
 
     /**

@@ -182,110 +182,7 @@ class ExportService
         return $data;
     }
 
-    public function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
-    {
-        // Prepare statistics data
-        $statisticsData = $this->prepareStatisticsData($puskesmasAll, $year, null, $diseaseType);
-        
-        // Set title and data based on export type
-        if ($isRecap === true || $isRecap === 'true') {
-            // Admin recap export
-            $title = 'Laporan Statistik ' . strtoupper($diseaseType) . ' Tahun ' . $year . ' - Semua Puskesmas';
-            $data = [
-                'title' => $title,
-                'year' => $year,
-                'diseaseType' => $diseaseType,
-                'statistics' => $statisticsData, // Changed key from 'statisticsData' to 'statistics'
-                'isRecap' => true,
-                'type' => $diseaseType
-            ];
-            $view = 'exports.admin_statistics_pdf';
-        } else {
-            // Individual puskesmas export
-            $puskesmasName = is_array($puskesmasAll) && !empty($puskesmasAll) 
-                ? $puskesmasAll[0]->name 
-                : 'Tidak Diketahui';
-                
-            $title = 'Laporan Statistik ' . strtoupper($diseaseType) . ' - ' . $puskesmasName . ' Tahun ' . $year;
-            $data = [
-                'title' => $title,
-                'year' => $year,
-                'month' => $month,
-                'diseaseType' => $diseaseType,
-                'statisticsData' => $statisticsData,
-                'puskesmasName' => $puskesmasName,
-                'isRecap' => false
-            ];
-            $view = 'exports.dashboard_pdf';
-        }
-        
-        try {
-            // Add memory and time limits for large data
-            ini_set('memory_limit', '512M');
-            ini_set('max_execution_time', 300);
-            
-            \Log::info('Starting PDF generation', [
-                'view' => $view,
-                'filename' => $filename,
-                'data_keys' => array_keys($data)
-            ]);
-            
-            $pdf = PDF::loadView($view, $data);
-            $pdf->setPaper('a4', 'landscape');
-            
-            $exportPath = storage_path('app/public/exports');
-            if (!file_exists($exportPath)) {
-                mkdir($exportPath, 0755, true);
-                \Log::info('Created exports directory: ' . $exportPath);
-            }
-            
-            $pdfFilename = $filename . '.pdf';
-            $pdfContent = $pdf->output();
-            
-            // Add logging to check if PDF content is generated
-            \Log::info('PDF content generated', [
-                'size' => strlen($pdfContent),
-                'filename' => $pdfFilename
-            ]);
-            
-            // Save the PDF file
-            \Storage::put('public/exports/' . $pdfFilename, $pdfContent);
-            
-            // Check if file was actually created
-            $filePath = storage_path('app/public/exports/' . $pdfFilename);
-            $fileExists = file_exists($filePath);
-            
-            \Log::info('File creation result', [
-                'path' => $filePath,
-                'exists' => $fileExists,
-                'size' => $fileExists ? filesize($filePath) : 0
-            ]);
-            
-            if (!$fileExists) {
-                throw new \Exception('PDF file was not created successfully');
-            }
-            
-            return \response()->download($filePath, $pdfFilename, [
-                'Content-Type' => 'application/pdf',
-            ])->deleteFileAfterSend(true);
-            
-        } catch (\Exception $e) {
-            \Log::error('PDF generation failed', [
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            // Return a proper error response instead of throwing
-            return response()->json([
-                'error' => 'PDF generation failed',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function exportToExcel($diseaseType = 'dm', $year, $puskesmasId = null, $tableType = 'all')
+        public function exportToExcel($diseaseType = 'dm', $year, $puskesmasId = null, $tableType = 'all')
     {
         // Ensure disease type is 'dm' if not specified or invalid
         $diseaseType = in_array($diseaseType, ['dm', 'ht']) ? $diseaseType : 'dm';
@@ -381,10 +278,10 @@ class ExportService
         $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
             ->whereIn('puskesmas_id', $puskesmasIds)
             ->get();
-    
+
         $stats = $monthlyStats->where('disease_type', $diseaseType)->groupBy('puskesmas_id');
         $statistics = [];
-    
+
         foreach ($puskesmasAll as $puskesmas) {
             $data = [
                 'puskesmas_id' => $puskesmas->id,
@@ -392,13 +289,13 @@ class ExportService
                 'target' => 0,
                 'monthly_data' => [],
             ];
-    
+
             $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
                 ->where('disease_type', $diseaseType)
                 ->where('year', $year)
                 ->first();
             $data['target'] = $target ? $target->target_count : 0;
-    
+
             if (isset($stats[$puskesmas->id])) {
                 foreach ($stats[$puskesmas->id] as $stat) {
                     // In the prepareStatisticsData method, around line 370-375
@@ -413,10 +310,10 @@ class ExportService
                     ];
                 }
             }
-    
+
             $statistics[] = $data;
         }
-    
+
         return $statistics;
     }
 
@@ -556,7 +453,7 @@ class ExportService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Data Bulanan ' . $year);
-        
+
         // Set headers
         $headers = ['No', 'Puskesmas', 'Target'];
         $months = $this->getDefaultMonths();
@@ -565,21 +462,21 @@ class ExportService
         }
         $headers[] = 'Total';
         $headers[] = 'Persentase';
-        
+
         // Write headers
         $col = 1;
         foreach ($headers as $header) {
             $sheet->setCellValueByColumnAndRow($col, 1, $header);
             $col++;
         }
-        
+
         // Write data
         $row = 2;
         foreach ($statistics as $index => $stat) {
             $sheet->setCellValueByColumnAndRow(1, $row, $index + 1);
             $sheet->setCellValueByColumnAndRow(2, $row, $stat['puskesmas_name']);
             $sheet->setCellValueByColumnAndRow(3, $row, $stat['target'] ?? 0);
-            
+
             $col = 4;
             $total = 0;
             for ($month = 1; $month <= 12; $month++) {
@@ -589,24 +486,24 @@ class ExportService
                 $total += $value;
                 $col++;
             }
-            
+
             $sheet->setCellValueByColumnAndRow($col, $row, $total);
             $percentage = ($stat['target'] ?? 0) > 0 ? round(($total / $stat['target']) * 100, 2) : 0;
             $sheet->setCellValueByColumnAndRow($col + 1, $row, $percentage . '%');
-            
+
             $row++;
         }
-        
+
         // Apply basic styling
         $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')
             ->getFont()->setBold(true);
         $sheet->getStyle('A1:' . $sheet->getHighestColumn() . $row)
             ->getBorders()->getAllBorders()
             ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-            
+
         return $spreadsheet;
     }
-    
+
     /**
      * Export monitoring sheet for patient attendance
      */
@@ -614,20 +511,20 @@ class ExportService
     {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Monitoring ' . $this->getMonthName($month) . ' ' . $year);
-        
+
         // Set title
         $title = 'LAPORAN MONITORING KEHADIRAN PASIEN ' . strtoupper($diseaseType) . ' - ' . $puskesmas->name;
         $sheet->setCellValue('A1', $title);
         $sheet->mergeCells('A1:' . $this->getColLetter($daysInMonth + 5) . '1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        
+
         // Set period info
         $periodText = 'Periode: ' . $this->getMonthName($month) . ' ' . $year;
         $sheet->setCellValue('A2', $periodText);
         $sheet->mergeCells('A2:' . $this->getColLetter($daysInMonth + 5) . '2');
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        
+
         // Set headers
         $headers = ['No', 'Nama Pasien', 'Jenis Kelamin', 'Umur', 'Alamat'];
         for ($day = 1; $day <= $daysInMonth; $day++) {
@@ -635,14 +532,14 @@ class ExportService
         }
         $headers[] = 'Total Hadir';
         $headers[] = 'Persentase';
-        
+
         $row = 4;
         $col = 1;
         foreach ($headers as $header) {
             $sheet->setCellValueByColumnAndRow($col, $row, $header);
             $col++;
         }
-        
+
         // Write patient data
         $row = 5;
         foreach ($patients as $index => $patient) {
@@ -651,7 +548,7 @@ class ExportService
             $sheet->setCellValueByColumnAndRow(3, $row, $patient['gender'] === 'male' ? 'L' : 'P');
             $sheet->setCellValueByColumnAndRow(4, $row, $patient['age'] ?? '-');
             $sheet->setCellValueByColumnAndRow(5, $row, $patient['address'] ?? '-');
-            
+
             $col = 6;
             $totalAttendance = 0;
             for ($day = 1; $day <= $daysInMonth; $day++) {
@@ -660,14 +557,14 @@ class ExportService
                 $sheet->setCellValueByColumnAndRow($col, $row, $attended);
                 $col++;
             }
-            
+
             $sheet->setCellValueByColumnAndRow($col, $row, $totalAttendance);
             $percentage = $daysInMonth > 0 ? round(($totalAttendance / $daysInMonth) * 100, 2) : 0;
             $sheet->setCellValueByColumnAndRow($col + 1, $row, $percentage . '%');
-            
+
             $row++;
         }
-        
+
         // Apply styling
         $sheet->getStyle('A4:' . $sheet->getHighestColumn() . '4')
             ->getFont()->setBold(true);
@@ -676,15 +573,15 @@ class ExportService
             ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
         $sheet->getStyle('A4:' . $sheet->getHighestColumn() . ($row - 1))
             ->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-            
+
         // Auto-size columns
         foreach (range('A', $sheet->getHighestColumn()) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
-        
+
         return $spreadsheet;
     }
-    
+
     /**
      * Helper to get Excel column letter from number
      */
