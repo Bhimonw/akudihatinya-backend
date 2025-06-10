@@ -195,8 +195,9 @@ class ExportService
                 'title' => $title,
                 'year' => $year,
                 'diseaseType' => $diseaseType,
-                'statisticsData' => $statisticsData,
-                'isRecap' => true
+                'statistics' => $statisticsData, // Changed key from 'statisticsData' to 'statistics'
+                'isRecap' => true,
+                'type' => $diseaseType
             ];
             $view = 'exports.admin_statistics_pdf';
         } else {
