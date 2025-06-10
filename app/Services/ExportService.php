@@ -184,74 +184,104 @@ class ExportService
 
     public function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType)
     {
-        // Get statistics data
-        $statistics = $this->prepareStatisticsData($puskesmasAll, $year, $month, $diseaseType);
-
-        // Prepare title and data based on export type
-        if ($isRecap) {
-            // Admin/Dinas export
-            $title = "Laporan " . ($diseaseType === 'ht' ? 'Hipertensi (HT)' : 'Diabetes Mellitus (DM)') . " " . $year;
+        // Prepare statistics data
+        $statisticsData = $this->prepareStatisticsData($puskesmasAll, $year, null, $diseaseType);
+        
+        // Set title and data based on export type
+        if ($isRecap === true || $isRecap === 'true') {
+            // Admin recap export
+            $title = 'Laporan Statistik ' . strtoupper($diseaseType) . ' Tahun ' . $year . ' - Semua Puskesmas';
             $data = [
                 'title' => $title,
                 'year' => $year,
-                'type' => $diseaseType,
-                'statistics' => $statistics,
-                'is_recap' => true,
-                'generated_at' => Carbon::now()->format('d F Y H:i'),
-                'generated_by' => Auth::user()->name,
-                'user_role' => Auth::user()->is_admin ? 'Admin' : 'Petugas Puskesmas',
-                'headers' => [
-                    'puskesmas' => 'Puskesmas',
-                    'target' => 'Sasaran',
-                    'month' => 'Bulan',
-                    'male' => 'Standar (Laki-laki)',
-                    'female' => 'Standar (Perempuan)',
-                    'non_standard' => 'Tidak Standar',
-                    'standard' => 'Total Standar',
-                    'percentage' => 'Persentase (%)'
-                ]
+                'diseaseType' => $diseaseType,
+                'statisticsData' => $statisticsData,
+                'isRecap' => true
             ];
             $view = 'exports.admin_statistics_pdf';
         } else {
-            // Puskesmas export
-            $puskesmasName = $statistics[0]['puskesmas_name'];
-            $title = "Laporan " . $puskesmasName . " " .
-                ($diseaseType === 'ht' ? 'Hipertensi (HT)' : 'Diabetes Mellitus (DM)') . " " . $year;
+            // Individual puskesmas export
+            $puskesmasName = is_array($puskesmasAll) && !empty($puskesmasAll) 
+                ? $puskesmasAll[0]->name 
+                : 'Tidak Diketahui';
+                
+            $title = 'Laporan Statistik ' . strtoupper($diseaseType) . ' - ' . $puskesmasName . ' Tahun ' . $year;
             $data = [
                 'title' => $title,
                 'year' => $year,
-                'type' => $diseaseType,
-                'statistics' => $statistics[0], // Only first puskesmas data
-                'is_recap' => false,
-                'generated_at' => Carbon::now()->format('d F Y H:i'),
-                'generated_by' => Auth::user()->name,
-                'user_role' => Auth::user()->is_admin ? 'Admin' : 'Petugas Puskesmas',
-                'headers' => [
-                    'month' => 'Bulan',
-                    'male' => 'Standar (Laki-laki)',
-                    'female' => 'Standar (Perempuan)',
-                    'non_standard' => 'Tidak Standar',
-                    'standard' => 'Total Standar',
-                    'percentage' => 'Persentase (%)'
-                ]
+                'month' => $month,
+                'diseaseType' => $diseaseType,
+                'statisticsData' => $statisticsData,
+                'puskesmasName' => $puskesmasName,
+                'isRecap' => false
             ];
-            $view = 'exports.puskesmas_statistics_pdf';
+            $view = 'exports.dashboard_pdf';
         }
-
-        $pdf = PDF::loadView($view, $data);
-        $pdf->setPaper('a4', 'landscape');
-
-        $exportPath = storage_path('app/public/exports');
-        if (!file_exists($exportPath)) {
-            mkdir($exportPath, 0755, true);
+        
+        try {
+            // Add memory and time limits for large data
+            ini_set('memory_limit', '512M');
+            ini_set('max_execution_time', 300);
+            
+            \Log::info('Starting PDF generation', [
+                'view' => $view,
+                'filename' => $filename,
+                'data_keys' => array_keys($data)
+            ]);
+            
+            $pdf = PDF::loadView($view, $data);
+            $pdf->setPaper('a4', 'landscape');
+            
+            $exportPath = storage_path('app/public/exports');
+            if (!file_exists($exportPath)) {
+                mkdir($exportPath, 0755, true);
+                \Log::info('Created exports directory: ' . $exportPath);
+            }
+            
+            $pdfFilename = $filename . '.pdf';
+            $pdfContent = $pdf->output();
+            
+            // Add logging to check if PDF content is generated
+            \Log::info('PDF content generated', [
+                'size' => strlen($pdfContent),
+                'filename' => $pdfFilename
+            ]);
+            
+            // Save the PDF file
+            \Storage::put('public/exports/' . $pdfFilename, $pdfContent);
+            
+            // Check if file was actually created
+            $filePath = storage_path('app/public/exports/' . $pdfFilename);
+            $fileExists = file_exists($filePath);
+            
+            \Log::info('File creation result', [
+                'path' => $filePath,
+                'exists' => $fileExists,
+                'size' => $fileExists ? filesize($filePath) : 0
+            ]);
+            
+            if (!$fileExists) {
+                throw new \Exception('PDF file was not created successfully');
+            }
+            
+            return \response()->download($filePath, $pdfFilename, [
+                'Content-Type' => 'application/pdf',
+            ])->deleteFileAfterSend(true);
+            
+        } catch (\Exception $e) {
+            \Log::error('PDF generation failed', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Return a proper error response instead of throwing
+            return response()->json([
+                'error' => 'PDF generation failed',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        $pdfFilename = $filename . '.pdf';
-        \Storage::put('public/exports/' . $pdfFilename, $pdf->output());
-
-        return \response()->download(storage_path('app/public/exports/' . $pdfFilename), $pdfFilename, [
-            'Content-Type' => 'application/pdf',
-        ])->deleteFileAfterSend(true);
     }
 
     public function exportToExcel($diseaseType = 'dm', $year, $puskesmasId = null, $tableType = 'all')
@@ -350,10 +380,10 @@ class ExportService
         $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
             ->whereIn('puskesmas_id', $puskesmasIds)
             ->get();
-
+    
         $stats = $monthlyStats->where('disease_type', $diseaseType)->groupBy('puskesmas_id');
         $statistics = [];
-
+    
         foreach ($puskesmasAll as $puskesmas) {
             $data = [
                 'puskesmas_id' => $puskesmas->id,
@@ -361,29 +391,31 @@ class ExportService
                 'target' => 0,
                 'monthly_data' => [],
             ];
-
+    
             $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
                 ->where('disease_type', $diseaseType)
                 ->where('year', $year)
                 ->first();
             $data['target'] = $target ? $target->target_count : 0;
-
+    
             if (isset($stats[$puskesmas->id])) {
                 foreach ($stats[$puskesmas->id] as $stat) {
+                    // In the prepareStatisticsData method, around line 370-375
                     $data['monthly_data'][$stat->month] = [
                         'male' => $stat->male_count,
                         'female' => $stat->female_count,
                         'standard' => $stat->standard_count,
                         'non_standard' => $stat->non_standard_count,
+                        'total' => $stat->total_count, // This line should be present
                         'percentage' => $data['target'] > 0 ?
                             round(($stat->standard_count / $data['target']) * 100, 2) : 0,
                     ];
                 }
             }
-
+    
             $statistics[] = $data;
         }
-
+    
         return $statistics;
     }
 
