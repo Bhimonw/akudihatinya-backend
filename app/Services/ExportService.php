@@ -29,17 +29,20 @@ class ExportService
     protected $adminAllFormatter;
     protected $adminMonthlyFormatter;
     protected $adminQuarterlyFormatter;
+    protected $pdfService;
 
     public function __construct(
         StatisticsService $statisticsService,
         AdminAllFormatter $adminAllFormatter,
         AdminMonthlyFormatter $adminMonthlyFormatter,
-        AdminQuarterlyFormatter $adminQuarterlyFormatter
+        AdminQuarterlyFormatter $adminQuarterlyFormatter,
+        PdfService $pdfService
     ) {
         $this->statisticsService = $statisticsService;
         $this->adminAllFormatter = $adminAllFormatter;
         $this->adminMonthlyFormatter = $adminMonthlyFormatter;
         $this->adminQuarterlyFormatter = $adminQuarterlyFormatter;
+        $this->pdfService = $pdfService;
     }
 
     /**
@@ -594,5 +597,53 @@ class ExportService
             $number = intval($number / 26);
         }
         return $letter;
+    }
+
+    /**
+     * Export statistics data to PDF
+     */
+    public function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap = false, $reportType = 'statistics')
+    {
+        try {
+            // Prepare statistics data
+            $statisticsData = $this->prepareStatisticsData($puskesmasAll, $year, $month, $diseaseType);
+            
+            // Determine the view template based on report type
+            $viewTemplate = $isRecap ? 'exports.summary_pdf' : 'exports.statistics_pdf';
+            
+            // Generate title based on report type and disease type
+            $diseaseLabel = match($diseaseType) {
+                'ht' => 'Hipertensi',
+                'dm' => 'Diabetes Mellitus',
+                'all' => 'Hipertensi & Diabetes Mellitus',
+                default => 'Statistik Kesehatan'
+            };
+            
+            $reportLabel = $isRecap ? 'Ringkasan Laporan' : 'Laporan Statistik';
+            $monthName = $month ? date('F', mktime(0, 0, 0, $month, 1)) : 'Tahunan';
+            $title = "{$reportLabel} {$diseaseLabel} - {$monthName} {$year}";
+            
+            // Prepare data for PDF generation
+            $data = [
+                'title' => $title,
+                'statistics' => $statisticsData,
+                'puskesmasAll' => $puskesmasAll,
+                'year' => $year,
+                'month' => $month,
+                'diseaseType' => $diseaseType,
+                'type' => $diseaseType,
+                'isRecap' => $isRecap,
+                'reportType' => $reportType,
+                'filename' => $filename
+            ];
+            
+            // Generate PDF using PdfService
+            $pdf = PDF::loadView($viewTemplate, $data);
+            return $pdf->download($filename);
+            
+        } catch (\Exception $e) {
+            \Log::error('PDF Export Error: ' . $e->getMessage());
+            throw new \Exception('Failed to generate PDF: ' . $e->getMessage());
+        }
     }
 }
