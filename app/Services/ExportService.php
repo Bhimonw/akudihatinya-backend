@@ -191,7 +191,7 @@ class ExportService
         $diseaseType = in_array($diseaseType, ['dm', 'ht']) ? $diseaseType : 'dm';
 
         // Load the appropriate template based on table type
-        $templatePath = resource_path('templates/');
+        $templatePath = resource_path('excel/');
         $templateFile = match ($tableType) {
             'monthly' => 'monthly.xlsx',
             'quarterly' => 'quarterly.xlsx',
