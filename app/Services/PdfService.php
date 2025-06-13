@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Services\StatisticsAdminService;
 use App\Formatters\PdfFormatter;
+use App\Formatters\PdfTemplateFormatter;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
@@ -12,13 +13,16 @@ class PdfService
 {
     protected $statisticsAdminService;
     protected $pdfFormatter;
+    protected $pdfTemplateFormatter;
 
     public function __construct(
         StatisticsAdminService $statisticsAdminService,
-        PdfFormatter $pdfFormatter
+        PdfFormatter $pdfFormatter,
+        PdfTemplateFormatter $pdfTemplateFormatter
     ) {
         $this->statisticsAdminService = $statisticsAdminService;
         $this->pdfFormatter = $pdfFormatter;
+        $this->pdfTemplateFormatter = $pdfTemplateFormatter;
     }
 
     /**
@@ -143,6 +147,108 @@ class PdfService
             
             return response()->json([
                 'error' => 'Summary PDF generation failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate quarterly recap PDF using resources/pdf template
+     */
+    public function generateQuarterlyRecapPdf($puskesmasAll, $year, $diseaseType, $filename)
+    {
+        try {
+            // Set memory and time limits
+            ini_set('memory_limit', '512M');
+            set_time_limit(300);
+
+            // Format data using PdfTemplateFormatter
+            $formattedData = $this->pdfTemplateFormatter->formatQuarterlyRecapData($puskesmasAll, $year, $diseaseType);
+
+            Log::info('Quarterly recap PDF generation data prepared', [
+                'disease_type' => $diseaseType,
+                'year' => $year,
+                'quarters_count' => count($formattedData['quarters_data'])
+            ]);
+
+            // Load template from resources/pdf
+            $templatePath = resource_path('pdf/all_quarters_recap_pdf.blade.php');
+            
+            if (!file_exists($templatePath)) {
+                throw new \Exception('PDF template not found: ' . $templatePath);
+            }
+
+            // Generate PDF using the template from resources/pdf
+            $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
+            $pdf->setPaper('A4', 'landscape');
+            
+            return $pdf->download($filename);
+            
+        } catch (\Exception $e) {
+            Log::error('Quarterly recap PDF generation failed', [
+                'error' => $e->getMessage(),
+                'disease_type' => $diseaseType,
+                'year' => $year
+            ]);
+            
+            return response()->json([
+                'error' => 'Quarterly recap PDF generation failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate statistics PDF using resources/pdf template
+     */
+    public function generateStatisticsPdfFromTemplate($puskesmasAll, $year, $month, $diseaseType, $filename, $reportType = 'statistics')
+    {
+        try {
+            // Set memory and time limits
+            ini_set('memory_limit', '512M');
+            set_time_limit(300);
+
+            // Format data using PdfTemplateFormatter
+            $formattedData = $this->pdfTemplateFormatter->formatStatisticsData($puskesmasAll, $year, $month, $diseaseType, $reportType);
+
+            Log::info('Statistics PDF generation data prepared', [
+                'disease_type' => $diseaseType,
+                'year' => $year,
+                'month' => $month,
+                'report_type' => $reportType,
+                'data_count' => count($formattedData['statistics_data'])
+            ]);
+
+            // Determine template based on report type
+            $templateName = match ($reportType) {
+                'monthly' => 'monthly_statistics_pdf',
+                'quarterly' => 'quarterly_statistics_pdf', 
+                'yearly' => 'yearly_statistics_pdf',
+                default => 'statistics_pdf'
+            };
+
+            // Check if template exists, fallback to default
+            $templatePath = resource_path('pdf/' . $templateName . '.blade.php');
+            if (!file_exists($templatePath)) {
+                $templateName = 'all_quarters_recap_pdf'; // Fallback to existing template
+                Log::warning('Template not found, using fallback', ['requested' => $templateName, 'fallback' => 'all_quarters_recap_pdf']);
+            }
+
+            // Generate PDF using template from resources/pdf
+            $pdf = Pdf::loadView($templateName, $formattedData);
+            $pdf->setPaper('A4', $month ? 'portrait' : 'landscape');
+            
+            return $pdf->download($filename);
+            
+        } catch (\Exception $e) {
+            Log::error('Statistics PDF generation failed', [
+                'error' => $e->getMessage(),
+                'disease_type' => $diseaseType,
+                'year' => $year,
+                'month' => $month,
+                'report_type' => $reportType
+            ]);
+            
+            return response()->json([
+                'error' => 'Statistics PDF generation failed: ' . $e->getMessage()
             ], 500);
         }
     }

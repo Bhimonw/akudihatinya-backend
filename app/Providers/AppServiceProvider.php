@@ -88,5 +88,8 @@ class AppServiceProvider extends ServiceProvider
         // Register observers
         HtExamination::observe(HtExaminationObserver::class);
         DmExamination::observe(DmExaminationObserver::class);
+        
+        // Add PDF templates directory as a view location
+        view()->addLocation(resource_path('pdf'));
     }
 }

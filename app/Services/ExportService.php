@@ -185,7 +185,7 @@ class ExportService
         return $data;
     }
 
-        public function exportToExcel($diseaseType = 'dm', $year, $puskesmasId = null, $tableType = 'all')
+    public function exportToExcel($diseaseType = 'dm', $year, $puskesmasId = null, $tableType = 'all')
     {
         // Ensure disease type is 'dm' if not specified or invalid
         $diseaseType = in_array($diseaseType, ['dm', 'ht']) ? $diseaseType : 'dm';
@@ -600,36 +600,56 @@ class ExportService
     }
 
     /**
-     * Export statistics data to PDF
+     * Export statistics data to PDF using resources/pdf templates
      */
     public function exportToPdf($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap = false, $reportType = 'statistics')
     {
         try {
+            // Use PdfService for PDF generation
+            $pdfService = app(\App\Services\PdfService::class);
+            
+            if ($isRecap) {
+                return $pdfService->generateQuarterlyRecapPdf($puskesmasAll, $year, $diseaseType, $filename);
+            } else {
+                return $pdfService->generateStatisticsPdfFromTemplate($puskesmasAll, $year, $month, $diseaseType, $filename, $reportType);
+            }
+        } catch (\Exception $e) {
+            \Log::error('PDF Export Error: ' . $e->getMessage());
+            throw new \Exception('Failed to generate PDF: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Legacy method - kept for backward compatibility
+     */
+    public function exportToPdfLegacy($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap = false, $reportType = 'statistics')
+    {
+        try {
             // Prepare statistics data
             $statisticsData = $this->prepareStatisticsData($puskesmasAll, $year, $month, $diseaseType);
-            
+
             // Determine the view template based on report type
             $viewTemplate = $isRecap ? 'exports.summary_pdf' : 'exports.statistics_pdf';
-            
+
             // Generate title based on report type and disease type
-            $diseaseLabel = match($diseaseType) {
+            $diseaseLabel = match ($diseaseType) {
                 'ht' => 'Hipertensi',
-                'dm' => 'Diabetes Mellitus', 
+                'dm' => 'Diabetes Mellitus',
                 'all' => 'Hipertensi & Diabetes Mellitus',
                 default => 'Statistik Kesehatan'
             };
-            
+
             $reportLabel = $isRecap ? 'Ringkasan Laporan' : 'Laporan Statistik';
             $monthName = $month ? date('F', mktime(0, 0, 0, $month, 1)) : 'Tahunan';
             $title = "{$reportLabel} {$diseaseLabel} - {$monthName} {$year}";
-            
+
             // Generate current timestamp for generated_at
             $generated_at = now()->format('d F Y H:i:s');
-            
+
             // Prepare disease types data for summary view
             $disease_types = [];
             $diseaseData = [];
-            
+
             if ($isRecap) {
                 // For summary PDF, prepare aggregated data
                 if ($diseaseType === 'all') {
@@ -637,22 +657,22 @@ class ExportService
                 } else {
                     $disease_types = [$diseaseType];
                 }
-                
+
                 foreach ($disease_types as $type) {
                     $typeStats = $this->prepareStatisticsData($puskesmasAll, $year, $month, $type);
                     $totalTarget = 0;
                     $totalPatients = 0;
                     $totalStandard = 0;
                     $puskesmasCount = count($puskesmasAll);
-                    
+
                     foreach ($typeStats as $stat) {
                         $totalTarget += $stat['target'] ?? 0;
                         $totalPatients += array_sum(array_column($stat['monthly_data'], 'total'));
                         $totalStandard += array_sum(array_column($stat['monthly_data'], 'standard'));
                     }
-                    
+
                     $achievement = $totalTarget > 0 ? round(($totalStandard / $totalTarget) * 100, 2) : 0;
-                    
+
                     $diseaseData[$type] = [
                         'label' => $type === 'ht' ? 'Hipertensi' : 'Diabetes Mellitus',
                         'total_target' => $totalTarget,
@@ -663,7 +683,7 @@ class ExportService
                     ];
                 }
             }
-            
+
             // Prepare data for PDF generation
             $data = [
                 'title' => $title,
@@ -679,16 +699,15 @@ class ExportService
                 'reportType' => $reportType,
                 'filename' => $filename
             ];
-            
+
             // Add disease-specific data to the main data array
             foreach ($diseaseData as $type => $typeData) {
                 $data[$type] = $typeData;
             }
-            
+
             // Generate PDF using PdfService
             $pdf = PDF::loadView($viewTemplate, $data);
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             \Log::error('PDF Export Error: ' . $e->getMessage());
             throw new \Exception('Failed to generate PDF: ' . $e->getMessage());
