@@ -87,9 +87,9 @@ class DiseaseStatisticsService
             $monthly_percentage = $target > 0 ? round(($monthly_standard / $target) * 100, 2) : 0;
             $monthly_data[$m] = [
                 'target' => (string)$target,
-                'male' => (string)$monthly_male_standard,
-                'female' => (string)$monthly_female_standard,
-                'total' => (string)$monthly_total,
+                'male' => (string)$monthly_male_standard, // Only standard patients
+                'female' => (string)$monthly_female_standard, // Only standard patients
+                'total' => (string)$monthly_total, // All patients (standard + non-standard)
                 'standard' => (string)$monthly_standard,
                 'non_standard' => (string)$monthly_non_standard,
                 'percentage' => $monthly_percentage,
@@ -108,11 +108,11 @@ class DiseaseStatisticsService
 
         return [
             'target' => (string)$target,
-            'total_patients' => (string)$total_patients,
+            'total_patients' => (string)$total_patients, // All patients (standard + non-standard)
             'standard_patients' => (string)$standard_patients,
             'non_standard_patients' => (string)$non_standard_patients,
-            'male_patients' => (string)$male_patients,
-            'female_patients' => (string)$female_patients,
+            'male_patients' => (string)$male_patients, // Only standard patients
+            'female_patients' => (string)$female_patients, // Only standard patients
             'achievement_percentage' => $achievement_percentage,
             'standard_percentage' => $standard_percentage,
             'monthly_data' => $monthly_data,

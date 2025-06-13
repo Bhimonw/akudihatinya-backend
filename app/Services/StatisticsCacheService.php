@@ -117,29 +117,32 @@ class StatisticsCacheService
         $femaleCount = 0;
         $standardCount = 0;
         $nonStandardCount = 0;
+        $totalCount = 0;
 
         foreach ($patientIds as $patientId) {
             $patient = $patients->get($patientId);
             if (!$patient) continue;
 
-            // Count by gender
-            if ($patient->gender === 'male') {
-                $maleCount++;
-            } else {
-                $femaleCount++;
-            }
+            // Count total patients
+            $totalCount++;
 
             // Check if patient is standard
             $isStandard = $this->checkIfPatientIsStandard($patientId, $year, $month, $diseaseType);
             
             if ($isStandard) {
                 $standardCount++;
+                // Only count gender for standard patients
+                if ($patient->gender === 'male') {
+                    $maleCount++;
+                } else {
+                    $femaleCount++;
+                }
             } else {
                 $nonStandardCount++;
             }
         }
 
-        $totalCount = $maleCount + $femaleCount;
+        // Total count is already calculated in the loop above
         $standardPercentage = $totalCount > 0 ? round(($standardCount / $totalCount) * 100, 2) : 0;
 
         MonthlyStatisticsCache::updateOrCreateStatistics($puskesmasId, $diseaseType, $year, $month, [

@@ -6,6 +6,7 @@ use App\Helpers\QuarterHelper;
 use App\Services\StatisticsAdminService;
 use App\Models\YearlyTarget;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class PdfTemplateFormatter
@@ -49,8 +50,8 @@ class PdfTemplateFormatter
 
                 $grandTotals = [
                     'target' => 0,
-                    'monthly_totals' => array_fill(0, 3, ['total' => 0, 'standard' => 0]),
-                    'quarter_total' => ['total' => 0, 'standard' => 0]
+                    'monthly_totals' => array_fill(0, 3, ['total' => 0, 'standard' => 0, 'male' => 0, 'female' => 0]),
+                    'quarter_total' => ['total' => 0, 'standard' => 0, 'male' => 0, 'female' => 0]
                 ];
 
                 foreach ($puskesmasAll as $index => $puskesmas) {
@@ -70,14 +71,14 @@ class PdfTemplateFormatter
                     for ($monthIndex = 0; $monthIndex < 3; $monthIndex++) {
                         $month = ($quarterNum - 1) * 3 + $monthIndex + 1;
                         $monthlyStats = $this->getMonthlyStatistics($puskesmas->id, $year, $month, $type);
-                        
+
                         $total = $monthlyStats['total'] ?? 0;
                         $standard = $monthlyStats['standard'] ?? 0;
-                        $male = $monthlyStats['male'] ?? round($total * 0.4); // Estimate if not available
-                        $female = $monthlyStats['female'] ?? ($total - $male); // Estimate if not available
-                        $nonStandard = $total - $standard;
+                        $male = $monthlyStats['male'] ?? 0;
+                        $female = $monthlyStats['female'] ?? 0;
+                        $nonStandard = $monthlyStats['non_standard'] ?? ($total - $standard);
                         $percentage = $total > 0 ? round(($standard / $total) * 100, 1) : 0;
-                        
+
                         $monthData = [
                             'total' => $total,
                             'standard' => $standard,
@@ -86,20 +87,24 @@ class PdfTemplateFormatter
                             'non_standard' => $nonStandard,
                             'percentage' => $percentage
                         ];
-                        
+
                         $puskesmasData['monthly'][] = $monthData;
-                        
+
                         // Add to quarter totals
                         $quarterTotals['total'] += $total;
                         $quarterTotals['standard'] += $standard;
                         $quarterTotals['male'] += $male;
                         $quarterTotals['female'] += $female;
-                        
+
                         // Add to grand totals
                         $grandTotals['monthly_totals'][$monthIndex]['total'] += $total;
                         $grandTotals['monthly_totals'][$monthIndex]['standard'] += $standard;
+                        $grandTotals['monthly_totals'][$monthIndex]['male'] += $male;
+                        $grandTotals['monthly_totals'][$monthIndex]['female'] += $female;
                         $grandTotals['quarter_total']['total'] += $total;
                         $grandTotals['quarter_total']['standard'] += $standard;
+                        $grandTotals['quarter_total']['male'] += $male;
+                        $grandTotals['quarter_total']['female'] += $female;
                     }
 
                     // Set quarterly data
@@ -108,10 +113,10 @@ class PdfTemplateFormatter
                         'male' => $quarterTotals['male'],
                         'female' => $quarterTotals['female']
                     ];
-                    
+
                     $puskesmasData['total_patients'] = $quarterTotals['total'];
-                    $puskesmasData['achievement_percentage'] = $quarterTotals['total'] > 0 
-                        ? round(($quarterTotals['standard'] / $quarterTotals['total']) * 100, 1) 
+                    $puskesmasData['achievement_percentage'] = $quarterTotals['total'] > 0
+                        ? round(($quarterTotals['standard'] / $quarterTotals['total']) * 100, 1)
                         : 0;
 
                     $quarterData['puskesmas_data'][] = $puskesmasData;
@@ -123,11 +128,11 @@ class PdfTemplateFormatter
                 for ($monthIndex = 0; $monthIndex < 3; $monthIndex++) {
                     $total = $grandTotals['monthly_totals'][$monthIndex]['total'];
                     $standard = $grandTotals['monthly_totals'][$monthIndex]['standard'];
-                    $male = round($total * 0.4); // Estimate
-                    $female = $total - $male; // Estimate
+                    $male = $grandTotals['monthly_totals'][$monthIndex]['male'];
+                    $female = $grandTotals['monthly_totals'][$monthIndex]['female'];
                     $nonStandard = $total - $standard;
                     $percentage = $total > 0 ? round(($standard / $total) * 100, 1) : 0;
-                    
+
                     $grandTotalMonthly[] = [
                         'total' => $total,
                         'standard' => $standard,
@@ -136,20 +141,20 @@ class PdfTemplateFormatter
                         'non_standard' => $nonStandard,
                         'percentage' => $percentage
                     ];
-                    
+
                     $quarterData['totals']['monthly_totals'][$monthIndex] = [
                         'total' => $total,
                         'standard' => $standard,
                         'percentage' => $percentage
                     ];
                 }
-                
+
                 $quarterTotal = $grandTotals['quarter_total']['total'];
                 $quarterStandard = $grandTotals['quarter_total']['standard'];
-                $quarterMale = round($quarterTotal * 0.4); // Estimate
-                $quarterFemale = $quarterTotal - $quarterMale; // Estimate
-                $quarterPercentage = $quarterTotal > 0 
-                    ? round(($quarterStandard / $quarterTotal) * 100, 1) 
+                $quarterMale = $grandTotals['quarter_total']['male'];
+                $quarterFemale = $grandTotals['quarter_total']['female'];
+                $quarterPercentage = $quarterTotal > 0
+                    ? round(($quarterStandard / $quarterTotal) * 100, 1)
                     : 0;
 
                 $quarterData['totals']['quarter_total'] = [
@@ -176,7 +181,7 @@ class PdfTemplateFormatter
 
         // Determine disease label for the title
         $diseaseLabel = $diseaseType === 'all' ? 'SEMUA PENYAKIT' : ($diseaseType === 'ht' ? 'HIPERTENSI' : 'DIABETES MELLITUS');
-        
+
         return [
             'quarters_data' => $quartersData,
             'year' => $year,
@@ -201,7 +206,7 @@ class PdfTemplateFormatter
 
         foreach ($puskesmasAll as $index => $puskesmas) {
             $target = $this->getPuskesmasTarget($puskesmas->id, $year, $diseaseType);
-            
+
             if ($month) {
                 // Monthly report
                 $monthlyStats = $this->getMonthlyStatistics($puskesmas->id, $year, $month, $diseaseType);
@@ -232,8 +237,8 @@ class PdfTemplateFormatter
         }
 
         // Calculate overall percentage
-        $totals['percentage'] = $totals['total_patients'] > 0 
-            ? round(($totals['standard_patients'] / $totals['total_patients']) * 100, 1) 
+        $totals['percentage'] = $totals['total_patients'] > 0
+            ? round(($totals['standard_patients'] / $totals['total_patients']) * 100, 1)
             : 0;
 
         $diseaseLabel = match ($diseaseType) {
@@ -268,7 +273,7 @@ class PdfTemplateFormatter
                 ->where('year', $year)
                 ->where('disease_type', $diseaseType)
                 ->first();
-            
+
             return $target ? $target->target : 1000; // Default target if not found
         } catch (\Exception $e) {
             Log::warning('Failed to get puskesmas target', [
@@ -282,38 +287,34 @@ class PdfTemplateFormatter
     }
 
     /**
-     * Get monthly statistics for puskesmas using StatisticsAdminService
+     * Get monthly statistics for puskesmas directly from cache
      */
     private function getMonthlyStatistics($puskesmasId, $year, $month, $diseaseType)
     {
         try {
-            $request = new Request([
-                'year' => $year,
-                'month' => $month,
-                'type' => $diseaseType,
-                'puskesmas_id' => $puskesmasId,
-                'per_page' => 1
-            ]);
+            $stats = DB::table('monthly_statistics_cache')
+                ->where('puskesmas_id', $puskesmasId)
+                ->where('year', $year)
+                ->where('month', $month)
+                ->where('disease_type', $diseaseType)
+                ->first();
 
-            $statisticsData = $this->statisticsAdminService->getAdminStatistics($request);
-            
-            if (isset($statisticsData['error']) && $statisticsData['error']) {
-                return ['total' => 0, 'standard' => 0];
+            if (!$stats) {
+                return [
+                    'total' => 0,
+                    'standard' => 0,
+                    'male' => 0,
+                    'female' => 0,
+                    'non_standard' => 0
+                ];
             }
 
-            $data = $statisticsData['data'] ?? [];
-            if (empty($data)) {
-                return ['total' => 0, 'standard' => 0];
-            }
-
-            $puskesmasData = collect($data)->first();
-            $monthlyData = $puskesmasData['monthly_data'] ?? [];
-            
-            $monthData = collect($monthlyData)->firstWhere('month', $month);
-            
             return [
-                'total' => $monthData['total'] ?? 0,
-                'standard' => $monthData['standard'] ?? 0
+                'total' => $stats->total_count ?? 0,
+                'standard' => $stats->standard_count ?? 0,
+                'male' => $stats->male_count ?? 0,
+                'female' => $stats->female_count ?? 0,
+                'non_standard' => $stats->non_standard_count ?? 0
             ];
         } catch (\Exception $e) {
             Log::warning('Failed to get monthly statistics', [
@@ -323,44 +324,47 @@ class PdfTemplateFormatter
                 'disease_type' => $diseaseType,
                 'error' => $e->getMessage()
             ]);
-            return ['total' => 0, 'standard' => 0];
+            return [
+                'total' => 0,
+                'standard' => 0,
+                'male' => 0,
+                'female' => 0,
+                'non_standard' => 0
+            ];
         }
     }
 
     /**
-     * Get yearly statistics for puskesmas using StatisticsAdminService
+     * Get yearly statistics for puskesmas directly from cache
      */
     private function getYearlyStatistics($puskesmasId, $year, $diseaseType)
     {
         try {
-            $request = new Request([
-                'year' => $year,
-                'type' => $diseaseType,
-                'puskesmas_id' => $puskesmasId,
-                'per_page' => 1
-            ]);
+            // Get the latest month's data (preferably month 12, or the latest available)
+            $latestStats = DB::table('monthly_statistics_cache')
+                ->where('puskesmas_id', $puskesmasId)
+                ->where('year', $year)
+                ->where('disease_type', $diseaseType)
+                ->where('total_count', '>', 0)
+                ->orderBy('month', 'desc')
+                ->first();
 
-            $statisticsData = $this->statisticsAdminService->getAdminStatistics($request);
-            
-            if (isset($statisticsData['error']) && $statisticsData['error']) {
-                return ['total' => 0, 'standard' => 0];
+            if (!$latestStats) {
+                return [
+                    'total' => 0,
+                    'standard' => 0,
+                    'male' => 0,
+                    'female' => 0,
+                    'non_standard' => 0
+                ];
             }
 
-            $data = $statisticsData['data'] ?? [];
-            if (empty($data)) {
-                return ['total' => 0, 'standard' => 0];
-            }
-
-            $puskesmasData = collect($data)->first();
-            $monthlyData = $puskesmasData['monthly_data'] ?? [];
-            
-            // Sum all monthly data for yearly total
-            $totalPatients = collect($monthlyData)->sum('total');
-            $standardPatients = collect($monthlyData)->sum('standard');
-            
             return [
-                'total' => $totalPatients,
-                'standard' => $standardPatients
+                'total' => $latestStats->total_count ?? 0,
+                'standard' => $latestStats->standard_count ?? 0,
+                'male' => $latestStats->male_count ?? 0,
+                'female' => $latestStats->female_count ?? 0,
+                'non_standard' => $latestStats->non_standard_count ?? 0
             ];
         } catch (\Exception $e) {
             Log::warning('Failed to get yearly statistics', [
@@ -369,7 +373,13 @@ class PdfTemplateFormatter
                 'disease_type' => $diseaseType,
                 'error' => $e->getMessage()
             ]);
-            return ['total' => 0, 'standard' => 0];
+            return [
+                'total' => 0,
+                'standard' => 0,
+                'male' => 0,
+                'female' => 0,
+                'non_standard' => 0
+            ];
         }
     }
 }

@@ -63,19 +63,19 @@ class MonthlyStatisticsCache extends Model
      */
     public function incrementPatient(string $gender, bool $isStandard): void
     {
-        if ($gender === 'male') {
-            $this->increment('male_count');
-        } else {
-            $this->increment('female_count');
-        }
-        
-        $this->increment('total_count');
-        
+        // Only count gender for standard patients
         if ($isStandard) {
+            if ($gender === 'male') {
+                $this->increment('male_count');
+            } else {
+                $this->increment('female_count');
+            }
             $this->increment('standard_count');
         } else {
             $this->increment('non_standard_count');
         }
+        
+        $this->increment('total_count');
 
         // Recalculate percentage
         $this->recalculatePercentage();

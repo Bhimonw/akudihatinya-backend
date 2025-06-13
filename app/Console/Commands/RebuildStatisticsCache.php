@@ -26,8 +26,6 @@ class RebuildStatisticsCache extends Command
      */
     public function handle(StatisticsCacheService $cacheService)
     {
-        $this->info('Starting to rebuild statistics cache...');
-        
         $startTime = microtime(true);
         
         try {
@@ -36,11 +34,11 @@ class RebuildStatisticsCache extends Command
             $endTime = microtime(true);
             $executionTime = round($endTime - $startTime, 2);
             
-            $this->info("Cache rebuilt successfully in {$executionTime} seconds.");
+            echo "Cache rebuilt successfully in {$executionTime} seconds.\n";
             
             return 0;
         } catch (\Exception $e) {
-            $this->error('Error rebuilding cache: ' . $e->getMessage());
+            echo 'Error rebuilding cache: ' . $e->getMessage() . "\n";
             return 1;
         }
     }
