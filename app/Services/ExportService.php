@@ -21,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use App\Formatters\AdminQuarterlyFormatter;
+use App\Formatters\PuskesmasFormatter;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class ExportService
@@ -29,6 +30,7 @@ class ExportService
     protected $adminAllFormatter;
     protected $adminMonthlyFormatter;
     protected $adminQuarterlyFormatter;
+    protected $puskesmasFormatter;
     protected $pdfService;
 
     public function __construct(
@@ -36,12 +38,14 @@ class ExportService
         AdminAllFormatter $adminAllFormatter,
         AdminMonthlyFormatter $adminMonthlyFormatter,
         AdminQuarterlyFormatter $adminQuarterlyFormatter,
+        PuskesmasFormatter $puskesmasFormatter,
         PdfService $pdfService
     ) {
         $this->statisticsService = $statisticsService;
         $this->adminAllFormatter = $adminAllFormatter;
         $this->adminMonthlyFormatter = $adminMonthlyFormatter;
         $this->adminQuarterlyFormatter = $adminQuarterlyFormatter;
+        $this->puskesmasFormatter = $puskesmasFormatter;
         $this->pdfService = $pdfService;
     }
 
@@ -195,6 +199,7 @@ class ExportService
         $templateFile = match ($tableType) {
             'monthly' => 'monthly.xlsx',
             'quarterly' => 'quarterly.xlsx',
+            'puskesmas' => 'puskesmas.xlsx',
             default => 'all.xlsx'
         };
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($templatePath . $templateFile);
@@ -203,6 +208,7 @@ class ExportService
         $formatter = match ($tableType) {
             'monthly' => $this->adminMonthlyFormatter,
             'quarterly' => $this->adminQuarterlyFormatter,
+            'puskesmas' => $this->puskesmasFormatter,
             default => $this->adminAllFormatter
         };
         $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
@@ -607,7 +613,7 @@ class ExportService
         try {
             // Use PdfService for PDF generation
             $pdfService = app(\App\Services\PdfService::class);
-            
+
             if ($isRecap) {
                 return $pdfService->generateQuarterlyRecapPdf($puskesmasAll, $year, $diseaseType, $filename);
             } else {

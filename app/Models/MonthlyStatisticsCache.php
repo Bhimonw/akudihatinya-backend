@@ -74,7 +74,7 @@ class MonthlyStatisticsCache extends Model
         } else {
             $this->increment('non_standard_count');
         }
-        
+
         $this->increment('total_count');
 
         // Recalculate percentage
@@ -91,7 +91,7 @@ class MonthlyStatisticsCache extends Model
         } else {
             $this->standard_percentage = 0;
         }
-        
+
         $this->save();
     }
 
