@@ -437,10 +437,14 @@ class DmExaminationController extends Controller
             ], 403);
         }
 
-        $dmExamination->delete();
+        // Hapus semua pemeriksaan pada tanggal yang sama untuk pasien yang sama
+        $deletedCount = DmExamination::where('patient_id', $dmExamination->patient_id)
+            ->where('examination_date', $dmExamination->examination_date)
+            ->where('puskesmas_id', $dmExamination->puskesmas_id)
+            ->delete();
 
         return response()->json([
-            'message' => 'Pemeriksaan Diabetes Mellitus berhasil dihapus',
+            'message' => "Berhasil menghapus {$deletedCount} pemeriksaan Diabetes Mellitus pada tanggal {$dmExamination->examination_date->format('d/m/Y')}",
         ]);
     }
 }
