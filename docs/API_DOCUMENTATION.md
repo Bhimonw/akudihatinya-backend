@@ -389,6 +389,76 @@ CRUD operations untuk manajemen pasien.
 **Headers:** `Authorization: Bearer {token}`
 **Role Required:** Puskesmas
 
+### Patient Export (JSON)
+**GET** `/puskesmas/patients-export`
+
+Mengexport data pasien dalam format JSON dengan filtering dan pencarian.
+
+**Headers:** `Authorization: Bearer {token}`
+**Role Required:** Puskesmas
+
+**Query Parameters:**
+- `disease_type` (optional): Filter berdasarkan jenis penyakit (`ht`, `dm`, `both`)
+- `search` (optional): Pencarian berdasarkan nama, NIK, nomor BPJS, atau nomor telepon
+- `year` (optional): Filter berdasarkan tahun pemeriksaan
+
+**Response:**
+```json
+{
+  "message": "Data pasien berhasil diekspor",
+  "data": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "nik": "1234567890123456",
+      "bpjs_number": "0001234567890",
+      "phone_number": "081234567890",
+      "address": "Jl. Contoh No. 123",
+      "gender": "male",
+      "birth_date": "1990-01-01",
+      "age": 34,
+      "has_ht": true,
+      "has_dm": false
+    }
+  ],
+  "total": 1,
+  "puskesmas": "Puskesmas Contoh"
+}
+```
+
+### Patient Export (Excel)
+**GET** `/puskesmas/patients-export-excel`
+
+Mengexport data pasien dalam format Excel (.xlsx) dengan judul dinamis berdasarkan jenis penyakit.
+
+**Headers:** `Authorization: Bearer {token}`
+**Role Required:** Puskesmas
+
+**Query Parameters:**
+- `disease_type` (optional): Filter berdasarkan jenis penyakit (`ht`, `dm`, `both`)
+  - `ht`: Judul "Daftar Pasien Penderita Hipertensi"
+  - `dm`: Judul "Daftar Pasien Penderita Diabetes Melitus"
+  - `both`: Judul "Daftar Pasien Penderita Hipertensi dan Diabetes Melitus"
+  - Tanpa filter: Judul "Daftar Pasien"
+- `search` (optional): Pencarian berdasarkan nama, NIK, nomor BPJS, atau nomor telepon
+- `year` (optional): Filter berdasarkan tahun pemeriksaan
+
+**Response:** File Excel (.xlsx) dengan kolom:
+- Nama Lengkap
+- NIK
+- Tanggal Lahir
+- Jenis Kelamin
+- Alamat
+- Nomor Telepon
+- Nomor BPJS
+- WhatsApp (link wa.me berdasarkan nomor telepon)
+
+**Contoh Penggunaan:**
+```
+GET /api/puskesmas/patients-export-excel?disease_type=ht&year=2024
+GET /api/puskesmas/patients-export-excel?search=john&disease_type=dm
+```
+
 ### Patient Examination Year
 **POST** `/puskesmas/patients/{id}/examination-year`
 **PUT** `/puskesmas/patients/{id}/examination-year`
