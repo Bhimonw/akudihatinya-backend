@@ -16,6 +16,7 @@ class Patient extends Model
         'medical_record_number', // Tambahkan field ini
         'name',
         'address',
+        'phone_number',
         'gender',
         'birth_date',
         'age',

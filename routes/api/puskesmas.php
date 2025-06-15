@@ -18,6 +18,8 @@ Route::middleware(['auth:sanctum', IsPuskesmas::class])->prefix('puskesmas')->gr
 
     // Patients
     Route::resource('patients', PatientController::class)->except(['create', 'edit']);
+    Route::get('/patients-export', [PatientController::class, 'export']);
+    Route::get('/patients-export-excel', [PatientController::class, 'exportToExcel']);
 
     // Examination years
     Route::post('/patients/{patient}/examination-year', [PatientController::class, 'addExaminationYear']);

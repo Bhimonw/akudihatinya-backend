@@ -23,6 +23,7 @@ class PatientResource extends JsonResource
             'medical_record_number' => $this->medical_record_number, // Include medical record number
             'name' => $this->name,
             'address' => $this->address,
+            'phone_number' => $this->phone_number,
             'gender' => $this->gender,
             'birth_date' => $this->birth_date ? $this->birth_date->format('Y-m-d') : null,
             'age' => $this->age,

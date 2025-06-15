@@ -20,6 +20,7 @@ class PatientRequest extends FormRequest
             'bpjs_number' => 'nullable|string|max:20',
             'name' => 'required|string|max:255',
             'address' => 'nullable|string',
+            'phone_number' => 'nullable|string|max:20',
             'gender' => 'nullable|in:male,female',
             'birth_date' => 'nullable|date',
             'age' => 'nullable|integer|min:0|max:150',
