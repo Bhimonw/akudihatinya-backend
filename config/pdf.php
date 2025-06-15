@@ -35,9 +35,9 @@ return [
         'path' => resource_path('pdf'),
         'puskesmas' => 'puskesmas_statistics_pdf',
         'quarterly' => 'all_quarters_recap_pdf',
-        'monthly' => 'monthly_statistics_pdf',
-        'yearly' => 'yearly_statistics_pdf',
-        'summary' => 'statistics_pdf'
+        'monthly' => 'all_quarters_recap_pdf',
+        'yearly' => 'all_quarters_recap_pdf',
+        'summary' => 'all_quarters_recap_pdf'
     ],
 
     'filename' => [

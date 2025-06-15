@@ -418,6 +418,13 @@ class StatisticsController extends Controller
      */
     public function exportStatistics(Request $request)
     {
+        // Jika ini adalah endpoint admin export, pastikan hanya admin yang bisa mengakses
+        if ($request->is('*/admin/export') && !Auth::user()->isAdmin()) {
+            return response()->json([
+                'message' => 'Akses ditolak. Hanya admin yang dapat mengakses export data admin.',
+            ], 403);
+        }
+
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month ?? null; // null = laporan tahunan
         $diseaseType = $request->disease_type ?? 'all'; // Nilai default: 'all', bisa juga 'ht' atau 'dm'
@@ -473,6 +480,10 @@ class StatisticsController extends Controller
         // Tentukan apakah ini laporan rekap (admin) atau laporan puskesmas
         $isRecap = Auth::user()->isAdmin() && !$request->has('puskesmas_id');
         $reportType = $isRecap ? 'recap' : 'single';
+
+        // Untuk memastikan konsistensi data, gunakan logika yang sama dengan endpoint statistics
+        // Ambil data statistik menggunakan logika yang sama dengan method index()
+        $statisticsData = $this->getConsistentStatisticsData($puskesmasAll, $year, $month, $diseaseType);
 
         // Buat nama file
         $filename = "laporan_" . ($diseaseType === 'all' ? 'ht_dm' : $diseaseType) . "_" . $year;
@@ -559,8 +570,12 @@ class StatisticsController extends Controller
             }
 
             if (Auth::user()->isAdmin()) {
+                // Untuk admin, gunakan data yang konsisten dengan endpoint /api/statistics/admin
+                // Pastikan data export sama dengan data yang ditampilkan di endpoint admin
+                $adminStatisticsData = $this->getAdminConsistentData($request, $year, $month, $diseaseType);
                 return $this->exportService->exportToExcel($diseaseType, $year, $request->puskesmas_id, $tableType);
             } else {
+                // Untuk puskesmas, gunakan data yang konsisten dengan endpoint /api/statistics
                 return $this->exportToExcel($puskesmasAll, $year, $month, $diseaseType, $filename, $isRecap, $reportType);
             }
         }
@@ -835,6 +850,12 @@ class StatisticsController extends Controller
      */
     public function adminStatistics(Request $request)
     {
+        // Pastikan hanya admin yang bisa mengakses endpoint ini
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'message' => 'Akses ditolak. Hanya admin yang dapat mengakses data statistik admin.',
+            ], 403);
+        }
 
         $year = $request->year ?? Carbon::now()->year;
         $month = $request->month; // Optional: null for yearly view, 1-12 for monthly view
@@ -1094,6 +1115,296 @@ class StatisticsController extends Controller
     private function getDmStatisticsFromCache($puskesmasId, $year, $month = null)
     {
         return $this->statisticsService->getDmStatisticsFromCache($puskesmasId, $year, $month);
+    }
+
+    /**
+     * Get consistent statistics data using the same logic as index() method
+     * This ensures data consistency between /api/statistics and /api/statistics/export
+     */
+    private function getConsistentStatisticsData($puskesmasAll, $year, $month, $diseaseType)
+    {
+        // OPTIMASI: Ambil semua cache statistik bulanan sekaligus
+        $puskesmasIds = $puskesmasAll->pluck('id')->toArray();
+        $monthlyStats = \App\Models\MonthlyStatisticsCache::where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->when($month, function ($query) use ($month) {
+                return $query->where('month', $month);
+            })
+            ->get();
+        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
+        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
+        $statistics = [];
+        
+        foreach ($puskesmasAll as $puskesmas) {
+            $data = [
+                'puskesmas_id' => $puskesmas->id,
+                'puskesmas_name' => $puskesmas->name,
+            ];
+            
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $htArr['target'] = $targetCount;
+                if (isset($htStats[$puskesmas->id])) {
+                    $totalPatients = $htStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $htStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $htStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $htStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $htStats[$puskesmas->id]->sum('female_count');
+                    $htArr['total_patients'] = $totalPatients;
+                    $htArr['standard_patients'] = $standardPatients;
+                    $htArr['non_standard_patients'] = $nonStandardPatients;
+                    $htArr['male_patients'] = $malePatients;
+                    $htArr['female_patients'] = $femalePatients;
+                    $htArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($htStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $htArr['monthly_data'] = $monthlyData;
+                }
+                $data['ht'] = $htArr;
+            }
+            
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmArr = [
+                    'target' => 0,
+                    'total_patients' => 0,
+                    'achievement_percentage' => 0,
+                    'standard_patients' => 0,
+                    'non_standard_patients' => 0,
+                    'male_patients' => 0,
+                    'female_patients' => 0,
+                    'monthly_data' => [],
+                ];
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->first();
+                $targetCount = $target ? $target->target_count : 0;
+                $dmArr['target'] = $targetCount;
+                if (isset($dmStats[$puskesmas->id])) {
+                    $totalPatients = $dmStats[$puskesmas->id]->sum('total_count');
+                    $standardPatients = $dmStats[$puskesmas->id]->sum('standard_count');
+                    $nonStandardPatients = $dmStats[$puskesmas->id]->sum('non_standard_count');
+                    $malePatients = $dmStats[$puskesmas->id]->sum('male_count');
+                    $femalePatients = $dmStats[$puskesmas->id]->sum('female_count');
+                    $dmArr['total_patients'] = $totalPatients;
+                    $dmArr['standard_patients'] = $standardPatients;
+                    $dmArr['non_standard_patients'] = $nonStandardPatients;
+                    $dmArr['male_patients'] = $malePatients;
+                    $dmArr['female_patients'] = $femalePatients;
+                    $dmArr['achievement_percentage'] = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
+                    $monthlyData = [];
+                    foreach ($dmStats[$puskesmas->id] as $stat) {
+                        $monthlyData[$stat->month] = [
+                            'male' => $stat->male_count,
+                            'female' => $stat->female_count,
+                            'total' => $stat->total_count,
+                            'standard' => $stat->standard_count,
+                            'non_standard' => $stat->non_standard_count,
+                            'percentage' => $targetCount > 0 ? round(($stat->standard_count / $targetCount) * 100, 2) : 0,
+                        ];
+                    }
+                    $dmArr['monthly_data'] = $monthlyData;
+                }
+                $data['dm'] = $dmArr;
+            }
+            $statistics[] = $data;
+        }
+
+        // Urutkan ranking DM/HT jika disease_type=dm/ht
+        if ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
+            });
+        } elseif ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
+            });
+        }
+        foreach ($statistics as $index => $stat) {
+            $statistics[$index]['ranking'] = $index + 1;
+        }
+
+        return $statistics;
+    }
+
+    /**
+     * Get consistent admin data using the same logic as adminStatistics() method
+     * This ensures data consistency between /api/statistics/admin and /api/statistics/admin/export
+     */
+    private function getAdminConsistentData($request, $year, $month, $diseaseType)
+    {
+        // Use the same logic as adminStatistics method
+        $perPage = $request->per_page ?? 15;
+        $page = $request->page ?? 1;
+
+        $puskesmasQuery = Puskesmas::query();
+
+        // Filter by puskesmas name if provided
+        if ($request->has('name')) {
+            $puskesmasQuery->where('name', 'like', '%' . $request->name . '%');
+        }
+
+        // Get all puskesmas for export (no pagination for export)
+        $puskesmas = $puskesmasQuery->get();
+
+        if ($puskesmas->isEmpty()) {
+            return [];
+        }
+
+        // Get statistics for all puskesmas
+        $statistics = [];
+        $puskesmasIds = $puskesmas->pluck('id')->toArray();
+
+        // Get targets for all puskesmas in one query to reduce DB calls
+        $htTargets = YearlyTarget::where('year', $year)
+            ->where('disease_type', 'ht')
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        $dmTargets = YearlyTarget::where('year', $year)
+            ->where('disease_type', 'dm')
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->get()
+            ->keyBy('puskesmas_id');
+
+        // Pre-fetch statistics from cache
+        $monthlyStats = MonthlyStatisticsCache::where('year', $year)
+            ->whereIn('puskesmas_id', $puskesmasIds)
+            ->when($month, function ($query) use ($month) {
+                return $query->where('month', $month);
+            })
+            ->get();
+
+        $htStats = $monthlyStats->where('disease_type', 'ht')->groupBy('puskesmas_id');
+        $dmStats = $monthlyStats->where('disease_type', 'dm')->groupBy('puskesmas_id');
+
+        foreach ($puskesmas as $p) {
+            $data = [
+                'puskesmas_id' => $p->id,
+                'puskesmas_name' => $p->name,
+            ];
+
+            // Get HT data if requested
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                // Use cached data if available
+                if (isset($htStats[$p->id])) {
+                    $htArr = $this->processHtCachedStats($htStats[$p->id], $htTargets->get($p->id));
+                } else {
+                    $htTarget = $htTargets->get($p->id);
+                    $htTargetCount = $htTarget ? $htTarget->target_count : 0;
+                    $htData = $this->getHtStatisticsFromCache($p->id, $year, $month);
+                    $htArr = [
+                        'target' => $htTargetCount,
+                        'total_patients' => $htData['total_patients'],
+                        'achievement_percentage' => $htTargetCount > 0
+                            ? round(($htData['standard_patients'] / $htTargetCount) * 100, 2)
+                            : 0,
+                        'standard_patients' => $htData['standard_patients'],
+                        'non_standard_patients' => $htData['total_patients'] - $htData['standard_patients'],
+                        'male_patients' => $htData['male_patients'] ?? 0,
+                        'female_patients' => $htData['female_patients'] ?? 0,
+                        'monthly_data' => $htData['monthly_data'],
+                    ];
+                }
+                // Format ke string dan monthly_data sesuai permintaan
+                $htArr = [
+                    'target' => (string)($htArr['target'] ?? 0),
+                    'total_patients' => (string)($htArr['total_patients'] ?? 0),
+                    'standard_patients' => (string)($htArr['standard_patients'] ?? 0),
+                    'non_standard_patients' => (string)($htArr['non_standard_patients'] ?? 0),
+                    'male_patients' => (string)($htArr['male_patients'] ?? 0),
+                    'female_patients' => (string)($htArr['female_patients'] ?? 0),
+                    'achievement_percentage' => $htArr['achievement_percentage'] ?? 0,
+                    'monthly_data' => array_map(function ($m) {
+                        return [
+                            'male' => (string)($m['male'] ?? 0),
+                            'female' => (string)($m['female'] ?? 0),
+                            'total' => (string)($m['total'] ?? 0),
+                            'standard' => (string)($m['standard'] ?? 0),
+                            'non_standard' => (string)($m['non_standard'] ?? 0),
+                            'percentage' => isset($m['standard'], $m['target']) && $m['target'] > 0 ? round(($m['standard'] / $m['target']) * 100, 2) : 0,
+                        ];
+                    }, $htArr['monthly_data'] ?? []),
+                ];
+                $data['ht'] = $htArr;
+            }
+
+            // Get DM data if requested
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmData = $this->statisticsService->getDmStatisticsWithMonthlyBreakdown($p->id, $year, $month);
+                $dmArr = $dmData;
+                $dmArr = [
+                    'target' => (string)($dmArr['target'] ?? 0),
+                    'total_patients' => (string)($dmArr['total_patients'] ?? 0),
+                    'standard_patients' => (string)($dmArr['standard_patients'] ?? 0),
+                    'non_standard_patients' => (string)($dmArr['non_standard_patients'] ?? 0),
+                    'male_patients' => (string)($dmArr['male_patients'] ?? 0),
+                    'female_patients' => (string)($dmArr['female_patients'] ?? 0),
+                    'achievement_percentage' => $dmArr['achievement_percentage'] ?? 0,
+                    'monthly_data' => array_map(function ($m) {
+                        return [
+                            'male' => (string)($m['male'] ?? 0),
+                            'female' => (string)($m['female'] ?? 0),
+                            'total' => (string)($m['total'] ?? 0),
+                            'standard' => (string)($m['standard'] ?? 0),
+                            'non_standard' => (string)($m['non_standard'] ?? 0),
+                            'percentage' => isset($m['standard'], $m['target']) && $m['target'] > 0 ? round(($m['standard'] / $m['target']) * 100, 2) : 0,
+                        ];
+                    }, $dmArr['monthly_data'] ?? []),
+                ];
+                $data['dm'] = $dmArr;
+            }
+
+            // Hapus field yang tidak perlu
+            if ($diseaseType === 'dm') {
+                unset($data['ht']);
+            }
+            if ($diseaseType === 'ht') {
+                unset($data['dm']);
+            }
+
+            $statistics[] = $data;
+        }
+
+        // Urutkan ranking DM/HT jika disease_type=dm/ht
+        if ($diseaseType === 'dm') {
+            usort($statistics, function ($a, $b) {
+                return ($b['dm']['achievement_percentage'] ?? 0) <=> ($a['dm']['achievement_percentage'] ?? 0);
+            });
+        } elseif ($diseaseType === 'ht') {
+            usort($statistics, function ($a, $b) {
+                return ($b['ht']['achievement_percentage'] ?? 0) <=> ($a['ht']['achievement_percentage'] ?? 0);
+            });
+        }
+        foreach ($statistics as $index => $stat) {
+            $statistics[$index]['ranking'] = $index + 1;
+        }
+
+        return $statistics;
     }
 
     /**

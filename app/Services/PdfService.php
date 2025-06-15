@@ -6,6 +6,7 @@ use App\Services\StatisticsAdminService;
 use App\Formatters\PdfFormatter;
 use App\Formatters\PdfTemplateFormatter;
 use App\Formatters\PuskesmasPdfFormatter;
+use App\Formatters\AllQuartersRecapPdfFormatter;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
@@ -16,17 +17,20 @@ class PdfService
     protected $pdfFormatter;
     protected $pdfTemplateFormatter;
     protected $puskesmasPdfFormatter;
+    protected $allQuartersRecapPdfFormatter;
 
     public function __construct(
         StatisticsAdminService $statisticsAdminService,
         PdfFormatter $pdfFormatter,
         PdfTemplateFormatter $pdfTemplateFormatter,
-        PuskesmasPdfFormatter $puskesmasPdfFormatter
+        PuskesmasPdfFormatter $puskesmasPdfFormatter,
+        AllQuartersRecapPdfFormatter $allQuartersRecapPdfFormatter
     ) {
         $this->statisticsAdminService = $statisticsAdminService;
         $this->pdfFormatter = $pdfFormatter;
         $this->pdfTemplateFormatter = $pdfTemplateFormatter;
         $this->puskesmasPdfFormatter = $puskesmasPdfFormatter;
+        $this->allQuartersRecapPdfFormatter = $allQuartersRecapPdfFormatter;
     }
 
     /**
@@ -76,7 +80,7 @@ class PdfService
             ]);
 
             // Generate PDF
-            $pdf = Pdf::loadView('exports.statistics_pdf', $formattedData);
+            $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
             $pdf->setPaper('A4', 'landscape');
 
             // Create filename
@@ -134,7 +138,7 @@ class PdfService
 
             $formattedData = $this->pdfFormatter->formatSummaryForPdf($statisticsData, $diseaseType, $year);
 
-            $pdf = Pdf::loadView('exports.summary_pdf', $formattedData);
+            $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
             $pdf->setPaper('A4', 'portrait');
 
             $filename = "Ringkasan_Statistik_{$year}_" . date('Y-m-d_H-i-s') . ".pdf";
@@ -163,8 +167,8 @@ class PdfService
             ini_set('memory_limit', '512M');
             set_time_limit(300);
 
-            // Format data using PdfTemplateFormatter
-            $formattedData = $this->pdfTemplateFormatter->formatQuarterlyRecapData($puskesmasAll, $year, $diseaseType);
+            // Format data using AllQuartersRecapPdfFormatter
+            $formattedData = $this->allQuartersRecapPdfFormatter->formatAllQuartersRecapData($year, $diseaseType);
 
             Log::info('Quarterly recap PDF generation data prepared', [
                 'disease_type' => $diseaseType,
@@ -207,35 +211,29 @@ class PdfService
             ini_set('memory_limit', '512M');
             set_time_limit(300);
 
-            // Format data using PdfTemplateFormatter
-            $formattedData = $this->pdfTemplateFormatter->formatStatisticsData($puskesmasAll, $year, $month, $diseaseType, $reportType);
+            // Format data using AllQuartersRecapPdfFormatter
+            $formattedData = $this->allQuartersRecapPdfFormatter->formatAllQuartersRecapData($year, $diseaseType);
 
             Log::info('Statistics PDF generation data prepared', [
                 'disease_type' => $diseaseType,
                 'year' => $year,
                 'month' => $month,
                 'report_type' => $reportType,
-                'data_count' => count($formattedData['statistics_data'])
+                'quarters_count' => count($formattedData['quarters_data'])
             ]);
 
-            // Determine template based on report type
-            $templateName = match ($reportType) {
-                'monthly' => 'monthly_statistics_pdf',
-                'quarterly' => 'quarterly_statistics_pdf',
-                'yearly' => 'yearly_statistics_pdf',
-                default => 'statistics_pdf'
-            };
+            // Always use all_quarters_recap_pdf template
+            $templateName = 'all_quarters_recap_pdf';
 
-            // Check if template exists, fallback to default
+            // Check if template exists
             $templatePath = resource_path('pdf/' . $templateName . '.blade.php');
             if (!file_exists($templatePath)) {
-                $templateName = 'all_quarters_recap_pdf'; // Fallback to existing template
-                Log::warning('Template not found, using fallback', ['requested' => $templateName, 'fallback' => 'all_quarters_recap_pdf']);
+                throw new \Exception('PDF template not found: ' . $templatePath);
             }
 
             // Generate PDF using template from resources/pdf
             $pdf = Pdf::loadView($templateName, $formattedData);
-            $pdf->setPaper('A4', $month ? 'portrait' : 'landscape');
+            $pdf->setPaper('A4', 'landscape');
 
             return $pdf->download($filename);
         } catch (\Exception $e) {

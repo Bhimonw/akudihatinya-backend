@@ -66,6 +66,7 @@ class PdfTemplateFormatter
                     ];
 
                     $quarterTotals = ['total' => 0, 'standard' => 0, 'male' => 0, 'female' => 0];
+                    $lastMonthData = null;
 
                     // Get data for each month in the quarter
                     for ($monthIndex = 0; $monthIndex < 3; $monthIndex++) {
@@ -90,13 +91,12 @@ class PdfTemplateFormatter
 
                         $puskesmasData['monthly'][] = $monthData;
 
-                        // Add to quarter totals
-                        $quarterTotals['total'] += $total;
-                        $quarterTotals['standard'] += $standard;
-                        $quarterTotals['male'] += $male;
-                        $quarterTotals['female'] += $female;
+                        // Keep track of the last month with data for quarterly totals
+                        if ($total > 0 || $standard > 0) {
+                            $lastMonthData = $monthData;
+                        }
 
-                        // Add to grand totals
+                        // Add to grand totals (still accumulate for grand total calculation)
                         $grandTotals['monthly_totals'][$monthIndex]['total'] += $total;
                         $grandTotals['monthly_totals'][$monthIndex]['standard'] += $standard;
                         $grandTotals['monthly_totals'][$monthIndex]['male'] += $male;
@@ -105,6 +105,16 @@ class PdfTemplateFormatter
                         $grandTotals['quarter_total']['standard'] += $standard;
                         $grandTotals['quarter_total']['male'] += $male;
                         $grandTotals['quarter_total']['female'] += $female;
+                    }
+
+                    // Use data from the last month of the quarter that has data
+                    if ($lastMonthData !== null) {
+                        $quarterTotals = [
+                            'total' => $lastMonthData['total'],
+                            'standard' => $lastMonthData['standard'],
+                            'male' => $lastMonthData['male'],
+                            'female' => $lastMonthData['female']
+                        ];
                     }
 
                     // Set quarterly data
@@ -153,6 +163,11 @@ class PdfTemplateFormatter
                 $quarterStandard = $grandTotals['quarter_total']['standard'];
                 $quarterMale = $grandTotals['quarter_total']['male'];
                 $quarterFemale = $grandTotals['quarter_total']['female'];
+                // Calculate achievement percentage: total S / target * 100
+                $achievementPercentage = $quarterData['totals']['target'] > 0
+                    ? round(($quarterStandard / $quarterData['totals']['target']) * 100, 1)
+                    : 0;
+                
                 $quarterPercentage = $quarterTotal > 0
                     ? round(($quarterStandard / $quarterTotal) * 100, 1)
                     : 0;
@@ -172,7 +187,7 @@ class PdfTemplateFormatter
                         'female' => $quarterFemale
                     ]],
                     'total_patients' => $quarterTotal,
-                    'achievement_percentage' => $quarterPercentage
+                    'achievement_percentage' => $achievementPercentage
                 ];
 
                 $quartersData[] = $quarterData;

@@ -635,7 +635,7 @@ class ExportService
             $statisticsData = $this->prepareStatisticsData($puskesmasAll, $year, $month, $diseaseType);
 
             // Determine the view template based on report type
-            $viewTemplate = $isRecap ? 'exports.summary_pdf' : 'exports.statistics_pdf';
+            $viewTemplate = $isRecap ? 'all_quarters_recap_pdf' : 'all_quarters_recap_pdf';
 
             // Generate title based on report type and disease type
             $diseaseLabel = match ($diseaseType) {
