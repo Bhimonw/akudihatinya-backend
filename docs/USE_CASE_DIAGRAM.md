@@ -296,158 +296,123 @@ graph TB
    - Token memiliki masa berlaku terbatas
    - Password di-hash dengan algoritma yang aman
 
-## Entity Relationship Diagram (ERD)
+## Use Case Diagram dengan Relasi yang Jelas
 
 ```mermaid
-erDiagram
-    USERS {
-        bigint id PK
-        string username UK
-        string password
-        string name
-        string profile_picture
-        enum role "admin, puskesmas"
-        bigint puskesmas_id FK
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    PUSKESMAS {
-        bigint id PK
-        string name
-        text address
-        string phone
-        string email
-        boolean is_active
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    PATIENTS {
-        bigint id PK
-        bigint puskesmas_id FK
-        string nik UK
-        string bpjs_number
-        string medical_record_number
-        string name
-        text address
-        string phone_number
-        enum gender "male, female"
-        date birth_date
-        integer age
-        json ht_years "Array tahun HT"
-        json dm_years "Array tahun DM"
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    HT_EXAMINATIONS {
-        bigint id PK
-        bigint patient_id FK
-        bigint puskesmas_id FK
-        date examination_date
-        integer systolic
-        integer diastolic
-        integer year
-        integer month
-        boolean is_archived
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    DM_EXAMINATIONS {
-        bigint id PK
-        bigint patient_id FK
-        bigint puskesmas_id FK
-        date examination_date
-        enum examination_type "hba1c, gdp, gd2jpp, gdsp"
-        decimal result
-        integer year
-        integer month
-        boolean is_archived
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    YEARLY_TARGETS {
-        bigint id PK
-        bigint puskesmas_id FK
-        enum disease_type "ht, dm"
-        integer year
-        integer target_count
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    USER_REFRESH_TOKENS {
-        bigint id PK
-        bigint user_id FK
-        string token
-        timestamp expires_at
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    MONTHLY_STATISTICS_CACHE {
-        bigint id PK
-        bigint puskesmas_id FK
-        enum disease_type "ht, dm"
-        integer year
-        integer month
-        json data
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    %% Relationships
-    PUSKESMAS ||--o{ USERS : "has many"
-    PUSKESMAS ||--o{ PATIENTS : "has many"
-    PUSKESMAS ||--o{ HT_EXAMINATIONS : "has many"
-    PUSKESMAS ||--o{ DM_EXAMINATIONS : "has many"
-    PUSKESMAS ||--o{ YEARLY_TARGETS : "has many"
-    PUSKESMAS ||--o{ MONTHLY_STATISTICS_CACHE : "has many"
+graph TB
+    %% Actors dengan styling
+    Admin["👤 Admin<br/>Pengelola Sistem"]
+    PuskesmasUser["👤 User Puskesmas<br/>Petugas Kesehatan"]
+    System["🖥️ System<br/>Proses Otomatis"]
     
-    PATIENTS ||--o{ HT_EXAMINATIONS : "has many"
-    PATIENTS ||--o{ DM_EXAMINATIONS : "has many"
+    %% Admin Use Cases dengan styling
+    subgraph AdminUC["🔧 Admin Use Cases"]
+        direction TB
+        UC1["🔐 UC1: Login"]
+        UC2["🏥 UC2: Manage Puskesmas"]
+        UC3["📊 UC3: View All Statistics"]
+        UC4["📄 UC4: Export Global Reports"]
+        UC5["👥 UC5: Manage Users"]
+        UC6["🎯 UC6: Set Yearly Targets"]
+        UC7["📈 UC7: View System Analytics"]
+        UC8["⚙️ UC8: Manage System Settings"]
+    end
     
-    USERS ||--o{ USER_REFRESH_TOKENS : "has many"
+    %% Puskesmas User Use Cases dengan styling
+    subgraph PuskesmasUC["🏥 Puskesmas User Use Cases"]
+        direction TB
+        UC9["🔐 UC9: Login"]
+        UC10["👤 UC10: Manage Patients"]
+        UC11["🩺 UC11: Record HT Examinations"]
+        UC12["💉 UC12: Record DM Examinations"]
+        UC13["📊 UC13: View Puskesmas Statistics"]
+        UC14["📄 UC14: Export Puskesmas Reports"]
+        UC15["👤 UC15: Update Profile"]
+        UC16["📋 UC16: View Patient History"]
+        UC17["📦 UC17: Archive Old Data"]
+    end
+    
+    %% System Use Cases dengan styling
+    subgraph SystemUC["⚡ System Use Cases"]
+        direction TB
+        UC18["📊 UC18: Generate Monthly Statistics"]
+        UC19["💾 UC19: Cache Statistics Data"]
+        UC20["🔔 UC20: Send Notifications"]
+        UC21["💾 UC21: Backup Data"]
+        UC22["🗑️ UC22: Clean Archived Data"]
+    end
+    
+    %% Include Use Cases
+    subgraph IncludeUC["📎 Include Use Cases"]
+        direction TB
+        ValidatePatient["✅ Validate Patient Data"]
+        GenerateReport["📄 Generate Report"]
+        CalculateStats["🧮 Calculate Statistics"]
+        Authentication["🔐 Authentication"]
+    end
+    
+    %% Extend Use Cases
+    subgraph ExtendUC["🔗 Extend Use Cases"]
+        direction TB
+        SendPatientNotif["🔔 Send Patient Notification"]
+        UpdatePatientStatus["🔄 Update Patient Status"]
+        SendTargetNotif["🎯 Send Target Notification"]
+    end
+    
+    %% Actor Relationships
+    Admin -.-> UC1
+    Admin -.-> UC2
+    Admin -.-> UC3
+    Admin -.-> UC4
+    Admin -.-> UC5
+    Admin -.-> UC6
+    Admin -.-> UC7
+    Admin -.-> UC8
+    
+    PuskesmasUser -.-> UC9
+    PuskesmasUser -.-> UC10
+    PuskesmasUser -.-> UC11
+    PuskesmasUser -.-> UC12
+    PuskesmasUser -.-> UC13
+    PuskesmasUser -.-> UC14
+    PuskesmasUser -.-> UC15
+    PuskesmasUser -.-> UC16
+    PuskesmasUser -.-> UC17
+    
+    System -.-> UC18
+    System -.-> UC19
+    System -.-> UC20
+    System -.-> UC21
+    System -.-> UC22
+    
+    %% Include Relationships (dashed arrows)
+    UC11 -.->|include| ValidatePatient
+    UC12 -.->|include| ValidatePatient
+    UC4 -.->|include| GenerateReport
+    UC14 -.->|include| GenerateReport
+    UC3 -.->|include| CalculateStats
+    UC13 -.->|include| CalculateStats
+    UC1 -.->|generalize| Authentication
+    UC9 -.->|generalize| Authentication
+    
+    %% Extend Relationships (dotted arrows)
+    UC10 -.->|extend| SendPatientNotif
+    UC11 -.->|extend| UpdatePatientStatus
+    UC12 -.->|extend| UpdatePatientStatus
+    UC6 -.->|extend| SendTargetNotif
+    
+    %% Styling
+    classDef actorStyle fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
+    classDef adminUCStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+    classDef puskesmasUCStyle fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000
+    classDef systemUCStyle fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+    classDef includeStyle fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000
+    classDef extendStyle fill:#f1f8e9,stroke:#33691e,stroke-width:2px,color:#000
+    
+    class Admin,PuskesmasUser,System actorStyle
+    class UC1,UC2,UC3,UC4,UC5,UC6,UC7,UC8 adminUCStyle
+    class UC9,UC10,UC11,UC12,UC13,UC14,UC15,UC16,UC17 puskesmasUCStyle
+    class UC18,UC19,UC20,UC21,UC22 systemUCStyle
+    class ValidatePatient,GenerateReport,CalculateStats,Authentication includeStyle
+    class SendPatientNotif,UpdatePatientStatus,SendTargetNotif extendStyle
 ```
-
-## Penjelasan Entitas
-
-### 1. USERS
-- Menyimpan data pengguna sistem (Admin dan Puskesmas)
-- Role: admin (dapat mengakses semua data) atau puskesmas (hanya data puskesmas sendiri)
-- Berelasi dengan PUSKESMAS untuk user dengan role puskesmas
-
-### 2. PUSKESMAS
-- Master data puskesmas
-- Memiliki relasi one-to-many dengan hampir semua entitas lain
-- Field is_active untuk mengaktifkan/menonaktifkan puskesmas
-
-### 3. PATIENTS
-- Data pasien yang terdaftar di puskesmas
-- Menyimpan riwayat tahun menderita HT dan DM dalam format JSON
-- NIK sebagai unique identifier
-
-### 4. HT_EXAMINATIONS
-- Data pemeriksaan hipertensi
-- Menyimpan tekanan darah sistolik dan diastolik
-- Memiliki field is_archived untuk arsip data
-
-### 5. DM_EXAMINATIONS
-- Data pemeriksaan diabetes mellitus
-- Support multiple jenis pemeriksaan (HbA1c, GDP, GD2JPP, GDSP)
-- Hasil pemeriksaan disimpan sebagai decimal
-
-### 6. YEARLY_TARGETS
-- Target tahunan untuk setiap puskesmas per jenis penyakit
-- Digunakan untuk perhitungan pencapaian target
-
-### 7. USER_REFRESH_TOKENS
-- Token refresh untuk autentikasi
-- Memiliki expiry time
-
-### 8. MONTHLY_STATISTICS_CACHE
-- Cache untuk statistik bulanan
-- Menyimpan data dalam format JSON untuk performa yang lebih baik
