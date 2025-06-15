@@ -8,6 +8,11 @@ use App\Http\Middleware\IsPuskesmas;
 
 // Examination routes (Puskesmas only)
 Route::middleware(['auth:sanctum', IsPuskesmas::class])->prefix('puskesmas')->group(function () {
+    // Patients
+    Route::resource('patients', PatientController::class)->except(['create', 'edit']);
+    Route::get('/patients-export', [PatientController::class, 'export']);
+    Route::get('/patients-export-excel', [PatientController::class, 'exportToExcel']);
+
     // Patient examination years management
     Route::post('/patients/{patient}/examination-year', [PatientController::class, 'addExaminationYear']);
     Route::put('/patients/{patient}/examination-year', [PatientController::class, 'removeExaminationYear']);
