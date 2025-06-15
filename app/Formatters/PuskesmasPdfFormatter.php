@@ -134,12 +134,14 @@ class PuskesmasPdfFormatter
         for ($month = 1; $month <= 12; $month++) {
             $data = $monthlyData[$month] ?? [];
 
+            // Ensure all required fields are present
             $formattedData[$month] = [
                 'male' => $data['male'] ?? 0,
                 'female' => $data['female'] ?? 0,
                 'total' => ($data['male'] ?? 0) + ($data['female'] ?? 0),
                 'standard' => $data['standard'] ?? 0,
                 'non_standard' => $data['non_standard'] ?? 0,
+                'total_services' => ($data['standard'] ?? 0) + ($data['non_standard'] ?? 0),
                 'percentage' => $data['percentage'] ?? 0
             ];
         }

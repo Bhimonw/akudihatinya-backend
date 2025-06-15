@@ -26,6 +26,10 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $casts = [
+        'puskesmas_id' => 'integer',
+    ];
+
     public function puskesmas(): BelongsTo
     {
         return $this->belongsTo(Puskesmas::class);

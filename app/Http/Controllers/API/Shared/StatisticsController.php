@@ -9,7 +9,7 @@ use App\Models\Patient;
 use App\Models\Puskesmas;
 use App\Models\YearlyTarget;
 use App\Models\MonthlyStatisticsCache;
-use App\Http\Requests\PuskesmasPdfRequest;
+use App\Http\Requests\Puskesmas\PuskesmasPdfRequest;
 use App\Exceptions\PuskesmasNotFoundException;
 use App\Repositories\PuskesmasRepositoryInterface;
 use Carbon\Carbon;
@@ -522,7 +522,7 @@ class StatisticsController extends Controller
 
                 // Gunakan PdfService untuk generate PDF puskesmas
                 try {
-                    return $this->pdfService->generatePuskesmasPdf($diseaseType, $year, $puskesmasId);
+                    return $this->pdfService->generatePuskesmasPdf($puskesmasId, $diseaseType, $year);
                 } catch (\Exception $e) {
                     \Log::error('Export puskesmas PDF failed', [
                         'error' => $e->getMessage(),

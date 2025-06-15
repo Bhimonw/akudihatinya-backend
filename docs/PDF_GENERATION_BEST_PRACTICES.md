@@ -46,7 +46,7 @@ $puskesmas = $this->puskesmasRepository->findOrFail($id);
 
 ### 3. Form Request Validation
 
-**File:** `app/Http/Requests/PuskesmasPdfRequest.php`
+**File:** `app/Http/Requests/Puskesmas/PuskesmasPdfRequest.php`
 
 **Fitur:**
 - Centralized validation logic
