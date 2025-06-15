@@ -136,7 +136,7 @@ class DmExaminationController extends Controller
             'patient_id' => [
                 'required',
                 'exists:patients,id',
-                function ($attribute, $value, $fail) {
+                function ($attribute, $value, $fail) use ($request) {
                     $patient = \App\Models\Patient::find($value);
 
                     if (!$patient) {
@@ -144,7 +144,7 @@ class DmExaminationController extends Controller
                         return;
                     }
 
-                    if ($patient->puskesmas_id !== auth()->user()->puskesmas->id) {
+                    if ($patient->puskesmas_id !== $request->user()->puskesmas->id) {
                         $fail('Pasien bukan milik Puskesmas ini.');
                     }
                 },
@@ -173,23 +173,9 @@ class DmExaminationController extends Controller
 
         DB::beginTransaction();
         try {
-            // Hapus semua pemeriksaan yang sudah ada pada tanggal tersebut
-            // Ini memastikan bahwa kita bisa mengatur ulang nilai menjadi null
-            $existingTypes = ['hba1c', 'gdp', 'gd2jpp', 'gdsp'];
-            foreach ($existingTypes as $type) {
-                // Hapus hanya jika tipe tersebut ada dalam request
-                if (array_key_exists($type, $request->examinations)) {
-                    DmExamination::where('patient_id', $patientId)
-                        ->where('puskesmas_id', $puskesmasId)
-                        ->whereDate('examination_date', $examinationDate)
-                        ->where('examination_type', $type)
-                        ->delete();
-                }
-            }
-
             $createdExaminations = [];
 
-            // Buat pemeriksaan baru hanya untuk nilai yang tidak null
+            // Buat pemeriksaan baru untuk setiap tipe yang memiliki nilai (INSERT murni)
             foreach ($request->examinations as $type => $result) {
                 // Hanya buat record jika nilai tidak null
                 if ($result !== null) {
@@ -210,13 +196,7 @@ class DmExaminationController extends Controller
 
             DB::commit();
 
-            // Ambil semua pemeriksaan untuk tanggal ini (setelah update)
-            $allExaminations = DmExamination::where('patient_id', $patientId)
-                ->where('puskesmas_id', $puskesmasId)
-                ->whereDate('examination_date', $examinationDate)
-                ->get();
-
-            // Format hasil untuk respons
+            // Format hasil untuk respons - gunakan data yang baru dibuat
             $examinationResults = [
                 'hba1c' => null,
                 'gdp' => null,
@@ -224,14 +204,14 @@ class DmExaminationController extends Controller
                 'gdsp' => null
             ];
 
-            foreach ($allExaminations as $exam) {
+            foreach ($createdExaminations as $exam) {
                 $examinationResults[$exam->examination_type] = $exam->result;
             }
 
-            // Base ID for response - use first created exam or null
-            $baseId = count($createdExaminations) > 0 ? $createdExaminations[0]->id : (count($allExaminations) > 0 ? $allExaminations[0]->id : null);
+            // Base ID for response - use first created exam
+            $baseId = count($createdExaminations) > 0 ? $createdExaminations[0]->id : null;
 
-            // Buat respons dengan semua data pemeriksaan
+            // Buat respons dengan data pemeriksaan yang baru dibuat
             $responseData = [
                 'id' => $baseId,
                 'patient_id' => $patientId,
@@ -312,6 +292,40 @@ class DmExaminationController extends Controller
             ], 403);
         }
 
+        // Validasi request untuk single examination update
+        $request->validate([
+            'examination_type' => 'required|in:hba1c,gdp,gd2jpp,gdsp',
+            'result' => 'required|numeric|min:0|max:1000',
+            'examination_date' => 'required|date|before_or_equal:today',
+        ]);
+
+        $date = Carbon::parse($request->examination_date);
+        $year = $date->year;
+        $month = $date->month;
+        $isArchived = $date->year < Carbon::now()->year;
+
+        // Update pemeriksaan yang sudah ada (UPDATE yang sebenarnya)
+        $dmExamination->update([
+            'examination_date' => $request->examination_date,
+            'examination_type' => $request->examination_type,
+            'result' => $request->result,
+            'year' => $year,
+            'month' => $month,
+            'is_archived' => $isArchived,
+        ]);
+
+        return response()->json([
+            'message' => 'Pemeriksaan Diabetes Mellitus berhasil diupdate',
+            'examination' => new DmExaminationResource($dmExamination),
+        ]);
+    }
+
+    /**
+     * Update multiple examinations for the same date (batch update)
+     * This method handles the complex case of updating multiple examination types
+     */
+    public function updateBatch(Request $request)
+    {
         // Validasi request
         $request->validate([
             'patient_id' => [
@@ -348,42 +362,46 @@ class DmExaminationController extends Controller
 
         DB::beginTransaction();
         try {
-            // Perbarui pemeriksaan yang ada
-            $existingTypes = ['hba1c', 'gdp', 'gd2jpp', 'gdsp'];
-
-            foreach ($existingTypes as $type) {
-                // Hanya proses jika tipe ada dalam request
-                if (array_key_exists($type, $request->examinations)) {
-                    // Hapus pemeriksaan yang sudah ada
-                    DmExamination::where('patient_id', $patientId)
+            $updatedExaminations = [];
+            
+            // Update atau create pemeriksaan untuk setiap tipe
+            foreach ($request->examinations as $type => $result) {
+                if ($result !== null) {
+                    // Cari pemeriksaan yang sudah ada
+                    $existingExam = DmExamination::where('patient_id', $patientId)
                         ->where('puskesmas_id', $puskesmasId)
                         ->whereDate('examination_date', $examinationDate)
                         ->where('examination_type', $type)
-                        ->delete();
+                        ->first();
 
-                    // Buat baru jika nilai tidak null
-                    if ($request->examinations[$type] !== null) {
-                        DmExamination::create([
-                            'patient_id' => $patientId,
-                            'puskesmas_id' => $puskesmasId,
+                    if ($existingExam) {
+                        // UPDATE yang sebenarnya jika sudah ada
+                        $existingExam->update([
+                            'result' => $result,
                             'examination_date' => $examinationDate,
-                            'examination_type' => $type,
-                            'result' => $request->examinations[$type],
                             'year' => $year,
                             'month' => $month,
                             'is_archived' => $isArchived,
                         ]);
+                        $updatedExaminations[] = $existingExam;
+                    } else {
+                        // CREATE baru jika belum ada
+                        $newExam = DmExamination::create([
+                            'patient_id' => $patientId,
+                            'puskesmas_id' => $puskesmasId,
+                            'examination_date' => $examinationDate,
+                            'examination_type' => $type,
+                            'result' => $result,
+                            'year' => $year,
+                            'month' => $month,
+                            'is_archived' => $isArchived,
+                        ]);
+                        $updatedExaminations[] = $newExam;
                     }
                 }
             }
 
             DB::commit();
-
-            // Ambil semua pemeriksaan untuk tanggal ini (setelah update)
-            $allExaminations = DmExamination::where('patient_id', $patientId)
-                ->where('puskesmas_id', $puskesmasId)
-                ->whereDate('examination_date', $examinationDate)
-                ->get();
 
             // Format hasil untuk respons
             $examinationResults = [
@@ -393,21 +411,18 @@ class DmExaminationController extends Controller
                 'gdsp' => null
             ];
 
-            foreach ($allExaminations as $exam) {
+            foreach ($updatedExaminations as $exam) {
                 $examinationResults[$exam->examination_type] = $exam->result;
             }
 
-            // Gunakan ID asli atau ID baru dari pemeriksaan jika ada
-            $responseId = $dmExamination->id;
-            if ($allExaminations->isNotEmpty()) {
-                $responseId = $allExaminations->first()->id;
-            }
+            // Base ID for response
+            $baseId = count($updatedExaminations) > 0 ? $updatedExaminations[0]->id : null;
 
-            // Buat respons dengan semua data pemeriksaan
+            $patient = Patient::findOrFail($patientId);
             $responseData = [
-                'id' => $responseId,
+                'id' => $baseId,
                 'patient_id' => $patientId,
-                'patient_name' => Patient::find($patientId)->name,
+                'patient_name' => $patient->name,
                 'puskesmas_id' => $puskesmasId,
                 'examination_date' => $examinationDate,
                 'examination_results' => $examinationResults,

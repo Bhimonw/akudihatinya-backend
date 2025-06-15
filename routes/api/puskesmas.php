@@ -28,4 +28,5 @@ Route::middleware(['auth:sanctum', IsPuskesmas::class])->prefix('puskesmas')->gr
 
     // DM Examinations
     Route::resource('dm-examinations', DmExaminationController::class)->except(['create', 'edit']);
+    Route::put('dm-examinations-batch', [DmExaminationController::class, 'updateBatch']);
 });
