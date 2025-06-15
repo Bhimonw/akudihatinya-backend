@@ -1,0 +1,271 @@
+<?php
+
+namespace App\Formatters;
+
+use App\Services\StatisticsService;
+use App\Models\Puskesmas;
+use App\Models\YearlyTarget;
+use Illuminate\Support\Facades\Log;
+
+class PuskesmasPdfFormatter
+{
+    protected $statisticsService;
+
+    public function __construct(StatisticsService $statisticsService)
+    {
+        $this->statisticsService = $statisticsService;
+    }
+
+    /**
+     * Format data for puskesmas PDF template
+     *
+     * @param int $puskesmasId
+     * @param string $diseaseType
+     * @param int $year
+     * @return array
+     */
+    public function formatPuskesmasData($puskesmasId, $diseaseType, $year)
+    {
+        try {
+            // Get puskesmas information
+            $puskesmas = Puskesmas::find($puskesmasId);
+            if (!$puskesmas) {
+                throw new \Exception('Puskesmas not found');
+            }
+
+            // Get yearly target
+            $yearlyTarget = YearlyTarget::where('puskesmas_id', $puskesmasId)
+                ->where('year', $year)
+                ->where('disease_type', $diseaseType)
+                ->first();
+            $target = $yearlyTarget ? $yearlyTarget->target_count : 0;
+
+            // Get statistics data from cache
+            if ($diseaseType === 'ht') {
+                $diseaseData = $this->statisticsService->getHtStatisticsFromCache($puskesmasId, $year);
+            } else {
+                $diseaseData = $this->statisticsService->getDmStatisticsFromCache($puskesmasId, $year);
+            }
+
+            $monthlyData = $diseaseData['monthly_data'] ?? [];
+
+            // Calculate yearly totals
+            $yearlyTotal = $this->calculateYearlyTotals($monthlyData);
+
+            // Format disease type label
+            $diseaseTypeLabel = $this->getDiseaseTypeLabel($diseaseType);
+
+            return [
+                'puskesmas_name' => $puskesmas->name,
+                'disease_type' => $diseaseType,
+                'disease_type_label' => $diseaseTypeLabel,
+                'year' => $year,
+                'target' => $target,
+                'monthly_data' => $this->formatMonthlyData($monthlyData),
+                'yearly_total' => $yearlyTotal,
+                'generated_at' => now()->format('d/m/Y H:i:s')
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error formatting puskesmas PDF data', [
+                'puskesmas_id' => $puskesmasId,
+                'disease_type' => $diseaseType,
+                'year' => $year,
+                'error' => $e->getMessage()
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Format monthly data for PDF template
+     *
+     * @param array $monthlyData
+     * @return array
+     */
+    protected function formatMonthlyData($monthlyData)
+    {
+        $formattedData = [];
+
+        for ($month = 1; $month <= 12; $month++) {
+            $data = $monthlyData[$month] ?? [];
+            
+            $formattedData[$month] = [
+                'male' => $data['male'] ?? 0,
+                'female' => $data['female'] ?? 0,
+                'total' => ($data['male'] ?? 0) + ($data['female'] ?? 0),
+                'standard' => $data['standard'] ?? 0,
+                'non_standard' => $data['non_standard'] ?? 0,
+                'percentage' => $data['percentage'] ?? 0
+            ];
+        }
+
+        return $formattedData;
+    }
+
+    /**
+     * Calculate yearly totals from monthly data
+     *
+     * @param array $monthlyData
+     * @return array
+     */
+    protected function calculateYearlyTotals($monthlyData)
+    {
+        $totals = [
+            'male' => 0,
+            'female' => 0,
+            'total' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total_services' => 0,
+            'percentage' => 0
+        ];
+
+        foreach ($monthlyData as $month => $data) {
+            $totals['male'] += $data['male'] ?? 0;
+            $totals['female'] += $data['female'] ?? 0;
+            $totals['standard'] += $data['standard'] ?? 0;
+            $totals['non_standard'] += $data['non_standard'] ?? 0;
+        }
+
+        $totals['total'] = $totals['male'] + $totals['female'];
+        $totals['total_services'] = $totals['standard'] + $totals['non_standard'];
+        
+        // Calculate percentage
+        if ($totals['total_services'] > 0) {
+            $totals['percentage'] = ($totals['standard'] / $totals['total_services']) * 100;
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Get disease type label
+     *
+     * @param string $diseaseType
+     * @return string
+     */
+    protected function getDiseaseTypeLabel($diseaseType)
+    {
+        $labels = [
+            'dm' => 'Diabetes Melitus',
+            'ht' => 'Hipertensi'
+        ];
+
+        return $labels[$diseaseType] ?? ucfirst($diseaseType);
+    }
+
+    /**
+     * Format data for multiple puskesmas comparison
+     *
+     * @param array $puskesmasIds
+     * @param string $diseaseType
+     * @param int $year
+     * @return array
+     */
+    public function formatMultiplePuskesmasData($puskesmasIds, $diseaseType, $year)
+    {
+        $formattedData = [];
+        
+        foreach ($puskesmasIds as $puskesmasId) {
+            try {
+                $data = $this->formatPuskesmasData($puskesmasId, $diseaseType, $year);
+                $formattedData[] = $data;
+            } catch (\Exception $e) {
+                Log::warning('Failed to format data for puskesmas', [
+                    'puskesmas_id' => $puskesmasId,
+                    'error' => $e->getMessage()
+                ]);
+                continue;
+            }
+        }
+
+        return [
+            'puskesmas_data' => $formattedData,
+            'disease_type' => $diseaseType,
+            'disease_type_label' => $this->getDiseaseTypeLabel($diseaseType),
+            'year' => $year,
+            'generated_at' => now()->format('d/m/Y H:i:s'),
+            'total_puskesmas' => count($formattedData)
+        ];
+    }
+
+    /**
+     * Format quarterly data for puskesmas
+     *
+     * @param int $puskesmasId
+     * @param string $diseaseType
+     * @param int $year
+     * @param int $quarter
+     * @return array
+     */
+    public function formatQuarterlyData($puskesmasId, $diseaseType, $year, $quarter)
+    {
+        $quarterMonths = [
+            1 => [1, 2, 3],
+            2 => [4, 5, 6],
+            3 => [7, 8, 9],
+            4 => [10, 11, 12]
+        ];
+
+        if (!isset($quarterMonths[$quarter])) {
+            throw new \Exception('Invalid quarter number');
+        }
+
+        $fullData = $this->formatPuskesmasData($puskesmasId, $diseaseType, $year);
+        $months = $quarterMonths[$quarter];
+        
+        $quarterlyData = [];
+        $quarterlyTotal = [
+            'male' => 0,
+            'female' => 0,
+            'total' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'percentage' => 0
+        ];
+
+        foreach ($months as $month) {
+            $monthData = $fullData['monthly_data'][$month] ?? [];
+            $quarterlyData[$month] = $monthData;
+            
+            $quarterlyTotal['male'] += $monthData['male'] ?? 0;
+            $quarterlyTotal['female'] += $monthData['female'] ?? 0;
+            $quarterlyTotal['standard'] += $monthData['standard'] ?? 0;
+            $quarterlyTotal['non_standard'] += $monthData['non_standard'] ?? 0;
+        }
+
+        $quarterlyTotal['total'] = $quarterlyTotal['male'] + $quarterlyTotal['female'];
+        $totalServices = $quarterlyTotal['standard'] + $quarterlyTotal['non_standard'];
+        
+        if ($totalServices > 0) {
+            $quarterlyTotal['percentage'] = ($quarterlyTotal['standard'] / $totalServices) * 100;
+        }
+
+        return [
+            'puskesmas_name' => $fullData['puskesmas_name'],
+            'disease_type' => $diseaseType,
+            'disease_type_label' => $fullData['disease_type_label'],
+            'year' => $year,
+            'quarter' => $quarter,
+            'quarter_name' => 'Triwulan ' . $this->numberToRoman($quarter),
+            'target' => $fullData['target'],
+            'monthly_data' => $quarterlyData,
+            'quarterly_total' => $quarterlyTotal,
+            'generated_at' => now()->format('d/m/Y H:i:s')
+        ];
+    }
+
+    /**
+     * Convert number to Roman numeral
+     *
+     * @param int $number
+     * @return string
+     */
+    protected function numberToRoman($number)
+    {
+        $romans = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV'];
+        return $romans[$number] ?? (string)$number;
+    }
+}

@@ -27,21 +27,25 @@ use Illuminate\Support\Facades\Log;
 use App\Services\StatisticsService;
 use App\Services\ExportService;
 use App\Services\PuskesmasExportService;
+use App\Services\PdfService;
 
 class StatisticsController extends Controller
 {
     private $statisticsService;
     private $exportService;
     private $puskesmasExportService;
+    private $pdfService;
 
     public function __construct(
         StatisticsService $statisticsService,
         ExportService $exportService,
-        PuskesmasExportService $puskesmasExportService
+        PuskesmasExportService $puskesmasExportService,
+        PdfService $pdfService
     ) {
         $this->statisticsService = $statisticsService;
         $this->exportService = $exportService;
         $this->puskesmasExportService = $puskesmasExportService;
+        $this->pdfService = $pdfService;
     }
 
     /**
@@ -488,7 +492,45 @@ class StatisticsController extends Controller
 
         // Proses export sesuai format
         if ($format === 'pdf') {
-            // Panggil metode exportToPdf dari service tanpa logika tambahan di sini
+            // Handle table_type 'puskesmas' dengan template PDF khusus
+            if ($tableType === 'puskesmas') {
+                // Tentukan puskesmas_id berdasarkan user role
+                $puskesmasId = null;
+                if (Auth::user()->isAdmin()) {
+                    // Admin harus memilih puskesmas atau gunakan yang pertama sebagai default
+                    $puskesmasId = $request->puskesmas_id;
+                    if (!$puskesmasId) {
+                        $firstPuskesmas = \App\Models\Puskesmas::first();
+                        $puskesmasId = $firstPuskesmas ? $firstPuskesmas->id : null;
+                    }
+                } else {
+                    // User puskesmas menggunakan puskesmas mereka sendiri
+                    $puskesmasId = Auth::user()->puskesmas_id;
+                }
+
+                if (!$puskesmasId) {
+                    return response()->json([
+                        'error' => 'Puskesmas tidak ditemukan untuk export PDF'
+                    ], 404);
+                }
+
+                // Gunakan PdfService untuk generate PDF puskesmas
+                try {
+                    return $this->pdfService->generatePuskesmasPdf($diseaseType, $year, $puskesmasId);
+                } catch (\Exception $e) {
+                    \Log::error('Export puskesmas PDF failed', [
+                        'error' => $e->getMessage(),
+                        'disease_type' => $diseaseType,
+                        'year' => $year,
+                        'puskesmas_id' => $puskesmasId
+                    ]);
+                    return response()->json([
+                        'error' => 'Gagal mengexport PDF: ' . $e->getMessage()
+                    ], 500);
+                }
+            }
+
+            // Panggil metode exportToPdf dari service untuk format lainnya
             return $this->exportService->exportToPdf(
                 $puskesmasAll,
                 $year,
@@ -518,23 +560,7 @@ class StatisticsController extends Controller
         }
     }
 
-    /**
-     * Endpoint khusus untuk export data HT
-     */
-    public function exportHtStatistics(Request $request)
-    {
-        $request->merge(['disease_type' => 'ht']);
-        return $this->exportStatistics($request);
-    }
 
-    /**
-     * Endpoint khusus untuk export data DM
-     */
-    public function exportDmStatistics(Request $request)
-    {
-        $request->merge(['disease_type' => 'dm']);
-        return $this->exportStatistics($request);
-    }
 
     /**
      * Endpoint untuk export laporan pemantauan pasien (attendance)
@@ -1134,5 +1160,133 @@ class StatisticsController extends Controller
             'success' => true,
             'data' => $exportOptions
         ]);
+    }
+
+    /**
+     * Export puskesmas statistics to PDF using custom template
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function exportPuskesmasPdf(Request $request)
+    {
+        try {
+            // Validasi input
+            $request->validate([
+                'disease_type' => 'required|in:ht,dm',
+                'year' => 'nullable|integer|min:2020|max:' . (date('Y') + 1),
+                'puskesmas_id' => 'nullable|integer|exists:puskesmas,id'
+            ]);
+
+            $diseaseType = $request->disease_type;
+            $year = $request->year ?? date('Y');
+            
+            // Tentukan puskesmas ID
+            $puskesmasId = null;
+            if (Auth::user()->isAdmin()) {
+                // Admin bisa pilih puskesmas atau semua
+                $puskesmasId = $request->puskesmas_id;
+                if (!$puskesmasId) {
+                    return response()->json([
+                        'error' => 'Admin harus memilih puskesmas untuk export PDF'
+                    ], 400);
+                }
+            } else {
+                // User puskesmas hanya bisa export data puskesmasnya sendiri
+                $puskesmasId = Auth::user()->puskesmas_id;
+            }
+
+            // Validasi puskesmas exists
+            $puskesmas = Puskesmas::find($puskesmasId);
+            if (!$puskesmas) {
+                return response()->json([
+                    'error' => 'Puskesmas tidak ditemukan'
+                ], 404);
+            }
+
+            // Generate PDF menggunakan PdfService
+            return $this->pdfService->generatePuskesmasPdf($puskesmasId, $diseaseType, $year);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validasi gagal',
+                'details' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Export puskesmas PDF failed', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'error' => 'Gagal mengexport PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Export puskesmas quarterly statistics to PDF
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function exportPuskesmasQuarterlyPdf(Request $request)
+    {
+        try {
+            // Validasi input
+            $request->validate([
+                'disease_type' => 'required|in:ht,dm',
+                'year' => 'nullable|integer|min:2020|max:' . (date('Y') + 1),
+                'quarter' => 'required|integer|min:1|max:4',
+                'puskesmas_id' => 'nullable|integer|exists:puskesmas,id'
+            ]);
+
+            $diseaseType = $request->disease_type;
+            $year = $request->year ?? date('Y');
+            $quarter = $request->quarter;
+            
+            // Tentukan puskesmas ID
+            $puskesmasId = null;
+            if (Auth::user()->isAdmin()) {
+                // Admin bisa pilih puskesmas
+                $puskesmasId = $request->puskesmas_id;
+                if (!$puskesmasId) {
+                    return response()->json([
+                        'error' => 'Admin harus memilih puskesmas untuk export PDF'
+                    ], 400);
+                }
+            } else {
+                // User puskesmas hanya bisa export data puskesmasnya sendiri
+                $puskesmasId = Auth::user()->puskesmas_id;
+            }
+
+            // Validasi puskesmas exists
+            $puskesmas = Puskesmas::find($puskesmasId);
+            if (!$puskesmas) {
+                return response()->json([
+                    'error' => 'Puskesmas tidak ditemukan'
+                ], 404);
+            }
+
+            // Generate quarterly PDF menggunakan PdfService
+            return $this->pdfService->generatePuskesmasQuarterlyPdf($puskesmasId, $diseaseType, $year, $quarter);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'error' => 'Validasi gagal',
+                'details' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Export puskesmas quarterly PDF failed', [
+                'error' => $e->getMessage(),
+                'user_id' => Auth::id(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'error' => 'Gagal mengexport PDF triwulanan: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
