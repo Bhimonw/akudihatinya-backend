@@ -474,7 +474,18 @@ class PatientController extends Controller
         foreach ($patients as $patient) {
             $genderText = $patient->gender === 'male' ? 'Pria' : ($patient->gender === 'female' ? 'Wanita' : '');
             $birthDate = $patient->birth_date ? $patient->birth_date->format('d/m/Y') : '';
-            $whatsappLink = $patient->phone_number ? 'https://wa.me/' . preg_replace('/[^0-9]/', '', $patient->phone_number) : '';
+            // Format WhatsApp link with proper Indonesian phone number format
+            $whatsappLink = '';
+            if ($patient->phone_number) {
+                $phoneNumber = preg_replace('/[^0-9]/', '', $patient->phone_number);
+                // Convert Indonesian phone number format
+                if (substr($phoneNumber, 0, 1) === '0') {
+                    $phoneNumber = '62' . substr($phoneNumber, 1);
+                } elseif (substr($phoneNumber, 0, 2) !== '62') {
+                    $phoneNumber = '62' . $phoneNumber;
+                }
+                $whatsappLink = 'https://wa.me/' . $phoneNumber;
+            }
             
             $sheet->setCellValue('A' . $row, $patient->name);
             $sheet->setCellValue('B' . $row, $patient->nik);
