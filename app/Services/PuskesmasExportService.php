@@ -37,7 +37,7 @@ class PuskesmasExportService
             $puskesmasId = Auth::user()->puskesmas_id;
         }
 
-        // Load the puskesmas template
+        // Load the Excel template
         $templatePath = resource_path('excel/puskesmas.xlsx');
         $spreadsheet = IOFactory::load($templatePath);
 

@@ -26,16 +26,22 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Services\StatisticsService;
 use App\Services\ExportService;
+use App\Services\PuskesmasExportService;
 
 class StatisticsController extends Controller
 {
     private $statisticsService;
     private $exportService;
+    private $puskesmasExportService;
 
-    public function __construct(StatisticsService $statisticsService, ExportService $exportService)
-    {
+    public function __construct(
+        StatisticsService $statisticsService,
+        ExportService $exportService,
+        PuskesmasExportService $puskesmasExportService
+    ) {
         $this->statisticsService = $statisticsService;
         $this->exportService = $exportService;
+        $this->puskesmasExportService = $puskesmasExportService;
     }
 
     /**
@@ -415,9 +421,9 @@ class StatisticsController extends Controller
         }
 
         // Validasi nilai table_type
-        if (!in_array($tableType, ['all', 'quarterly', 'monthly'])) {
+        if (!in_array($tableType, ['all', 'quarterly', 'monthly', 'puskesmas'])) {
             return response()->json([
-                'message' => 'Parameter table_type tidak valid. Gunakan all, quarterly, atau monthly.',
+                'message' => 'Parameter table_type tidak valid. Gunakan all, quarterly, monthly, atau puskesmas.',
             ], 400);
         }
 
@@ -493,6 +499,17 @@ class StatisticsController extends Controller
                 $reportType
             );
         } else {
+            // Handle table_type 'puskesmas' dengan PuskesmasExportService
+            if ($tableType === 'puskesmas') {
+                // Jika admin tanpa puskesmas_id spesifik, gunakan puskesmas pertama sebagai default
+                $puskesmasId = $request->puskesmas_id;
+                if (!$puskesmasId && Auth::user()->isAdmin()) {
+                    $firstPuskesmas = \App\Models\Puskesmas::first();
+                    $puskesmasId = $firstPuskesmas ? $firstPuskesmas->id : null;
+                }
+                return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $puskesmasId);
+            }
+
             if (Auth::user()->isAdmin()) {
                 return $this->exportService->exportToExcel($diseaseType, $year, $request->puskesmas_id, $tableType);
             } else {
@@ -1045,5 +1062,77 @@ class StatisticsController extends Controller
     private function getDmStatisticsFromCache($puskesmasId, $year, $month = null)
     {
         return $this->statisticsService->getDmStatisticsFromCache($puskesmasId, $year, $month);
+    }
+
+    /**
+     * Get available years for export
+     */
+    public function getAvailableYears()
+    {
+        $puskesmasId = Auth::user()->isAdmin() ? null : Auth::user()->puskesmas_id;
+        $years = $this->puskesmasExportService->getAvailableYears($puskesmasId);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['years' => $years]
+        ]);
+    }
+
+    /**
+     * Get list of puskesmas (admin only)
+     */
+    public function getPuskesmasList()
+    {
+        if (!Auth::user()->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya admin yang dapat mengakses daftar puskesmas.'
+            ], 403);
+        }
+
+        $puskesmas = $this->puskesmasExportService->getPuskesmasList();
+
+        return response()->json([
+            'success' => true,
+            'data' => ['puskesmas' => $puskesmas]
+        ]);
+    }
+
+    /**
+     * Get export options based on user role
+     */
+    public function getExportOptions()
+    {
+        $user = Auth::user();
+        $isAdmin = $user->isAdmin();
+
+        $exportOptions = [
+            'user_role' => $isAdmin ? 'admin' : 'puskesmas',
+            'available_exports' => [
+                [
+                    'type' => 'ht',
+                    'name' => 'Hipertensi',
+                    'description' => 'Export data statistik Hipertensi'
+                ],
+                [
+                    'type' => 'dm',
+                    'name' => 'Diabetes Melitus',
+                    'description' => 'Export data statistik Diabetes Melitus'
+                ]
+            ],
+            'can_select_puskesmas' => $isAdmin
+        ];
+
+        if (!$isAdmin) {
+            $exportOptions['puskesmas_info'] = [
+                'id' => $user->puskesmas_id,
+                'name' => $user->puskesmas->name ?? 'Unknown'
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $exportOptions
+        ]);
     }
 }

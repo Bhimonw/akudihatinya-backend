@@ -1,65 +1,62 @@
-# Puskesmas Export API Documentation
+# Statistics Export API Documentation
 
-API untuk export statistik puskesmas dalam format Excel menggunakan template yang telah disediakan.
+API untuk export data statistik dalam format Excel. Endpoint telah dikonsolidasi menjadi 2 endpoint utama.
 
 ## Base URL
 ```
-GET /api/puskesmas/export
+http://localhost:8000/api/statistics
 ```
 
 ## Authentication
-Semua endpoint memerlukan authentication menggunakan Sanctum token.
-
-## Endpoints
-
-### 1. Export Statistik Puskesmas
-
-**Endpoint:** `GET /api/puskesmas/export`
-
-**Parameters:**
-- `disease_type` (required): `ht` atau `dm`
-- `year` (required): Tahun (integer, min: 2020, max: tahun depan)
-- `puskesmas_id` (optional): ID puskesmas (hanya untuk admin)
-
-**Response:** File Excel (.xlsx)
-
-**Example:**
-```bash
-curl -X GET "http://localhost:8000/api/puskesmas/export?disease_type=dm&year=2024&puskesmas_id=1" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+Semua endpoint memerlukan autentikasi menggunakan Sanctum token:
+```
+Authorization: Bearer {token}
 ```
 
-### 2. Export Statistik HT
+## Consolidated Endpoints
 
-**Endpoint:** `GET /api/puskesmas/export/ht`
+### 1. Admin Export
+Export data statistik untuk admin (dapat mengakses semua puskesmas).
 
-**Parameters:**
-- `year` (required): Tahun
-- `puskesmas_id` (optional): ID puskesmas (hanya untuk admin)
-
-**Example:**
-```bash
-curl -X GET "http://localhost:8000/api/puskesmas/export/ht?year=2024" \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
-### 3. Export Statistik DM
-
-**Endpoint:** `GET /api/puskesmas/export/dm`
+**Endpoint:** `GET /admin/export`
 
 **Parameters:**
-- `year` (required): Tahun
-- `puskesmas_id` (optional): ID puskesmas (hanya untuk admin)
+- `year` (required): Tahun data yang akan di-export (format: YYYY)
+- `disease_type` (optional): Jenis penyakit (`all`, `ht`, `dm`). Default: `all`
+- `table_type` (optional): Jenis tabel (`all`, `quarterly`, `monthly`, `puskesmas`). Default: `all`
+- `puskesmas_id` (optional): ID puskesmas tertentu (hanya untuk admin)
+- `format` (optional): Format export (`excel`, `pdf`). Default: `excel`
 
-**Example:**
+**Example Request:**
 ```bash
-curl -X GET "http://localhost:8000/api/puskesmas/export/dm?year=2024" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+# Export semua data puskesmas untuk tahun 2024
+curl -X GET "http://localhost:8000/api/statistics/admin/export?year=2024&table_type=puskesmas&disease_type=ht" \
+  -H "Authorization: Bearer {admin_token}" \
+  -H "Accept: application/json"
 ```
 
-### 4. Get Available Years
+### 2. Puskesmas Export
+Export data statistik untuk puskesmas (hanya data puskesmas sendiri).
 
-**Endpoint:** `GET /api/puskesmas/export/years`
+**Endpoint:** `GET /export`
+
+**Parameters:**
+- `year` (required): Tahun data yang akan di-export (format: YYYY)
+- `disease_type` (optional): Jenis penyakit (`all`, `ht`, `dm`). Default: `all`
+- `table_type` (optional): Jenis tabel (`all`, `quarterly`, `monthly`, `puskesmas`). Default: `all`
+- `format` (optional): Format export (`excel`, `pdf`). Default: `excel`
+
+**Example Request:**
+```bash
+# Export data puskesmas sendiri untuk tahun 2024
+curl -X GET "http://localhost:8000/api/statistics/export?year=2024&table_type=puskesmas&disease_type=dm" \
+  -H "Authorization: Bearer {puskesmas_token}" \
+  -H "Accept: application/json"
+```
+
+### 3. Get Available Years
+
+**Endpoint:** `GET /api/statistics/export/years`
 
 **Parameters:**
 - `puskesmas_id` (optional): ID puskesmas (hanya untuk admin)
@@ -72,9 +69,9 @@ curl -X GET "http://localhost:8000/api/puskesmas/export/dm?year=2024" \
 }
 ```
 
-### 5. Get Puskesmas List (Admin Only)
+### 4. Get Puskesmas List (Admin Only)
 
-**Endpoint:** `GET /api/puskesmas/export/puskesmas`
+**Endpoint:** `GET /api/statistics/export/puskesmas`
 
 **Response:**
 ```json
@@ -93,9 +90,9 @@ curl -X GET "http://localhost:8000/api/puskesmas/export/dm?year=2024" \
 }
 ```
 
-### 6. Get Export Options
+### 5. Get Export Options
 
-**Endpoint:** `GET /api/puskesmas/export/options`
+**Endpoint:** `GET /api/statistics/export/options`
 
 **Response:**
 ```json
