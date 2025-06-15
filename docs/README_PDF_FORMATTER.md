@@ -32,28 +32,23 @@ Implementasi formatter PDF khusus untuk template `all_quarters_recap_pdf.blade.p
 
 ## API Endpoint Usage
 
-### Endpoint
+> **Note:** Untuk dokumentasi lengkap API endpoints, lihat [API_DOCUMENTATION.md](./API_DOCUMENTATION.md#statistics-endpoints)
+
+### Primary Endpoint
 ```
-GET /api/statistics/admin/export
+GET /api/statistics/export
 ```
 
-### Parameters
-- `year` (required) - Tahun laporan (contoh: 2024)
+### Key Parameters for PDF Generation
+- `year` (required) - Tahun laporan
 - `disease_type` (required) - Jenis penyakit: `ht`, `dm`, atau `all`
 - `format` (required) - Format output: `pdf`
 - `table_type` (optional) - Jenis tabel: `all`, `quarterly`, `monthly`, `puskesmas`
-- `month` (optional) - Bulan untuk laporan bulanan (1-12)
 
-### Example Usage
+### Quick Example
 ```bash
-# Export PDF untuk semua penyakit tahun 2024
-http://localhost:8000/api/statistics/admin/export?year=2024&disease_type=all&format=pdf
-
-# Export PDF untuk hipertensi tahun 2024
-http://localhost:8000/api/statistics/admin/export?year=2024&disease_type=ht&format=pdf
-
-# Export PDF untuk diabetes tahun 2024
-http://localhost:8000/api/statistics/admin/export?year=2024&disease_type=dm&format=pdf
+# Export PDF menggunakan AllQuartersRecapPdfFormatter
+http://localhost:8000/api/statistics/export?year=2024&disease_type=all&format=pdf
 ```
 
 ## Data Structure

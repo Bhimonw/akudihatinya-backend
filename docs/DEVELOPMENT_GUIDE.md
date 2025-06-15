@@ -15,6 +15,8 @@ Panduan pengembangan untuk kontributor dan developer yang bekerja pada proyek Ak
 ## Setup Development Environment
 
 ### Prerequisites
+> **Note:** Untuk detail lengkap system requirements dan PHP extensions, lihat [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md#prerequisites)
+
 - PHP 8.1+
 - Composer 2.x
 - MySQL 8.0+ atau MariaDB 10.4+
@@ -22,7 +24,7 @@ Panduan pengembangan untuk kontributor dan developer yang bekerja pada proyek Ak
 - Git
 - IDE (VS Code, PhpStorm, dll.)
 
-### Local Setup
+### Quick Development Setup
 ```bash
 # Clone repository
 git clone https://github.com/your-repo/akudihatinya-backend.git
@@ -32,7 +34,7 @@ cd akudihatinya-backend
 composer install
 npm install
 
-# Setup environment
+# Setup environment (lihat DEPLOYMENT_GUIDE.md untuk konfigurasi lengkap)
 cp .env.example .env
 php artisan key:generate
 
@@ -40,7 +42,7 @@ php artisan key:generate
 php artisan migrate
 php artisan db:seed
 
-# Generate IDE helpers
+# Generate IDE helpers (development only)
 php artisan ide-helper:generate
 php artisan ide-helper:models
 php artisan ide-helper:meta
