@@ -66,22 +66,29 @@ Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk setup production yang l
 
 ### Project Structure
 
+This Laravel application follows a standard structure with additional custom directories for better organization:
+
 ```
-akudihatinya-backend/
-├── app/
-│   ├── Formatters/        # Data formatters untuk export
-│   ├── Http/Controllers/  # API controllers
-│   ├── Models/           # Eloquent models
-│   ├── Repositories/     # Repository pattern implementation
-│   ├── Services/         # Business logic services
-│   └── ...
-├── docs/                 # Documentation
-├── resources/
-│   ├── excel/           # Excel templates
-│   └── pdf/             # PDF templates
-├── routes/api/          # API routes
-└── ...
+├── app/                    # Laravel application code
+├── bootstrap/              # Laravel bootstrap files
+├── config/                 # Configuration files
+├── database/               # Migrations, seeders, factories
+├── development/            # Development tools and IDE helpers
+├── docs/                   # Project documentation
+├── public/                 # Public web files
+├── resources/              # PDF templates and Excel files
+├── routes/                 # Route definitions
+├── scripts/                # Utility and testing scripts
+├── storage/                # File storage
+└── tests/                  # Test files
 ```
+
+### Custom Directories
+
+- **`development/`** - Contains IDE helper files and development tools
+- **`scripts/`** - Utility scripts for testing and development
+- **`docs/`** - Comprehensive project documentation
+- **`resources/`** - PDF templates for reports and Excel export templates
 
 ### Key Components
 
@@ -287,5 +294,3 @@ Project ini dilisensikan di bawah [MIT License](LICENSE).
 ---
 
 **Akudihatinya Backend** - Membantu Puskesmas dalam monitoring dan pelaporan kesehatan yang lebih baik.
-
-*Dikembangkan dengan ❤️ untuk kemajuan sistem kesehatan Indonesia*

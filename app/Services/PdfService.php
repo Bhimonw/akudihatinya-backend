@@ -46,7 +46,7 @@ class PdfService
             set_time_limit(300);
 
             $year = $year ?? date('Y');
-            
+
             // Create request object for StatisticsAdminService
             $request = new Request([
                 'year' => $year,
@@ -60,7 +60,7 @@ class PdfService
 
             // Get statistics data
             $statisticsData = $this->statisticsAdminService->getAdminStatistics($request);
-            
+
             if (isset($statisticsData['error']) && $statisticsData['error']) {
                 throw new \Exception($statisticsData['message']);
             }
@@ -78,12 +78,11 @@ class PdfService
             // Generate PDF
             $pdf = Pdf::loadView('exports.statistics_pdf', $formattedData);
             $pdf->setPaper('A4', 'landscape');
-            
+
             // Create filename
             $filename = $this->generateFilename($diseaseType, $year, $reportType, $puskesmasId);
-            
+
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             Log::error('PDF generation failed', [
                 'error' => $e->getMessage(),
@@ -91,7 +90,7 @@ class PdfService
                 'year' => $year,
                 'report_type' => $reportType
             ]);
-            
+
             return response()->json([
                 'error' => 'PDF generation failed: ' . $e->getMessage()
             ], 500);
@@ -105,11 +104,11 @@ class PdfService
     {
         $diseaseLabel = $diseaseType === 'dm' ? 'DM' : 'HT';
         $timestamp = date('Y-m-d_H-i-s');
-        
+
         if ($puskesmasId) {
             return "Laporan_{$diseaseLabel}_Puskesmas_{$puskesmasId}_{$year}_{$timestamp}.pdf";
         }
-        
+
         return "Laporan_{$diseaseLabel}_Semua_Puskesmas_{$year}_{$timestamp}.pdf";
     }
 
@@ -120,7 +119,7 @@ class PdfService
     {
         try {
             $year = $year ?? date('Y');
-            
+
             $request = new Request([
                 'year' => $year,
                 'type' => $diseaseType,
@@ -128,7 +127,7 @@ class PdfService
             ]);
 
             $statisticsData = $this->statisticsAdminService->getAdminStatistics($request);
-            
+
             if (isset($statisticsData['error']) && $statisticsData['error']) {
                 throw new \Exception($statisticsData['message']);
             }
@@ -137,18 +136,17 @@ class PdfService
 
             $pdf = Pdf::loadView('exports.summary_pdf', $formattedData);
             $pdf->setPaper('A4', 'portrait');
-            
+
             $filename = "Ringkasan_Statistik_{$year}_" . date('Y-m-d_H-i-s') . ".pdf";
-            
+
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             Log::error('Summary PDF generation failed', [
                 'error' => $e->getMessage(),
                 'year' => $year,
                 'disease_type' => $diseaseType
             ]);
-            
+
             return response()->json([
                 'error' => 'Summary PDF generation failed: ' . $e->getMessage()
             ], 500);
@@ -176,7 +174,7 @@ class PdfService
 
             // Load template from resources/pdf
             $templatePath = resource_path('pdf/all_quarters_recap_pdf.blade.php');
-            
+
             if (!file_exists($templatePath)) {
                 throw new \Exception('PDF template not found: ' . $templatePath);
             }
@@ -184,16 +182,15 @@ class PdfService
             // Generate PDF using the template from resources/pdf
             $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
             $pdf->setPaper('A4', 'landscape');
-            
+
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             Log::error('Quarterly recap PDF generation failed', [
                 'error' => $e->getMessage(),
                 'disease_type' => $diseaseType,
                 'year' => $year
             ]);
-            
+
             return response()->json([
                 'error' => 'Quarterly recap PDF generation failed: ' . $e->getMessage()
             ], 500);
@@ -224,7 +221,7 @@ class PdfService
             // Determine template based on report type
             $templateName = match ($reportType) {
                 'monthly' => 'monthly_statistics_pdf',
-                'quarterly' => 'quarterly_statistics_pdf', 
+                'quarterly' => 'quarterly_statistics_pdf',
                 'yearly' => 'yearly_statistics_pdf',
                 default => 'statistics_pdf'
             };
@@ -239,9 +236,8 @@ class PdfService
             // Generate PDF using template from resources/pdf
             $pdf = Pdf::loadView($templateName, $formattedData);
             $pdf->setPaper('A4', $month ? 'portrait' : 'landscape');
-            
+
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             Log::error('Statistics PDF generation failed', [
                 'error' => $e->getMessage(),
@@ -250,7 +246,7 @@ class PdfService
                 'month' => $month,
                 'report_type' => $reportType
             ]);
-            
+
             return response()->json([
                 'error' => 'Statistics PDF generation failed: ' . $e->getMessage()
             ], 500);
@@ -273,7 +269,7 @@ class PdfService
             set_time_limit(300);
 
             $year = $year ?? date('Y');
-            
+
             // Format data using PuskesmasPdfFormatter
             $formattedData = $this->puskesmasPdfFormatter->formatPuskesmasData($puskesmasId, $diseaseType, $year);
 
@@ -287,12 +283,11 @@ class PdfService
             // Generate PDF using puskesmas template
             $pdf = Pdf::loadView('puskesmas_statistics_pdf', $formattedData);
             $pdf->setPaper('A4', 'portrait');
-            
+
             // Create filename
             $filename = $this->generatePuskesmasFilename($formattedData['puskesmas_name'], $diseaseType, $year);
-            
+
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             Log::error('Puskesmas PDF generation failed', [
                 'error' => $e->getMessage(),
@@ -300,7 +295,7 @@ class PdfService
                 'disease_type' => $diseaseType,
                 'year' => $year
             ]);
-            
+
             return response()->json([
                 'error' => 'Puskesmas PDF generation failed: ' . $e->getMessage()
             ], 500);
@@ -322,7 +317,7 @@ class PdfService
             // Set memory and time limits
             ini_set('memory_limit', '512M');
             set_time_limit(300);
-            
+
             // Format quarterly data
             $formattedData = $this->puskesmasPdfFormatter->formatQuarterlyData($puskesmasId, $diseaseType, $year, $quarter);
 
@@ -337,17 +332,16 @@ class PdfService
             // Generate PDF using puskesmas template
             $pdf = Pdf::loadView('puskesmas_statistics_pdf', $formattedData);
             $pdf->setPaper('A4', 'portrait');
-            
+
             // Create filename
             $filename = $this->generatePuskesmasQuarterlyFilename(
-                $formattedData['puskesmas_name'], 
-                $diseaseType, 
-                $year, 
+                $formattedData['puskesmas_name'],
+                $diseaseType,
+                $year,
                 $quarter
             );
-            
+
             return $pdf->download($filename);
-            
         } catch (\Exception $e) {
             Log::error('Puskesmas quarterly PDF generation failed', [
                 'error' => $e->getMessage(),
@@ -356,7 +350,7 @@ class PdfService
                 'year' => $year,
                 'quarter' => $quarter
             ]);
-            
+
             return response()->json([
                 'error' => 'Puskesmas quarterly PDF generation failed: ' . $e->getMessage()
             ], 500);
@@ -371,7 +365,7 @@ class PdfService
         $diseaseLabel = $diseaseType === 'dm' ? 'DM' : 'HT';
         $timestamp = date('Y-m-d_H-i-s');
         $cleanPuskesmasName = preg_replace('/[^A-Za-z0-9_-]/', '_', $puskesmasName);
-        
+
         return "Rekapitulasi_SPM_{$cleanPuskesmasName}_{$diseaseLabel}_{$year}_{$timestamp}.pdf";
     }
 
@@ -383,7 +377,7 @@ class PdfService
         $diseaseLabel = $diseaseType === 'dm' ? 'DM' : 'HT';
         $timestamp = date('Y-m-d_H-i-s');
         $cleanPuskesmasName = preg_replace('/[^A-Za-z0-9_-]/', '_', $puskesmasName);
-        
+
         return "Rekapitulasi_SPM_{$cleanPuskesmasName}_{$diseaseLabel}_Q{$quarter}_{$year}_{$timestamp}.pdf";
     }
 }

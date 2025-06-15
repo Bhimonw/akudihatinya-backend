@@ -9,6 +9,9 @@ use App\Models\Patient;
 use App\Models\Puskesmas;
 use App\Models\YearlyTarget;
 use App\Models\MonthlyStatisticsCache;
+use App\Http\Requests\PuskesmasPdfRequest;
+use App\Exceptions\PuskesmasNotFoundException;
+use App\Repositories\PuskesmasRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,17 +38,20 @@ class StatisticsController extends Controller
     private $exportService;
     private $puskesmasExportService;
     private $pdfService;
+    private $puskesmasRepository;
 
     public function __construct(
         StatisticsService $statisticsService,
         ExportService $exportService,
         PuskesmasExportService $puskesmasExportService,
-        PdfService $pdfService
+        PdfService $pdfService,
+        PuskesmasRepositoryInterface $puskesmasRepository
     ) {
         $this->statisticsService = $statisticsService;
         $this->exportService = $exportService;
         $this->puskesmasExportService = $puskesmasExportService;
         $this->pdfService = $pdfService;
+        $this->puskesmasRepository = $puskesmasRepository;
     }
 
     /**
@@ -1168,59 +1174,77 @@ class StatisticsController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\Response
      */
-    public function exportPuskesmasPdf(Request $request)
+    public function exportPuskesmasPdf(PuskesmasPdfRequest $request)
     {
+        $correlationId = uniqid('pdf_export_', true);
+
         try {
-            // Validasi input
-            $request->validate([
-                'disease_type' => 'required|in:ht,dm',
-                'year' => 'nullable|integer|min:2020|max:' . (date('Y') + 1),
-                'puskesmas_id' => 'nullable|integer|exists:puskesmas,id'
+            $validatedData = $request->getValidatedData();
+
+            Log::info('Starting Puskesmas PDF export', [
+                'correlation_id' => $correlationId,
+                'user_id' => Auth::id(),
+                'user_role' => Auth::user()->isAdmin() ? 'admin' : 'puskesmas',
+                'request_data' => $validatedData
             ]);
 
-            $diseaseType = $request->disease_type;
-            $year = $request->year ?? date('Y');
-            
-            // Tentukan puskesmas ID
-            $puskesmasId = null;
-            if (Auth::user()->isAdmin()) {
-                // Admin bisa pilih puskesmas atau semua
-                $puskesmasId = $request->puskesmas_id;
-                if (!$puskesmasId) {
-                    return response()->json([
-                        'error' => 'Admin harus memilih puskesmas untuk export PDF'
-                    ], 400);
-                }
-            } else {
-                // User puskesmas hanya bisa export data puskesmasnya sendiri
-                $puskesmasId = Auth::user()->puskesmas_id;
-            }
+            // Validate puskesmas exists using repository
+            $puskesmas = $this->puskesmasRepository->findOrFail($validatedData['puskesmas_id']);
 
-            // Validasi puskesmas exists
-            $puskesmas = Puskesmas::find($puskesmasId);
-            if (!$puskesmas) {
-                return response()->json([
-                    'error' => 'Puskesmas tidak ditemukan'
-                ], 404);
-            }
+            Log::info('Puskesmas validated successfully', [
+                'correlation_id' => $correlationId,
+                'puskesmas_id' => $puskesmas->id,
+                'puskesmas_name' => $puskesmas->name
+            ]);
 
             // Generate PDF menggunakan PdfService
-            return $this->pdfService->generatePuskesmasPdf($puskesmasId, $diseaseType, $year);
+            $result = $this->pdfService->generatePuskesmasPdf(
+                $validatedData['puskesmas_id'],
+                $validatedData['disease_type'],
+                $validatedData['year']
+            );
 
+            Log::info('Puskesmas PDF export completed successfully', [
+                'correlation_id' => $correlationId,
+                'puskesmas_id' => $validatedData['puskesmas_id']
+            ]);
+
+            return $result;
+        } catch (PuskesmasNotFoundException $e) {
+            Log::warning('Puskesmas PDF export failed - Puskesmas not found', [
+                'correlation_id' => $correlationId,
+                'user_id' => Auth::id(),
+                'context' => $e->getContext()
+            ]);
+
+            return $e->render($request);
         } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::warning('Puskesmas PDF export failed - Validation error', [
+                'correlation_id' => $correlationId,
+                'user_id' => Auth::id(),
+                'validation_errors' => $e->errors()
+            ]);
+
             return response()->json([
-                'error' => 'Validasi gagal',
+                'success' => false,
+                'error' => 'validation_failed',
+                'message' => 'Data yang dikirim tidak valid',
                 'details' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
-            Log::error('Export puskesmas PDF failed', [
-                'error' => $e->getMessage(),
+            Log::error('Puskesmas PDF export failed - Unexpected error', [
+                'correlation_id' => $correlationId,
                 'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'request_data' => $request->all()
             ]);
 
             return response()->json([
-                'error' => 'Gagal mengexport PDF: ' . $e->getMessage()
+                'success' => false,
+                'error' => 'pdf_generation_failed',
+                'message' => 'Gagal menggenerate PDF. Silakan coba lagi atau hubungi administrator.',
+                'correlation_id' => $correlationId
             ], 500);
         }
     }
@@ -1245,7 +1269,7 @@ class StatisticsController extends Controller
             $diseaseType = $request->disease_type;
             $year = $request->year ?? date('Y');
             $quarter = $request->quarter;
-            
+
             // Tentukan puskesmas ID
             $puskesmasId = null;
             if (Auth::user()->isAdmin()) {
@@ -1271,7 +1295,6 @@ class StatisticsController extends Controller
 
             // Generate quarterly PDF menggunakan PdfService
             return $this->pdfService->generatePuskesmasQuarterlyPdf($puskesmasId, $diseaseType, $year, $quarter);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'error' => 'Validasi gagal',

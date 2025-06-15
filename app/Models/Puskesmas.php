@@ -11,6 +11,10 @@ class Puskesmas extends Model
 
     protected $fillable = [
         'name',
+        'address',
+        'phone',
+        'email',
+        'is_active',
     ];
 
     public function users()

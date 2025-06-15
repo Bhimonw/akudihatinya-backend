@@ -26,7 +26,7 @@ Route::middleware(['auth:sanctum', AdminOrPuskesmas::class])->prefix('statistics
 
     // Export endpoints
     Route::get('/export', [StatisticsController::class, 'exportStatistics']);
-    
+
     // Export utility endpoints
     Route::get('/export/years', [StatisticsController::class, 'getAvailableYears']);
     Route::get('/export/puskesmas', [StatisticsController::class, 'getPuskesmasList']);

@@ -1,0 +1,15 @@
+# Testing scripts - should not be committed to production
+test_*.php
+test_*.ps1
+check_*.php
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# Output files
+output/
+results/
+*.json
+*.xml

@@ -3,17 +3,22 @@
 namespace App\Formatters;
 
 use App\Services\StatisticsService;
-use App\Models\Puskesmas;
+use App\Repositories\PuskesmasRepositoryInterface;
 use App\Models\YearlyTarget;
+use App\Exceptions\PuskesmasNotFoundException;
 use Illuminate\Support\Facades\Log;
 
 class PuskesmasPdfFormatter
 {
     protected $statisticsService;
+    protected $puskesmasRepository;
 
-    public function __construct(StatisticsService $statisticsService)
-    {
+    public function __construct(
+        StatisticsService $statisticsService,
+        PuskesmasRepositoryInterface $puskesmasRepository
+    ) {
         $this->statisticsService = $statisticsService;
+        $this->puskesmasRepository = $puskesmasRepository;
     }
 
     /**
@@ -23,15 +28,35 @@ class PuskesmasPdfFormatter
      * @param string $diseaseType
      * @param int $year
      * @return array
+     * @throws PuskesmasNotFoundException
      */
     public function formatPuskesmasData($puskesmasId, $diseaseType, $year)
     {
+        $correlationId = uniqid('pdf_', true);
+
         try {
-            // Get puskesmas information
-            $puskesmas = Puskesmas::find($puskesmasId);
+            Log::info('Starting PDF data formatting', [
+                'correlation_id' => $correlationId,
+                'puskesmas_id' => $puskesmasId,
+                'disease_type' => $diseaseType,
+                'year' => $year
+            ]);
+
+            // Get puskesmas information using repository with caching
+            $puskesmas = $this->puskesmasRepository->findWithCache($puskesmasId);
             if (!$puskesmas) {
-                throw new \Exception('Puskesmas not found');
+                throw new PuskesmasNotFoundException($puskesmasId, [
+                    'correlation_id' => $correlationId,
+                    'disease_type' => $diseaseType,
+                    'year' => $year,
+                    'method' => __METHOD__
+                ]);
             }
+
+            Log::info('Puskesmas found', [
+                'correlation_id' => $correlationId,
+                'puskesmas_name' => $puskesmas->name
+            ]);
 
             // Get yearly target
             $yearlyTarget = YearlyTarget::where('puskesmas_id', $puskesmasId)
@@ -55,7 +80,7 @@ class PuskesmasPdfFormatter
             // Format disease type label
             $diseaseTypeLabel = $this->getDiseaseTypeLabel($diseaseType);
 
-            return [
+            $formattedData = [
                 'puskesmas_name' => $puskesmas->name,
                 'disease_type' => $diseaseType,
                 'disease_type_label' => $diseaseTypeLabel,
@@ -63,18 +88,36 @@ class PuskesmasPdfFormatter
                 'target' => $target,
                 'monthly_data' => $this->formatMonthlyData($monthlyData),
                 'yearly_total' => $yearlyTotal,
-                'generated_at' => now()->format('d/m/Y H:i:s')
+                'generated_at' => now()->format('d/m/Y H:i:s'),
+                'correlation_id' => $correlationId
             ];
 
+            Log::info('PDF data formatting completed successfully', [
+                'correlation_id' => $correlationId,
+                'data_points' => count($monthlyData),
+                'yearly_total' => $yearlyTotal
+            ]);
+
+            return $formattedData;
+        } catch (PuskesmasNotFoundException $e) {
+            // Re-throw PuskesmasNotFoundException without additional logging
+            // as it's already logged in the repository
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error formatting puskesmas PDF data', [
+                'correlation_id' => $correlationId,
                 'puskesmas_id' => $puskesmasId,
                 'disease_type' => $diseaseType,
                 'year' => $year,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
-            throw $e;
+            throw new \Exception(
+                "Gagal memformat data PDF: {$e->getMessage()}",
+                $e->getCode(),
+                $e
+            );
         }
     }
 
@@ -90,7 +133,7 @@ class PuskesmasPdfFormatter
 
         for ($month = 1; $month <= 12; $month++) {
             $data = $monthlyData[$month] ?? [];
-            
+
             $formattedData[$month] = [
                 'male' => $data['male'] ?? 0,
                 'female' => $data['female'] ?? 0,
@@ -131,7 +174,7 @@ class PuskesmasPdfFormatter
 
         $totals['total'] = $totals['male'] + $totals['female'];
         $totals['total_services'] = $totals['standard'] + $totals['non_standard'];
-        
+
         // Calculate percentage
         if ($totals['total_services'] > 0) {
             $totals['percentage'] = ($totals['standard'] / $totals['total_services']) * 100;
@@ -167,7 +210,7 @@ class PuskesmasPdfFormatter
     public function formatMultiplePuskesmasData($puskesmasIds, $diseaseType, $year)
     {
         $formattedData = [];
-        
+
         foreach ($puskesmasIds as $puskesmasId) {
             try {
                 $data = $this->formatPuskesmasData($puskesmasId, $diseaseType, $year);
@@ -215,7 +258,7 @@ class PuskesmasPdfFormatter
 
         $fullData = $this->formatPuskesmasData($puskesmasId, $diseaseType, $year);
         $months = $quarterMonths[$quarter];
-        
+
         $quarterlyData = [];
         $quarterlyTotal = [
             'male' => 0,
@@ -229,7 +272,7 @@ class PuskesmasPdfFormatter
         foreach ($months as $month) {
             $monthData = $fullData['monthly_data'][$month] ?? [];
             $quarterlyData[$month] = $monthData;
-            
+
             $quarterlyTotal['male'] += $monthData['male'] ?? 0;
             $quarterlyTotal['female'] += $monthData['female'] ?? 0;
             $quarterlyTotal['standard'] += $monthData['standard'] ?? 0;
@@ -238,7 +281,7 @@ class PuskesmasPdfFormatter
 
         $quarterlyTotal['total'] = $quarterlyTotal['male'] + $quarterlyTotal['female'];
         $totalServices = $quarterlyTotal['standard'] + $quarterlyTotal['non_standard'];
-        
+
         if ($totalServices > 0) {
             $quarterlyTotal['percentage'] = ($quarterlyTotal['standard'] / $totalServices) * 100;
         }

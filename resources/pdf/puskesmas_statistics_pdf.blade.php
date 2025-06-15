@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>Rekapitulasi Capaian Standar Pelayanan Minimal Bidang Kesehatan</title>
@@ -153,6 +154,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <h1>Rekapitulasi Capaian Standar Pelayanan Minimal Bidang Kesehatan</h1>
@@ -189,41 +191,52 @@
         <tbody>
             @php
                 $months = [
-                    1 => 'JANUARI', 2 => 'FEBRUARI', 3 => 'MARET',
-                    4 => 'APRIL', 5 => 'MEI', 6 => 'JUNI',
-                    7 => 'JULI', 8 => 'AGUSTUS', 9 => 'SEPTEMBER',
-                    10 => 'OKTOBER', 11 => 'NOVEMBER', 12 => 'DESEMBER'
+                    1 => 'JANUARI',
+                    2 => 'FEBRUARI',
+                    3 => 'MARET',
+                    4 => 'APRIL',
+                    5 => 'MEI',
+                    6 => 'JUNI',
+                    7 => 'JULI',
+                    8 => 'AGUSTUS',
+                    9 => 'SEPTEMBER',
+                    10 => 'OKTOBER',
+                    11 => 'NOVEMBER',
+                    12 => 'DESEMBER',
                 ];
                 $quarters = [
                     3 => 'TRIWULAN I',
-                    6 => 'TRIWULAN II', 
+                    6 => 'TRIWULAN II',
                     9 => 'TRIWULAN III',
-                    12 => 'TRIWULAN IV'
+                    12 => 'TRIWULAN IV',
                 ];
             @endphp
 
-            @for($month = 1; $month <= 12; $month++)
+            @for ($month = 1; $month <= 12; $month++)
                 <tr>
                     <td class="month-col">{{ $months[$month] }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['male'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['female'] ?? 0 }}</td>
-                    <td class="data-col">{{ ($monthly_data[$month]['male'] ?? 0) + ($monthly_data[$month]['female'] ?? 0) }}</td>
+                    <td class="data-col">
+                        {{ ($monthly_data[$month]['male'] ?? 0) + ($monthly_data[$month]['female'] ?? 0) }}</td>
                     <td class="total-col">{{ $monthly_data[$month]['non_standard'] ?? 0 }}</td>
                     <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%</td>
                 </tr>
-                
-                @if(in_array($month, [3, 6, 9, 12]))
+
+                @if (in_array($month, [3, 6, 9, 12]))
                     <tr class="quarter-row">
                         <td class="month-col">{{ $quarters[$month] }}</td>
                         <td class="data-col">{{ $monthly_data[$month]['male'] ?? 0 }}</td>
                         <td class="data-col">{{ $monthly_data[$month]['female'] ?? 0 }}</td>
-                        <td class="data-col">{{ ($monthly_data[$month]['male'] ?? 0) + ($monthly_data[$month]['female'] ?? 0) }}</td>
+                        <td class="data-col">
+                            {{ ($monthly_data[$month]['male'] ?? 0) + ($monthly_data[$month]['female'] ?? 0) }}</td>
                         <td class="total-col">{{ $monthly_data[$month]['non_standard'] ?? 0 }}</td>
-                        <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%</td>
+                        <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%
+                        </td>
                     </tr>
                 @endif
             @endfor
-            
+
             <tr class="total-row">
                 <td class="month-col">TOTAL</td>
                 <td class="data-col">{{ $yearly_total['male'] ?? 0 }}</td>
@@ -269,4 +282,5 @@
         <p>Sistem Informasi Kesehatan Puskesmas</p>
     </div>
 </body>
+
 </html>
