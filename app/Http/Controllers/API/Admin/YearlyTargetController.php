@@ -26,11 +26,26 @@ class YearlyTargetController extends Controller
             $query->where('puskesmas_id', $request->puskesmas_id);
         }
         
-        $targets = $query->get();
+        // Jika semua parameter untuk identifikasi unik tersedia, kembalikan satu target
+        if ($request->has(['puskesmas_id', 'disease_type', 'year'])) {
+            $target = $query->first();
+            
+            if (!$target) {
+                return response()->json([
+                    'error' => 'yearly_target_not_found',
+                    'message' => 'ID sasaran tahunan tidak ditemukan'
+                ], 404);
+            }
+            
+            return response()->json([
+                'target' => new YearlyTargetResource($target),
+            ]);
+        }
         
-        return response()->json([
-            'targets' => YearlyTargetResource::collection($targets),
-        ]);
+        // Jika tidak, kembalikan daftar targets dengan pagination
+        $targets = $query->paginate($request->get('per_page', 10));
+        
+        return response()->json($targets);
     }
     
     public function store(YearlyTargetRequest $request)
@@ -52,31 +67,57 @@ class YearlyTargetController extends Controller
         ]);
     }
     
-    public function show(YearlyTarget $target)
+
+    public function update(YearlyTargetRequest $request)
     {
-        return response()->json([
-            'target' => new YearlyTargetResource($target),
-        ]);
-    }
-    
-    public function update(YearlyTargetRequest $request, YearlyTarget $target)
-    {
+        // Update berdasarkan query dengan puskesmas_id
+        $target = YearlyTarget::where('puskesmas_id', $request->puskesmas_id)
+            ->where('disease_type', $request->disease_type)
+            ->where('year', $request->year)
+            ->first();
+
+        if (!$target) {
+            return response()->json([
+                'error' => 'yearly_target_not_found',
+                'message' => 'ID sasaran tahunan tidak ditemukan'
+            ], 404);
+        }
+
         $target->update([
             'target_count' => $request->target_count,
         ]);
-        
+
         return response()->json([
-            'message' => 'Sasaran tahunan berhasil diupdate',
+            'message' => 'Target tahunan berhasil diperbarui',
             'target' => new YearlyTargetResource($target),
         ]);
     }
     
-    public function destroy(YearlyTarget $target)
+    public function destroy(Request $request)
     {
-        $target->delete();
+        // Validasi parameter yang diperlukan
+        $request->validate([
+            'puskesmas_id' => 'required|integer',
+            'disease_type' => 'required|string|in:ht,dm',
+            'year' => 'required|integer'
+        ]);
         
+        $target = YearlyTarget::where('puskesmas_id', $request->puskesmas_id)
+            ->where('disease_type', $request->disease_type)
+            ->where('year', $request->year)
+            ->first();
+        
+        if (!$target) {
+            return response()->json([
+                'error' => 'yearly_target_not_found',
+                'message' => 'ID sasaran tahunan tidak ditemukan'
+            ], 404);
+        }
+        
+        $target->delete();
+
         return response()->json([
-            'message' => 'Sasaran tahunan berhasil dihapus',
+            'message' => 'Target tahunan berhasil dihapus',
         ]);
     }
 }

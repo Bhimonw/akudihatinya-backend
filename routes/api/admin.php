@@ -17,5 +17,8 @@ Route::middleware(['auth:sanctum', IsAdmin::class])->prefix('admin')->group(func
     Route::delete('/users/{user}', [UserController::class, 'destroy']);
 
     // Yearly targets
-    Route::resource('yearly-targets', YearlyTargetController::class)->except(['create', 'edit']);
+    Route::get('/yearly-targets', [YearlyTargetController::class, 'index']);
+    Route::post('/yearly-targets', [YearlyTargetController::class, 'store']);
+    Route::put('/yearly-targets', [YearlyTargetController::class, 'update']);
+    Route::delete('/yearly-targets', [YearlyTargetController::class, 'destroy']);
 });

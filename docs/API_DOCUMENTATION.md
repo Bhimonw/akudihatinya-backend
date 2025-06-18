@@ -354,16 +354,203 @@ Reset password user.
 **Role Required:** Admin
 
 ### Yearly Target Management
-**GET** `/admin/yearly-targets`
-**POST** `/admin/yearly-targets`
-**GET** `/admin/yearly-targets/{id}`
-**PUT** `/admin/yearly-targets/{id}`
-**DELETE** `/admin/yearly-targets/{id}`
 
-CRUD operations untuk manajemen target tahunan.
+#### Get Yearly Targets
+**GET** `/admin/yearly-targets`
+
+Mendapatkan daftar target tahunan dengan filtering.
 
 **Headers:** `Authorization: Bearer {token}`
 **Role Required:** Admin
+
+**Query Parameters:**
+- `puskesmas_id` (optional): Filter berdasarkan ID puskesmas
+- `disease_type` (optional): Filter berdasarkan jenis penyakit (`ht`, `dm`)
+- `year` (optional): Filter berdasarkan tahun
+- `page` (optional): Nomor halaman untuk pagination
+- `per_page` (optional): Jumlah data per halaman (default: 10)
+
+**Response:**
+```json
+{
+  "current_page": 1,
+  "data": [
+    {
+      "id": 1,
+      "puskesmas_id": 1,
+      "disease_type": "ht",
+      "year": 2024,
+      "target_count": 100,
+      "puskesmas": {
+        "id": 1,
+        "name": "Puskesmas Contoh"
+      }
+    }
+  ],
+  "first_page_url": "http://localhost:8000/api/admin/yearly-targets?page=1",
+  "last_page": 1,
+  "per_page": 10,
+  "total": 1
+}
+```
+
+#### Create Yearly Target
+**POST** `/admin/yearly-targets`
+
+Membuat target tahunan baru.
+
+**Headers:** `Authorization: Bearer {token}`
+**Role Required:** Admin
+
+**Request Body:**
+```json
+{
+  "puskesmas_id": 1,
+  "disease_type": "ht",
+  "year": 2024,
+  "target_count": 100
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Target tahunan berhasil dibuat",
+  "target": {
+    "id": 1,
+    "puskesmas_id": 1,
+    "disease_type": "ht",
+    "year": 2024,
+    "target_count": 100
+  }
+}
+```
+
+#### Show Yearly Target
+**GET** `/admin/yearly-targets`
+
+Mendapatkan detail target tahunan berdasarkan parameter query.
+
+**Headers:** `Authorization: Bearer {token}`
+**Role Required:** Admin
+
+**Query Parameters (Required):**
+- `puskesmas_id`: ID puskesmas
+- `disease_type`: Jenis penyakit (`ht`, `dm`)
+- `year`: Tahun target
+
+**Example:** `GET /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024`
+
+**Response:**
+```json
+{
+  "target": {
+    "id": 1,
+    "puskesmas_id": 1,
+    "disease_type": "ht",
+    "year": 2024,
+    "target_count": 100,
+    "puskesmas": {
+      "id": 1,
+      "name": "Puskesmas Contoh"
+    }
+  }
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "yearly_target_not_found",
+  "message": "ID sasaran tahunan tidak ditemukan"
+}
+```
+
+#### Update Yearly Target
+**PUT** `/admin/yearly-targets`
+
+Memperbarui target tahunan berdasarkan query parameters.
+
+**Headers:** `Authorization: Bearer {token}`
+**Role Required:** Admin
+
+**Query Parameters (Required):**
+- `puskesmas_id`: ID puskesmas
+- `disease_type`: Jenis penyakit (`ht`, `dm`)
+- `year`: Tahun target
+
+**Example:** `PUT /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024`
+
+**Request Body:**
+```json
+{
+  "puskesmas_id": 1,
+  "disease_type": "ht",
+  "year": 2024,
+  "target_count": 150
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Target tahunan berhasil diperbarui",
+  "target": {
+    "id": 1,
+    "puskesmas_id": 1,
+    "disease_type": "ht",
+    "year": 2024,
+    "target_count": 150
+  }
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "yearly_target_not_found",
+  "message": "ID sasaran tahunan tidak ditemukan"
+}
+```
+
+#### Delete Yearly Target
+**DELETE** `/admin/yearly-targets`
+
+Menghapus target tahunan berdasarkan query parameters.
+
+**Headers:** `Authorization: Bearer {token}`
+**Role Required:** Admin
+
+**Query Parameters (Required):**
+- `puskesmas_id`: ID puskesmas
+- `disease_type`: Jenis penyakit (`ht`, `dm`)
+- `year`: Tahun target
+
+**Example:** `DELETE /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024`
+
+**Request Body:**
+```json
+{
+  "puskesmas_id": 1,
+  "disease_type": "ht",
+  "year": 2024
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Target tahunan berhasil dihapus"
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "yearly_target_not_found",
+  "message": "ID sasaran tahunan tidak ditemukan"
+}
+```
 
 ---
 
