@@ -1,8 +1,8 @@
-# Use Case Diagram
+# Use Case Diagrams - Akudihatinya Backend
 
-Dokumen ini berisi Use Case Diagram lengkap untuk sistem Akudihatinya Backend.
+Dokumen ini berisi semua Use Case Diagram untuk sistem Akudihatinya Backend, termasuk diagram utama, diagram sederhana untuk modul akun/user, dan diagram untuk fitur-fitur spesifik.
 
-## Use Case Diagram Utama
+## 1. Use Case Diagram Utama
 
 ```mermaid
 graph TB
@@ -416,3 +416,264 @@ graph TB
     class ValidatePatient,GenerateReport,CalculateStats,Authentication includeStyle
     class SendPatientNotif,UpdatePatientStatus,SendTargetNotif extendStyle
 ```
+
+## 2. Use Case Diagram Modul Akun/User
+
+```mermaid
+graph TB
+    %% Actors
+    User["👤 User"]
+    Admin["👤 Admin"]
+    
+    %% System Boundary
+    subgraph SystemBoundary["🏥 Akudihatinya Backend - User Management"]
+        %% Main Use Cases
+        Login["🔐 Login"]
+        Register["📝 Register/Create"]
+        EditAkun["✏️ Edit Akun"]
+        HapusAkun["🗑️ Hapus Akun"]
+        
+        %% Extend relationship
+        Login -.->|extend| Register
+    end
+    
+    %% Actor relationships
+    User --> Login
+    User --> Register
+    User --> EditAkun
+    User --> HapusAkun
+    
+    Admin --> Login
+    Admin --> Register
+    Admin --> EditAkun
+    Admin --> HapusAkun
+    
+    %% Styling
+    classDef actorStyle fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#000
+    classDef usecaseStyle fill:#87CEEB,stroke:#4682B4,stroke-width:2px,color:#000
+    classDef systemStyle fill:#FFB6C1,stroke:#DC143C,stroke-width:3px,color:#000
+    
+    class User,Admin actorStyle
+    class Login,Register,EditAkun,HapusAkun usecaseStyle
+    class SystemBoundary systemStyle
+```
+
+### Detail Use Cases - User Management
+
+#### 1. Login
+**Actor:** User, Admin  
+**Deskripsi:** Pengguna melakukan autentikasi untuk mengakses sistem  
+**Precondition:** Pengguna memiliki akun yang valid  
+**Flow:**
+1. Pengguna memasukkan username dan password
+2. Sistem memvalidasi kredensial
+3. Sistem menghasilkan access token
+4. Pengguna diarahkan ke dashboard sesuai role
+
+**Postcondition:** Pengguna berhasil login dan dapat mengakses sistem
+
+#### 2. Register/Create
+**Actor:** User, Admin  
+**Deskripsi:** Membuat akun baru dalam sistem  
+**Precondition:** Pengguna belum memiliki akun  
+**Flow:**
+1. Pengguna mengisi form registrasi
+2. Sistem memvalidasi data yang dimasukkan
+3. Sistem memeriksa keunikan username/email
+4. Sistem menyimpan data pengguna baru
+5. Sistem mengirim konfirmasi registrasi
+
+**Postcondition:** Akun baru berhasil dibuat dan dapat digunakan untuk login
+
+#### 3. Edit Akun
+**Actor:** User, Admin  
+**Deskripsi:** Mengubah informasi profil pengguna  
+**Precondition:** Pengguna sudah login ke sistem  
+**Flow:**
+1. Pengguna mengakses halaman profil
+2. Pengguna mengubah informasi yang diinginkan
+3. Sistem memvalidasi perubahan data
+4. Sistem menyimpan perubahan
+5. Sistem menampilkan konfirmasi perubahan
+
+**Postcondition:** Informasi profil pengguna berhasil diperbarui
+
+#### 4. Hapus Akun
+**Actor:** User, Admin  
+**Deskripsi:** Menghapus akun pengguna dari sistem  
+**Precondition:** Pengguna sudah login dan memiliki hak akses  
+**Flow:**
+1. Pengguna memilih opsi hapus akun
+2. Sistem menampilkan konfirmasi penghapusan
+3. Pengguna mengkonfirmasi penghapusan
+4. Sistem menghapus atau menonaktifkan akun
+5. Sistem mencatat aktivitas penghapusan
+
+**Postcondition:** Akun pengguna berhasil dihapus atau dinonaktifkan
+
+## 3. Patient Management Use Case Diagram
+
+```mermaid
+graph TB
+    %% Actors
+    PU[👤 Puskesmas User]
+    A[👨‍💼 Admin]
+    S[🤖 System]
+    
+    %% Patient Management System
+    subgraph PMSystem["📋 Patient Management System"]
+        %% Core Use Cases
+        UC1["📝 Create Patient"]
+        UC2["👁️ View Patient List"]
+        UC3["✏️ Edit Patient"]
+        UC4["🗑️ Delete Patient"]
+        UC5["🔍 Search Patient"]
+        UC6["📊 Export Patient Data"]
+        UC7["📋 Add Examination Year"]
+        UC8["❌ Remove Examination Year"]
+        
+        %% Extended Use Cases
+        UC9["📄 Export to Excel"]
+        UC10["📑 Export to PDF"]
+        UC11["🔍 Filter by Disease Type"]
+        UC12["📱 Validate Phone Number"]
+    end
+    
+    %% Relationships
+    PU --> UC1
+    PU --> UC2
+    PU --> UC3
+    PU --> UC4
+    PU --> UC5
+    PU --> UC6
+    PU --> UC7
+    PU --> UC8
+    
+    A --> UC2
+    A --> UC5
+    A --> UC6
+    
+    %% Include relationships
+    UC6 -.->|include| UC9
+    UC6 -.->|include| UC10
+    UC2 -.->|include| UC11
+    UC5 -.->|include| UC11
+    UC1 -.->|include| UC12
+    UC3 -.->|include| UC12
+    
+    %% System relationships
+    S --> UC12
+    
+    %% Styling
+    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef usecase fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef system fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef include fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class PU,A,S actor
+    class UC1,UC2,UC3,UC4,UC5,UC6,UC7,UC8 usecase
+    class UC9,UC10,UC11,UC12 include
+```
+
+## 4. Examination Management Use Case Diagram
+
+```mermaid
+graph TB
+    %% Actors
+    PU[👤 Puskesmas User]
+    A[👨‍💼 Admin]
+    S[🤖 System]
+    
+    %% Examination Management System
+    subgraph EMSystem["🩺 Examination Management System"]
+        %% HT Examination Use Cases
+        UC13["🩺 Create HT Examination"]
+        UC14["📋 View HT Examinations"]
+        UC15["✏️ Edit HT Examination"]
+        UC16["🗑️ Delete HT Examination"]
+        
+        %% DM Examination Use Cases
+        UC17["💉 Create DM Examination"]
+        UC18["📋 View DM Examinations"]
+        UC19["✏️ Edit DM Examination"]
+        UC20["🗑️ Delete DM Examination"]
+        UC21["📦 Batch Update DM"]
+        
+        %% Common Use Cases
+        UC22["🔍 Filter by Date"]
+        UC23["🔍 Filter by Patient"]
+        UC24["📊 Filter by Archive Status"]
+        UC25["📅 Validate Examination Date"]
+        UC26["🏥 Validate Puskesmas Access"]
+        UC27["📋 Auto-populate Patient Data"]
+    end
+    
+    %% Relationships
+    PU --> UC13
+    PU --> UC14
+    PU --> UC15
+    PU --> UC16
+    PU --> UC17
+    PU --> UC18
+    PU --> UC19
+    PU --> UC20
+    PU --> UC21
+    
+    A --> UC14
+    A --> UC18
+    A --> UC21
+    
+    %% Include relationships
+    UC13 -.->|include| UC25
+    UC13 -.->|include| UC26
+    UC13 -.->|include| UC27
+    UC17 -.->|include| UC25
+    UC17 -.->|include| UC26
+    UC17 -.->|include| UC27
+    UC14 -.->|include| UC22
+    UC14 -.->|include| UC23
+    UC14 -.->|include| UC24
+    UC18 -.->|include| UC22
+    UC18 -.->|include| UC23
+    UC18 -.->|include| UC24
+    
+    %% System relationships
+    S --> UC25
+    S --> UC26
+    S --> UC27
+    
+    %% Styling
+    classDef actor fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef usecase fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef system fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef include fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class PU,A,S actor
+    class UC13,UC14,UC15,UC16,UC17,UC18,UC19,UC20,UC21 usecase
+    class UC22,UC23,UC24,UC25,UC26,UC27 include
+```
+
+## Business Rules dan Guidelines
+
+### Authentication & Authorization
+1. Username/email harus unik dalam sistem
+2. Password harus memenuhi kriteria keamanan minimum
+3. Session timeout setelah periode tidak aktif
+4. User hanya dapat mengedit dan menghapus akun sendiri
+5. Admin dapat mengelola semua akun pengguna
+
+### Data Validation
+1. Email harus dalam format yang valid
+2. Username tidak boleh mengandung karakter khusus tertentu
+3. Semua field wajib harus diisi
+4. Validasi CSRF untuk semua form
+
+### Security
+1. Password di-hash sebelum disimpan
+2. Implementasi rate limiting untuk mencegah brute force
+3. Audit trail untuk semua aktivitas penting
+4. Penghapusan akun dicatat untuk keperluan audit
+
+---
+
+**Catatan:** Semua diagram dibuat mengikuti standar UML Use Case Diagram dan dapat disesuaikan lebih lanjut sesuai kebutuhan spesifik sistem.

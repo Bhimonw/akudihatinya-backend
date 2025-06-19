@@ -26,7 +26,13 @@ class StoreUserRequest extends FormRequest
             'password' => 'required|string|min:8',
             'name' => 'required|string|max:255',
             'role' => 'required|in:puskesmas', // Hanya bisa membuat user puskesmas
-            'profile_picture' => 'nullable',
+            'profile_picture' => [
+                'nullable',
+                'image',
+                'mimes:jpeg,png,jpg,gif,webp',
+                'max:2048', // 2MB
+                'dimensions:min_width=50,min_height=50,max_width=2000,max_height=2000'
+            ],
         ];
     }
 
@@ -44,6 +50,9 @@ class StoreUserRequest extends FormRequest
             'role.required' => 'Role wajib diisi',
             'role.in' => 'Role harus puskesmas',
             'profile_picture.image' => 'File harus berupa gambar',
+            'profile_picture.mimes' => 'File harus berformat jpeg, png, jpg, gif, atau webp',
+            'profile_picture.max' => 'Ukuran file maksimal 2MB',
+            'profile_picture.dimensions' => 'Dimensi gambar minimal 100x100 pixel dan maksimal 2000x2000 pixel',
         ];
     }
     

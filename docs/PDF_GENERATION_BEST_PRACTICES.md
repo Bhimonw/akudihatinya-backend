@@ -1,6 +1,6 @@
-# PDF Generation Best Practices
+# PDF Generation Best Practices & Implementation Guide
 
-Dokumen ini menjelaskan best practices yang telah diimplementasikan untuk mengatasi error "Puskesmas not found" dan meningkatkan kualitas kode secara keseluruhan.
+Dokumen ini menjelaskan best practices yang telah diimplementasikan untuk PDF generation, termasuk formatter khusus, error handling "Puskesmas not found", dan peningkatan kualitas kode secara keseluruhan.
 
 ## 🚀 Implementasi yang Telah Dilakukan
 
@@ -237,13 +237,103 @@ grep "PDF generation completed" storage/logs/laravel.log | \
 4. Include context for debugging
 5. Use custom exceptions when appropriate
 
-### Testing Requirements
+### 📊 PDF Formatter Implementation
+
+### AllQuartersRecapPdfFormatter
+
+**Location:** `app/Formatters/AllQuartersRecapPdfFormatter.php`
+
+**Purpose:** Formatter khusus untuk memformat data statistik kesehatan menjadi struktur yang sesuai dengan template `all_quarters_recap_pdf.blade.php`.
+
+**Key Features:**
+- Format data untuk semua kuartal dalam satu tahun
+- Support untuk multiple disease types (HT, DM, atau keduanya)
+- Kalkulasi otomatis untuk persentase pencapaian
+- Struktur data yang konsisten dengan template Blade
+
+**Main Methods:**
+```php
+// Method utama untuk format data
+public function formatAllQuartersRecapData($year, $diseaseType)
+
+// Format data per kuartal
+public function formatQuarterData($quarterNum, $quarterInfo, $year, $diseaseType)
+
+// Format data per puskesmas
+public function formatPuskesmasData($puskesmas, $quarterNum, $year, $diseaseType)
+```
+
+### PdfService.php Updates
+
+**Location:** `app/Services/PdfService.php`
+
+**Changes Made:**
+- Added dependency injection for `AllQuartersRecapPdfFormatter`
+- Updated `generateStatisticsPdfFromTemplate()` method to use new formatter
+- Updated `generateQuarterlyRecapPdf()` method to use new formatter
+- Simplified template selection logic (always use `all_quarters_recap_pdf`)
+
+### API Endpoint Usage
+
+#### Primary Endpoint
+```http
+GET /api/statistics/export
+```
+
+#### Key Parameters for PDF Generation
+- `year` (required) - Tahun laporan
+- `disease_type` (required) - Jenis penyakit: `ht`, `dm`, atau `all`
+- `format` (required) - Format output: `pdf`
+- `table_type` (optional) - Jenis tabel: `all`, `quarterly`, `monthly`, `puskesmas`
+
+#### Quick Example
+```bash
+# Export PDF menggunakan AllQuartersRecapPdfFormatter
+curl -X GET "http://localhost:8000/api/statistics/export?year=2024&disease_type=all&format=pdf&table_type=quarterly" \
+  -H "Authorization: Bearer {token}" \
+  -H "Accept: application/pdf"
+```
+
+#### Response
+```http
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="statistics_2024_all_quarterly.pdf"
+
+[PDF Binary Data]
+```
+
+### Template Structure
+
+**File:** `resources/pdf/all_quarters_recap_pdf.blade.php`
+
+Template ini menggunakan data yang telah diformat oleh `AllQuartersRecapPdfFormatter` dengan struktur:
+
+```php
+[
+    'year' => 2024,
+    'disease_type' => 'all',
+    'quarters' => [
+        'Q1' => [
+            'quarter_name' => 'Kuartal 1',
+            'puskesmas_data' => [...],
+            'totals' => [...]
+        ],
+        // ... Q2, Q3, Q4
+    ],
+    'grand_totals' => [...]
+]
+```
+
+## 🧪 Testing Strategy
 
 1. Unit tests for repositories
 2. Feature tests for endpoints
 3. Error scenario testing
 4. Performance testing for large datasets
 5. Integration testing with external services
+6. **PDF generation testing** - Validate PDF output format and content
+7. **Formatter testing** - Test data transformation accuracy
 
 ## 🔗 Related Documentation
 

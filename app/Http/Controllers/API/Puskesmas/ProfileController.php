@@ -26,6 +26,7 @@ class ProfileController extends Controller
         }
         
         $user->update($data);
+        $user->refresh(); // Refresh model untuk mendapatkan data terbaru dari database
         
         return response()->json([
             'message' => 'Profil berhasil diupdate',

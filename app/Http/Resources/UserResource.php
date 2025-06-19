@@ -13,7 +13,7 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'username' => $this->username,
             'name' => $this->name,
-            'profile_picture' => $this->profile_picture ? asset('storage/' . $this->profile_picture) : null,
+            'profile_picture' => $this->profile_picture ? asset($this->profile_picture) : null,
             'role' => $this->role,
             'puskesmas' => $this->when($this->isPuskesmas(), function () {
                 return new PuskesmasResource($this->puskesmas);

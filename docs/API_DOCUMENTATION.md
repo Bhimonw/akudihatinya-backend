@@ -102,16 +102,54 @@ Mendapatkan profil user yang sedang login.
 ### Update Current User Profile
 **PUT** `/users/me`
 
-Memperbarui profil user yang sedang login.
+Memperbarui profil user yang sedang login, termasuk upload foto profil.
 
 **Headers:** `Authorization: Bearer {token}`
+**Content-Type:** `multipart/form-data` (untuk upload file) atau `application/json`
 
-**Request Body:**
+**Request Body (JSON):**
 ```json
 {
   "name": "New Name",
-  "email": "new@example.com"
+  "password": "newpassword123",
+  "password_confirmation": "newpassword123"
 }
+```
+
+**Request Body (Multipart Form Data untuk Upload Foto):**
+- `name`: string (optional) - Nama user baru
+- `password`: string (optional) - Password baru (min 8 karakter)
+- `password_confirmation`: string (required jika password diisi) - Konfirmasi password
+- `profile_picture`: file (optional) - File gambar untuk foto profil (max 2MB, format: jpeg, png, jpg, gif)
+
+**Response:**
+```json
+{
+  "message": "Profil berhasil diperbarui",
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "name": "Admin Dinas Kesehatan",
+    "profile_picture": "http://localhost:8000/storage/profile-pictures/filename.jpg",
+    "role": "admin",
+    "created_at": "2025-06-15 03:28:22",
+    "updated_at": "2025-06-15 03:28:22"
+  }
+}
+```
+
+**Validation Rules:**
+- `name`: optional, string, max 255 characters
+- `password`: optional, string, min 8 characters, must be confirmed
+- `profile_picture`: optional, image file, max 2MB
+
+**Example cURL untuk Upload Foto:**
+```bash
+curl -X PUT \
+  http://localhost:8000/api/users/me \
+  -H 'Authorization: Bearer your_token_here' \
+  -F 'name=Nama Baru' \
+  -F 'profile_picture=@/path/to/image.jpg'
 ```
 
 ---
