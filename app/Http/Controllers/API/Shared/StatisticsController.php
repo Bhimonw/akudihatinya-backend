@@ -7,7 +7,7 @@ use App\Services\StatisticsService;
 use App\Services\StatisticsDataService;
 use App\Services\StatisticsExportService;
 use App\Services\MonitoringReportService;
-use App\Repositories\Interfaces\PuskesmasRepositoryInterface;
+use App\Repositories\PuskesmasRepositoryInterface;
 use App\Traits\StatisticsValidationTrait;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -40,14 +40,10 @@ class StatisticsController extends Controller
      * Get statistics data with pagination
      */
     public function index(Request $request): JsonResponse
-    {
-        // Validate request parameters
-        $validation = $this->validateStatisticsRequest($request);
-        if ($validation->fails()) {
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $validation->errors()
-            ], 422);
+    {    // Validate request parameters
+        $validationResponse = $this->validateIndexRequest($request);
+        if ($validationResponse !== null) {
+            return $validationResponse;
         }
 
         // Get request parameters

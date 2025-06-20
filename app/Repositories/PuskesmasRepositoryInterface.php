@@ -62,4 +62,42 @@ interface PuskesmasRepositoryInterface
      * @return Collection
      */
     public function searchByName(string $name): Collection;
+
+    /**
+     * Get filtered puskesmas based on user role and request parameters
+     *
+     * @param \Illuminate\Http\Request|null $request
+     * @return Collection
+     */
+    public function getFilteredPuskesmas($request = null): Collection;
+
+    /**
+     * Get filtered puskesmas query based on user role and request parameters
+     *
+     * @param \Illuminate\Http\Request|null $request
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function getFilteredPuskesmasQuery($request = null);
+
+    /**
+     * Get all puskesmas IDs
+     *
+     * @return array
+     */
+    public function getAllPuskesmasIds(): array;
+
+    /**
+     * Get total count of puskesmas
+     *
+     * @return int
+     */
+    public function getTotalCount(): int;
+
+    /**
+     * Get all puskesmas with selected columns
+     *
+     * @param array $columns
+     * @return Collection
+     */
+    public function getAllPuskesmas(array $columns = ['*']): Collection;
 }

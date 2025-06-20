@@ -354,4 +354,37 @@ class StatisticsDataService
 
         return $errors;
     }
+
+    /**
+     * Paginate statistics data
+     *
+     * @param array $statistics
+     * @param int $perPage
+     * @param int $currentPage
+     * @return array
+     */
+    public function paginateStatistics($statistics, $perPage = 15, $currentPage = 1)
+    {
+        $total = count($statistics);
+        $offset = ($currentPage - 1) * $perPage;
+        $items = array_slice($statistics, $offset, $perPage);
+        
+        $lastPage = ceil($total / $perPage);
+        $from = $total > 0 ? $offset + 1 : 0;
+        $to = min($offset + $perPage, $total);
+        
+        return [
+            'success' => true,
+            'message' => 'Data statistik berhasil diambil',
+            'data' => $items,
+            'meta' => [
+                'current_page' => $currentPage,
+                'from' => $from,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'to' => $to,
+                'total' => $total,
+            ],
+        ];
+    }
 }
