@@ -1,14 +1,14 @@
 <?php
 
-use App\Http\Controllers\API\Shared\DashboardController;
+use App\Http\Controllers\API\Shared\StatisticsController;
 use App\Http\Controllers\API\Shared\UserController;
 use App\Http\Controllers\API\Admin\YearlyTargetController;
 use Illuminate\Support\Facades\Route;
 
 // Admin routes
 Route::middleware(['auth:sanctum', \App\Http\Middleware\IsAdmin::class])->prefix('admin')->group(function () {
-    // Dashboard API for Dinas (admin)
-    Route::get('/dashboard', [DashboardController::class, 'dinasIndex']);
+    // Dashboard API for Dinas (admin) - using statistics controller
+    Route::get('/dashboard', [StatisticsController::class, 'adminStatistics']);
 
     // User management
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);

@@ -4,7 +4,7 @@ use App\Http\Controllers\API\Puskesmas\PatientController;
 use App\Http\Controllers\API\Puskesmas\HtExaminationController;
 use App\Http\Controllers\API\Puskesmas\DmExaminationController;
 use App\Http\Controllers\API\Puskesmas\ProfileController;
-use App\Http\Controllers\API\Shared\DashboardController;
+use App\Http\Controllers\API\Shared\StatisticsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Middleware\IsPuskesmas;
 
@@ -13,8 +13,8 @@ Route::middleware('auth:sanctum')->post('/profile', [ProfileController::class, '
 
 // Puskesmas routes
 Route::middleware(['auth:sanctum', IsPuskesmas::class])->prefix('puskesmas')->group(function () {
-    // Dashboard
-    Route::get('/dashboard', [DashboardController::class, 'puskesmasIndex']);
+    // Dashboard - using statistics controller
+    Route::get('/dashboard', [StatisticsController::class, 'dashboardStatistics']);
 
     // Patients
     Route::resource('patients', PatientController::class)->except(['create', 'edit']);

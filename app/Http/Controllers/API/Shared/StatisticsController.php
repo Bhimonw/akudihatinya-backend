@@ -7,6 +7,7 @@ use App\Services\StatisticsService;
 use App\Services\StatisticsDataService;
 use App\Services\StatisticsExportService;
 use App\Services\MonitoringReportService;
+use App\Services\RealTimeStatisticsService;
 use App\Repositories\PuskesmasRepositoryInterface;
 use App\Traits\StatisticsValidationTrait;
 use Illuminate\Http\Request;
@@ -21,19 +22,22 @@ class StatisticsController extends Controller
     protected $statisticsExportService;
     protected $monitoringReportService;
     protected $puskesmasRepository;
+    protected $realTimeStatisticsService;
 
     public function __construct(
         StatisticsService $statisticsService,
         StatisticsDataService $statisticsDataService,
         StatisticsExportService $statisticsExportService,
         MonitoringReportService $monitoringReportService,
-        PuskesmasRepositoryInterface $puskesmasRepository
+        PuskesmasRepositoryInterface $puskesmasRepository,
+        RealTimeStatisticsService $realTimeStatisticsService
     ) {
         $this->statisticsService = $statisticsService;
         $this->statisticsDataService = $statisticsDataService;
         $this->statisticsExportService = $statisticsExportService;
         $this->monitoringReportService = $monitoringReportService;
         $this->puskesmasRepository = $puskesmasRepository;
+        $this->realTimeStatisticsService = $realTimeStatisticsService;
     }
 
     /**
@@ -77,7 +81,7 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Get dashboard statistics
+     * Get dashboard statistics using real-time service
      */
     public function dashboardStatistics(Request $request): JsonResponse
     {
@@ -115,19 +119,74 @@ class StatisticsController extends Controller
             ]);
         }
 
-        // Get statistics data for filtered puskesmas
-        $statistics = $this->statisticsDataService->getConsistentStatisticsData(
-            $paginatedPuskesmas,
-            $year,
-            $month,
-            $diseaseType
-        );
+        // Get fast dashboard statistics using real-time service
+        $formattedData = [];
+        $totalHtTarget = 0;
+        $totalDmTarget = 0;
+        $totalHtPatients = 0;
+        $totalDmPatients = 0;
+        $totalHtStandard = 0;
+        $totalDmStandard = 0;
 
-        // Format data for dashboard view
-        $formattedData = $this->statisticsDataService->formatDataForAdmin($statistics, $diseaseType);
+        foreach ($paginatedPuskesmas as $puskesmas) {
+            $puskesmasData = [
+                'id' => $puskesmas->id,
+                'name' => $puskesmas->name,
+            ];
+
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htData = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, 'ht', $year);
+                $htTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'ht')->value('target_count') ?? 0;
+                
+                $puskesmasData['ht'] = [
+                    'target' => $htTarget,
+                    'total_patients' => $htData['summary']['total_count'],
+                    'standard_patients' => $htData['summary']['standard_count'],
+                    'achievement_percentage' => $htTarget > 0 ? round(($htData['summary']['standard_count'] / $htTarget) * 100, 2) : 0
+                ];
+
+                $totalHtTarget += $htTarget;
+                $totalHtPatients += $htData['summary']['total_count'];
+                $totalHtStandard += $htData['summary']['standard_count'];
+            }
+
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmData = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, 'dm', $year);
+                $dmTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'dm')->value('target_count') ?? 0;
+                
+                $puskesmasData['dm'] = [
+                    'target' => $dmTarget,
+                    'total_patients' => $dmData['summary']['total_count'],
+                    'standard_patients' => $dmData['summary']['standard_count'],
+                    'achievement_percentage' => $dmTarget > 0 ? round(($dmData['summary']['standard_count'] / $dmTarget) * 100, 2) : 0
+                ];
+
+                $totalDmTarget += $dmTarget;
+                $totalDmPatients += $dmData['summary']['total_count'];
+                $totalDmStandard += $dmData['summary']['standard_count'];
+            }
+
+            $formattedData[] = $puskesmasData;
+        }
 
         // Calculate summary statistics
-        $summary = $this->calculateSummaryStatistics($formattedData, $diseaseType);
+        $summary = [];
+        if ($diseaseType === 'all' || $diseaseType === 'ht') {
+            $summary['ht'] = [
+                'total_target' => $totalHtTarget,
+                'total_patients' => $totalHtPatients,
+                'total_standard_patients' => $totalHtStandard,
+                'average_achievement_percentage' => $totalHtTarget > 0 ? round(($totalHtStandard / $totalHtTarget) * 100, 2) : 0
+            ];
+        }
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            $summary['dm'] = [
+                'total_target' => $totalDmTarget,
+                'total_patients' => $totalDmPatients,
+                'total_standard_patients' => $totalDmStandard,
+                'average_achievement_percentage' => $totalDmTarget > 0 ? round(($totalDmStandard / $totalDmTarget) * 100, 2) : 0
+            ];
+        }
 
         return response()->json([
             'year' => $year,
@@ -236,7 +295,7 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Get admin statistics with enhanced features
+     * Get admin statistics with enhanced features using real-time service
      */
     public function adminStatistics(Request $request): JsonResponse
     {
@@ -274,20 +333,104 @@ class StatisticsController extends Controller
             ]);
         }
 
-        // Get statistics data for paginated puskesmas
-        $statistics = $this->statisticsDataService->getConsistentStatisticsData(
-            $paginatedPuskesmas,
-            $year,
-            $month,
-            $diseaseType
-        );
+        // Get fast admin statistics using real-time service
+        $formattedData = [];
+        $totalHtTarget = 0;
+        $totalDmTarget = 0;
+        $totalHtPatients = 0;
+        $totalDmPatients = 0;
+        $totalHtStandard = 0;
+        $totalDmStandard = 0;
 
-        // Format data for admin view
-        $formattedData = $this->statisticsDataService->formatDataForAdmin($statistics, $diseaseType);
+        foreach ($paginatedPuskesmas as $puskesmas) {
+            $puskesmasData = [
+                'id' => $puskesmas->id,
+                'name' => $puskesmas->name,
+            ];
 
-        // Calculate summary statistics for all puskesmas
-        $allPuskesmasIds = $this->puskesmasRepository->getAllPuskesmasIds();
-        $summary = $this->calculateSummaryStatistics($formattedData, $diseaseType);
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htData = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, 'ht', $year);
+                $htTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'ht')->value('target_count') ?? 0;
+                
+                $puskesmasData['ht'] = [
+                    'target' => $htTarget,
+                    'total_patients' => $htData['summary']['total_count'],
+                    'standard_patients' => $htData['summary']['standard_count'],
+                    'achievement_percentage' => $htTarget > 0 ? round(($htData['summary']['standard_count'] / $htTarget) * 100, 2) : 0,
+                    'monthly_data' => $htData['monthly_data']
+                ];
+
+                $totalHtTarget += $htTarget;
+                $totalHtPatients += $htData['summary']['total_count'];
+                $totalHtStandard += $htData['summary']['standard_count'];
+            }
+
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmData = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, 'dm', $year);
+                $dmTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'dm')->value('target_count') ?? 0;
+                
+                $puskesmasData['dm'] = [
+                    'target' => $dmTarget,
+                    'total_patients' => $dmData['summary']['total_count'],
+                    'standard_patients' => $dmData['summary']['standard_count'],
+                    'achievement_percentage' => $dmTarget > 0 ? round(($dmData['summary']['standard_count'] / $dmTarget) * 100, 2) : 0,
+                    'monthly_data' => $dmData['monthly_data']
+                ];
+
+                $totalDmTarget += $dmTarget;
+                $totalDmPatients += $dmData['summary']['total_count'];
+                $totalDmStandard += $dmData['summary']['standard_count'];
+            }
+
+            $formattedData[] = $puskesmasData;
+        }
+
+        // Calculate summary statistics for all puskesmas (not just paginated)
+        $allPuskesmas = $this->puskesmasRepository->getAllPuskesmas();
+        $allHtTarget = 0;
+        $allDmTarget = 0;
+        $allHtPatients = 0;
+        $allDmPatients = 0;
+        $allHtStandard = 0;
+        $allDmStandard = 0;
+
+        foreach ($allPuskesmas as $puskesmas) {
+            if ($diseaseType === 'all' || $diseaseType === 'ht') {
+                $htData = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, 'ht', $year);
+                $htTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'ht')->value('target_count') ?? 0;
+                
+                $allHtTarget += $htTarget;
+                $allHtPatients += $htData['summary']['total_count'];
+                $allHtStandard += $htData['summary']['standard_count'];
+            }
+
+            if ($diseaseType === 'all' || $diseaseType === 'dm') {
+                $dmData = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, 'dm', $year);
+                $dmTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'dm')->value('target_count') ?? 0;
+                
+                $allDmTarget += $dmTarget;
+                $allDmPatients += $dmData['summary']['total_count'];
+                $allDmStandard += $dmData['summary']['standard_count'];
+            }
+        }
+
+        $summary = [];
+        if ($diseaseType === 'all' || $diseaseType === 'ht') {
+            $summary['ht'] = [
+                'total_target' => $allHtTarget,
+                'total_patients' => $allHtPatients,
+                'total_standard_patients' => $allHtStandard,
+                'average_achievement_percentage' => $allHtTarget > 0 ? round(($allHtStandard / $allHtTarget) * 100, 2) : 0
+            ];
+        }
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            $summary['dm'] = [
+                'total_target' => $allDmTarget,
+                'total_patients' => $allDmPatients,
+                'total_standard_patients' => $allDmStandard,
+                'average_achievement_percentage' => $allDmTarget > 0 ? round(($allDmStandard / $allDmTarget) * 100, 2) : 0
+            ];
+        }
 
         return response()->json([
             'year' => $year,

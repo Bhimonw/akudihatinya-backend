@@ -3,19 +3,29 @@
 namespace App\Observers;
 
 use App\Models\HtExamination;
-use App\Services\StatisticsCacheService;
+use App\Services\RealTimeStatisticsService;
+use Carbon\Carbon;
 
 class HtExaminationObserver
 {
-    private StatisticsCacheService $cacheService;
+    private RealTimeStatisticsService $statisticsService;
 
-    public function __construct(StatisticsCacheService $cacheService)
+    public function __construct(RealTimeStatisticsService $statisticsService)
     {
-        $this->cacheService = $cacheService;
+        $this->statisticsService = $statisticsService;
+    }
+
+    public function creating(HtExamination $examination)
+    {
+        // Set year and month from examination_date
+        $date = Carbon::parse($examination->examination_date);
+        $examination->year = $date->year;
+        $examination->month = $date->month;
     }
 
     public function created(HtExamination $examination)
     {
-        $this->cacheService->updateCacheOnExaminationCreate($examination, 'ht');
+        // Process examination data and update statistics in real-time
+        $this->statisticsService->processExaminationData($examination, 'ht');
     }
 }
