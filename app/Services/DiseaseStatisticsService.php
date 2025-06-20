@@ -122,12 +122,12 @@ class DiseaseStatisticsService
         $male_patients = (int)$summary_last_month['male'];
         $female_patients = (int)$summary_last_month['female'];
         $achievement_percentage = $target > 0 ? round(($standard_patients / $target) * 100, 2) : 0;
-        $standard_percentage = $total_patients > 0 ? round(($standard_patients / $total_patients) * 100, 2) : 0;
+        $standard_percentage = $target > 0 ? round(($standard_patients / $target) * 100, 2) : 0;
 
         return [
             'target' => (string)$target,
             'total_patients' => (string)$total_patients, // All patients (standard + non-standard)
-            'total_standard_patients' => (string)$standard_patients,
+            'standard_patients' => (string)$standard_patients,
             'non_standard_patients' => (string)$non_standard_patients,
             'male_patients' => (string)$male_patients, // Only standard patients
             'female_patients' => (string)$female_patients, // Only standard patients
@@ -180,7 +180,7 @@ class DiseaseStatisticsService
             'target' => $targetCount,
             'total_patients' => $totalPatients,
             'achievement_percentage' => $achievement,
-            'total_standard_patients' => $standardPatients,
+            'standard_patients' => $standardPatients,
             'non_standard_patients' => $nonStandardPatients,
             'male_patients' => $malePatients,
             'female_patients' => $femalePatients,
@@ -225,18 +225,18 @@ class DiseaseStatisticsService
             $data = $monthlyData->get($m);
             $standard = $data ? (int)$data->standard_count : 0;
             $monthlyBreakdown[$m] = [
-                'male' => $data ? $data->male_count : 0,
-                'female' => $data ? $data->female_count : 0,
-                'total' => $data ? $data->total_count : 0,
-                'standard' => $standard,
-                'non_standard' => $data ? $data->non_standard_count : 0,
+                'male' => (string)($data ? $data->male_count : 0),
+                'female' => (string)($data ? $data->female_count : 0),
+                'total' => (string)($data ? $data->total_count : 0),
+                'standard' => (string)$standard,
+                'non_standard' => (string)($data ? $data->non_standard_count : 0),
                 'percentage' => $yearlyTarget > 0 ? round(($standard / $yearlyTarget) * 100, 2) : 0
             ];
         }
 
         return [
             'total_patients' => $totalPatients,
-            'total_standard_patients' => $standardPatients,
+            'standard_patients' => $standardPatients,
             'non_standard_patients' => $nonStandardPatients,
             'male_patients' => $malePatients,
             'female_patients' => $femalePatients,

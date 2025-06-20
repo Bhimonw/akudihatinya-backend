@@ -78,7 +78,7 @@ class PdfTemplateFormatter
                         $male = $monthlyStats['male'] ?? 0;
                         $female = $monthlyStats['female'] ?? 0;
                         $nonStandard = $monthlyStats['non_standard'] ?? ($total - $standard);
-                        $percentage = $total > 0 ? round(($standard / $total) * 100, 1) : 0;
+                        $percentage = $puskesmasData['target'] > 0 ? round(($standard / $puskesmasData['target']) * 100, 1) : 0;
 
                         $monthData = [
                             'total' => $total,
@@ -125,8 +125,8 @@ class PdfTemplateFormatter
                     ];
 
                     $puskesmasData['total_patients'] = $quarterTotals['total'];
-                    $puskesmasData['achievement_percentage'] = $quarterTotals['total'] > 0
-                        ? round(($quarterTotals['standard'] / $quarterTotals['total']) * 100, 1)
+                    $puskesmasData['achievement_percentage'] = $puskesmasData['target'] > 0
+                        ? round(($quarterTotals['standard'] / $puskesmasData['target']) * 100, 1)
                         : 0;
 
                     $quarterData['puskesmas_data'][] = $puskesmasData;
@@ -141,7 +141,7 @@ class PdfTemplateFormatter
                     $male = $grandTotals['monthly_totals'][$monthIndex]['male'];
                     $female = $grandTotals['monthly_totals'][$monthIndex]['female'];
                     $nonStandard = $total - $standard;
-                    $percentage = $total > 0 ? round(($standard / $total) * 100, 1) : 0;
+                    $percentage = $grandTotals['target'] > 0 ? round(($standard / $grandTotals['target']) * 100, 1) : 0;
 
                     $grandTotalMonthly[] = [
                         'total' => $total,
@@ -168,8 +168,8 @@ class PdfTemplateFormatter
                     ? round(($quarterStandard / $quarterData['totals']['target']) * 100, 1)
                     : 0;
                 
-                $quarterPercentage = $quarterTotal > 0
-                    ? round(($quarterStandard / $quarterTotal) * 100, 1)
+                $quarterPercentage = $quarterData['totals']['target'] > 0
+                    ? round(($quarterStandard / $quarterData['totals']['target']) * 100, 1)
                     : 0;
 
                 $quarterData['totals']['quarter_total'] = [
@@ -215,7 +215,7 @@ class PdfTemplateFormatter
         $totals = [
             'target' => 0,
             'total_patients' => 0,
-            'total_standard_patients' => 0,
+            'standard_patients' => 0,
             'percentage' => 0
         ];
 
@@ -234,26 +234,26 @@ class PdfTemplateFormatter
                 $standardPatients = $yearlyStats['standard'] ?? 0;
             }
 
-            $percentage = $totalPatients > 0 ? round(($standardPatients / $totalPatients) * 100, 1) : 0;
+            $percentage = $target > 0 ? round(($standardPatients / $target) * 100, 1) : 0;
 
             $statisticsData[] = [
                 'no' => $index + 1,
                 'puskesmas_name' => $puskesmas->name,
                 'target' => $target,
                 'total_patients' => $totalPatients,
-                'total_standard_patients' => $standardPatients,
+                'standard_patients' => $standardPatients,
                 'percentage' => $percentage
             ];
 
             // Add to totals
             $totals['target'] += $target;
             $totals['total_patients'] += $totalPatients;
-            $totals['total_standard_patients'] += $standardPatients;
+            $totals['standard_patients'] += $standardPatients;
         }
 
         // Calculate overall percentage
-        $totals['percentage'] = $totals['total_patients'] > 0
-            ? round(($totals['total_standard_patients'] / $totals['total_patients']) * 100, 1)
+        $totals['percentage'] = $totals['target'] > 0
+            ? round(($totals['standard_patients'] / $totals['target']) * 100, 1)
             : 0;
 
         $diseaseLabel = match ($diseaseType) {

@@ -82,12 +82,18 @@ class MonthlyStatisticsCache extends Model
     }
 
     /**
-     * Recalculate standard percentage
+     * Recalculate and update the standard percentage based on yearly target
      */
     private function recalculatePercentage(): void
     {
-        if ($this->total_count > 0) {
-            $this->standard_percentage = round(($this->standard_count / $this->total_count) * 100, 2);
+        // Get yearly target for correct percentage calculation
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $this->puskesmas_id)
+            ->where('disease_type', $this->disease_type)
+            ->where('year', $this->year)
+            ->value('target_count') ?? 0;
+            
+        if ($yearlyTarget > 0) {
+            $this->standard_percentage = round(($this->standard_count / $yearlyTarget) * 100, 2);
         } else {
             $this->standard_percentage = 0;
         }
@@ -110,6 +116,12 @@ class MonthlyStatisticsCache extends Model
         $totalCount = $data->sum('total_count');
         $totalStandard = $data->sum('standard_count');
         $totalNonStandard = $data->sum('non_standard_count');
+        
+        // Get yearly target for percentage calculation
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $puskesmasId)
+            ->where('disease_type', $diseaseType)
+            ->where('year', $year)
+            ->value('target_count') ?? 0;
 
         return [
             'male_count' => $totalMale,
@@ -117,7 +129,7 @@ class MonthlyStatisticsCache extends Model
             'total_count' => $totalCount,
             'standard_count' => $totalStandard,
             'non_standard_count' => $totalNonStandard,
-            'standard_percentage' => $totalCount > 0 ? round(($totalStandard / $totalCount) * 100, 2) : 0,
+            'standard_percentage' => $yearlyTarget > 0 ? round(($totalStandard / $yearlyTarget) * 100, 2) : 0,
         ];
     }
 }

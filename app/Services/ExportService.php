@@ -179,8 +179,10 @@ class ExportService
         // Calculate summary data
         $data['summary'] = [
             'total_patients' => collect($monthlyData)->sum('total'),
-            'total_standard_patients' => collect($monthlyData)->sum('standard'),
+            'standard_patients' => collect($monthlyData)->sum('standard'),
             'non_standard_patients' => collect($monthlyData)->sum('non_standard'),
+            'male_patients' => collect($monthlyData)->sum('male'),
+            'female_patients' => collect($monthlyData)->sum('female'),
             'target' => $data['target'],
             'achievement_percentage' => $data['target'] > 0 ?
                 round((collect($monthlyData)->sum('standard') / $data['target']) * 100, 2) : 0
@@ -403,14 +405,14 @@ class ExportService
                 $formattedData[] = $formattedPuskesmas;
             }
 
-            // Calculate percentages for monthly grand totals
+            // Calculate percentages for monthly grand totals using target
             foreach ($grandTotalData['monthly'] as $monthNumber => $monthData) {
-                $grandTotalData['monthly'][$monthNumber]['percentage'] = $monthData['total'] > 0 ? round(($monthData['total'] - $monthData['non_standard']) / $monthData['total'] * 100, 2) : 0;
+                $grandTotalData['monthly'][$monthNumber]['percentage'] = $grandTotalData['target'] > 0 ? round(($monthData['total'] - $monthData['non_standard']) / $grandTotalData['target'] * 100, 2) : 0;
             }
 
-            // Calculate percentages for quarterly grand totals
+            // Calculate percentages for quarterly grand totals using target
             foreach ($grandTotalData['quarterly'] as $quarterNumber => $quarterData) {
-                $grandTotalData['quarterly'][$quarterNumber]['percentage'] = $quarterData['total'] > 0 ? round(($quarterData['total'] - $quarterData['non_standard']) / $quarterData['total'] * 100, 2) : 0;
+                $grandTotalData['quarterly'][$quarterNumber]['percentage'] = $grandTotalData['target'] > 0 ? round(($quarterData['total'] - $quarterData['non_standard']) / $grandTotalData['target'] * 100, 2) : 0;
             }
 
             // Calculate yearly achievement percentage for grand total based on total_yearly_standard and target
@@ -681,10 +683,10 @@ class ExportService
 
                     $diseaseData[$type] = [
                         'label' => $type === 'ht' ? 'Hipertensi' : 'Diabetes Mellitus',
-                        'total_target' => $totalTarget,
+                        'target' => $totalTarget,
                         'total_patients' => $totalPatients,
-                        'total_standard_patients' => $totalStandard,
-                        'average_achievement_percentage' => $achievement,
+                        'standard_patients' => $totalStandard,
+                        'achievement_percentage' => $achievement,
                         'puskesmas_count' => $puskesmasCount
                     ];
                 }

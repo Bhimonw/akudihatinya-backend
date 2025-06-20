@@ -6,6 +6,7 @@ use App\Models\DmExamination;
 use App\Models\HtExamination;
 use App\Models\MonthlyStatisticsCache;
 use App\Models\Patient;
+use App\Models\YearlyTarget;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -142,8 +143,13 @@ class StatisticsCacheService
             }
         }
 
-        // Total count is already calculated in the loop above
-        $standardPercentage = $totalCount > 0 ? round(($standardCount / $totalCount) * 100, 2) : 0;
+        // Get yearly target for percentage calculation
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $puskesmasId)
+            ->where('disease_type', $diseaseType)
+            ->where('year', $year)
+            ->value('target_count') ?? 0;
+            
+        $standardPercentage = $yearlyTarget > 0 ? round(($standardCount / $yearlyTarget) * 100, 2) : 0;
 
         MonthlyStatisticsCache::updateOrCreateStatistics($puskesmasId, $diseaseType, $year, $month, [
             'male_count' => $maleCount,

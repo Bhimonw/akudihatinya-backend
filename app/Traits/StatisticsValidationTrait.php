@@ -80,7 +80,7 @@ trait StatisticsValidationTrait
         return Validator::make($request->all(), [
             'year' => 'nullable|integer|min:2020|max:' . (date('Y') + 1),
             'month' => 'nullable|integer|min:1|max:12',
-            'disease_type' => 'nullable|in:all,ht,dm'
+            'type' => 'nullable|in:all,ht,dm'
         ], [
             'year.integer' => 'Parameter tahun harus berupa angka',
             'year.min' => 'Parameter tahun minimal 2020',
@@ -88,7 +88,7 @@ trait StatisticsValidationTrait
             'month.integer' => 'Parameter bulan harus berupa angka',
             'month.min' => 'Parameter bulan minimal 1',
             'month.max' => 'Parameter bulan maksimal 12',
-            'disease_type.in' => 'Parameter disease_type harus salah satu dari: all, ht, dm'
+            'type.in' => 'Parameter type harus salah satu dari: all, ht, dm'
         ]);
     }
 

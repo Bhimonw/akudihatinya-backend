@@ -6,6 +6,7 @@ use App\Models\DmExamination;
 use App\Models\HtExamination;
 use App\Models\MonthlyStatisticsCache;
 use App\Models\Patient;
+use App\Models\YearlyTarget;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -70,9 +71,16 @@ class RealTimeStatisticsService
         
         $cache->increment('total_count');
         
-        // Recalculate percentage
-        if ($cache->total_count > 0) {
-            $cache->standard_percentage = round(($cache->standard_count / $cache->total_count) * 100, 2);
+        // Recalculate percentage using yearly target
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $examination->puskesmas_id)
+            ->where('disease_type', $diseaseType)
+            ->where('year', $examination->year)
+            ->value('target_count') ?? 0;
+            
+        if ($yearlyTarget > 0) {
+            $cache->standard_percentage = round(($cache->standard_count / $yearlyTarget) * 100, 2);
+        } else {
+            $cache->standard_percentage = 0;
         }
         
         $cache->save();
@@ -182,8 +190,14 @@ class RealTimeStatisticsService
             return;
         }
         
-        $standardPercentage = $stats->total_count > 0 
-            ? round(($stats->standard_count / $stats->total_count) * 100, 2) 
+        // Get yearly target for correct percentage calculation
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $puskesmasId)
+            ->where('disease_type', $diseaseType)
+            ->where('year', $year)
+            ->value('target_count') ?? 0;
+        
+        $standardPercentage = $yearlyTarget > 0 
+            ? round(($stats->standard_count / $yearlyTarget) * 100, 2) 
             : 0;
             
         MonthlyStatisticsCache::updateOrCreate(
@@ -209,6 +223,12 @@ class RealTimeStatisticsService
      */
     public function getFastDashboardStats(int $puskesmasId, string $diseaseType, int $year): array
     {
+        // Get yearly target
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $puskesmasId)
+            ->where('disease_type', $diseaseType)
+            ->where('year', $year)
+            ->value('target_count') ?? 0;
+            
         // Get data from cache table (much faster)
         $cacheData = MonthlyStatisticsCache::where('puskesmas_id', $puskesmasId)
             ->where('disease_type', $diseaseType)
@@ -225,24 +245,24 @@ class RealTimeStatisticsService
         // Initialize 12 months with zero data
         for ($month = 1; $month <= 12; $month++) {
             $monthlyData[$month] = [
-                'male_count' => 0,
-                'female_count' => 0,
-                'total_count' => 0,
-                'standard_count' => 0,
-                'non_standard_count' => 0,
-                'standard_percentage' => 0,
+                'male' => '0',
+                'female' => '0',
+                'total' => '0',
+                'standard' => '0',
+                'non_standard' => '0',
+                'percentage' => 0,
             ];
         }
         
         // Fill with actual data
         foreach ($cacheData as $data) {
             $monthlyData[$data->month] = [
-                'male_count' => $data->male_count,
-                'female_count' => $data->female_count,
-                'total_count' => $data->total_count,
-                'standard_count' => $data->standard_count,
-                'non_standard_count' => $data->non_standard_count,
-                'standard_percentage' => $data->standard_percentage,
+                'male' => (string)$data->male_count,
+                'female' => (string)$data->female_count,
+                'total' => (string)$data->total_count,
+                'standard' => (string)$data->standard_count,
+                'non_standard' => (string)$data->non_standard_count,
+                'percentage' => $data->standard_percentage,
             ];
             
             $totalMale += $data->male_count;
@@ -255,7 +275,7 @@ class RealTimeStatisticsService
         // Find last month with data for summary
         $lastMonthWithData = null;
         for ($month = 12; $month >= 1; $month--) {
-            if ($monthlyData[$month]['total_count'] > 0) {
+            if ((int)$monthlyData[$month]['total'] > 0) {
                 $lastMonthWithData = $monthlyData[$month];
                 break;
             }
@@ -264,20 +284,20 @@ class RealTimeStatisticsService
         return [
             'monthly_data' => $monthlyData,
             'summary' => $lastMonthWithData ?: [
-                'male_count' => 0,
-                'female_count' => 0,
-                'total_count' => 0,
-                'standard_count' => 0,
-                'non_standard_count' => 0,
-                'standard_percentage' => 0,
+                'male' => '0',
+                'female' => '0',
+                'total' => '0',
+                'standard' => '0',
+                'non_standard' => '0',
+                'percentage' => 0,
             ],
             'yearly_total' => [
-                'male_count' => $totalMale,
-                'female_count' => $totalFemale,
-                'total_count' => $totalCount,
-                'standard_count' => $totalStandard,
-                'non_standard_count' => $totalNonStandard,
-                'standard_percentage' => $totalCount > 0 ? round(($totalStandard / $totalCount) * 100, 2) : 0,
+                'male' => (string)$totalMale,
+                'female' => (string)$totalFemale,
+                'total' => (string)$totalCount,
+                'standard' => (string)$totalStandard,
+                'non_standard' => (string)$totalNonStandard,
+                'percentage' => $yearlyTarget > 0 ? round(($totalStandard / $yearlyTarget) * 100, 2) : 0,
             ]
         ];
     }

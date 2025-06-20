@@ -132,25 +132,25 @@ class PdfFormatter
         foreach ($summary['disease_types'] as $type) {
             $summary[$type] = [
                 'label' => $this->getDiseaseLabel($type),
-                'total_target' => 0,
+                'target' => 0,
                 'total_patients' => 0,
-                'total_standard' => 0,
-                'total_achievement' => 0,
+                'standard_patients' => 0,
+                'achievement_percentage' => 0,
                 'puskesmas_count' => 0
             ];
 
             foreach ($statisticsData['data'] as $puskesmasData) {
                 if (isset($puskesmasData[$type])) {
                     $diseaseData = $puskesmasData[$type];
-                    $summary[$type]['total_target'] += $diseaseData['target'] ?? 0;
+                    $summary[$type]['target'] += $diseaseData['target'] ?? 0;
                     $summary[$type]['total_patients'] += $diseaseData['total_patients'] ?? 0;
-                    $summary[$type]['total_standard'] += $diseaseData['total_standard_patients'] ?? 0;
+                    $summary[$type]['standard_patients'] += $diseaseData['standard_patients'] ?? 0;
                     $summary[$type]['puskesmas_count']++;
                 }
             }
 
-            $summary[$type]['total_achievement'] = $summary[$type]['total_target'] > 0
-                ? round(($summary[$type]['total_standard'] / $summary[$type]['total_target']) * 100, 2)
+            $summary[$type]['achievement_percentage'] = $summary[$type]['target'] > 0
+                ? round(($summary[$type]['standard_patients'] / $summary[$type]['target']) * 100, 2)
                 : 0;
         }
 

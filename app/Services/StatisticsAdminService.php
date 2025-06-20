@@ -97,7 +97,7 @@ class StatisticsAdminService
                         'achievement_percentage' => $htTargetCount > 0
                             ? round(($htData['total_standard'] / $htTargetCount) * 100, 2)
                             : 0,
-                        'total_standard_patients' => $htData['total_standard'],
+                        'standard_patients' => $htData['total_standard'],
                         'non_standard_patients' => $htData['total_patients'] - $htData['total_standard'],
                         'male_patients' => $htData['male_patients'] ?? 0,
                         'female_patients' => $htData['female_patients'] ?? 0,
@@ -118,7 +118,7 @@ class StatisticsAdminService
                         'achievement_percentage' => $dmTargetCount > 0
                             ? round(($dmData['total_standard'] / $dmTargetCount) * 100, 2)
                             : 0,
-                        'total_standard_patients' => $dmData['total_standard'],
+                        'standard_patients' => $dmData['total_standard'],
                         'non_standard_patients' => $dmData['total_patients'] - $dmData['total_standard'],
                         'male_patients' => $dmData['male_patients'] ?? 0,
                         'female_patients' => $dmData['female_patients'] ?? 0,

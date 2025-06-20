@@ -106,12 +106,12 @@ class StatisticsDataService
         $htArr = [
             'target' => 0,
             'total_patients' => 0,
-            'achievement_percentage' => 0,
-            'total_standard_patients' => 0,
+            'standard_patients' => 0,
             'non_standard_patients' => 0,
             'male_patients' => 0,
             'female_patients' => 0,
-            'monthly_data' => [],
+            'achievement_percentage' => 0,
+            'monthly_data' => []
         ];
 
         $target = YearlyTarget::where('puskesmas_id', $puskesmasId)
@@ -141,7 +141,7 @@ class StatisticsDataService
             $femalePatients = $latestMonthData ? $latestMonthData->female_count : 0;
 
             $htArr['total_patients'] = $totalPatients;
-            $htArr['total_standard_patients'] = $standardPatients;
+            $htArr['standard_patients'] = $standardPatients;
             $htArr['non_standard_patients'] = $nonStandardPatients;
             $htArr['male_patients'] = $malePatients;
             $htArr['female_patients'] = $femalePatients;
@@ -172,12 +172,12 @@ class StatisticsDataService
         $dmArr = [
             'target' => 0,
             'total_patients' => 0,
-            'achievement_percentage' => 0,
-            'total_standard_patients' => 0,
+            'standard_patients' => 0,
             'non_standard_patients' => 0,
             'male_patients' => 0,
             'female_patients' => 0,
-            'monthly_data' => [],
+            'achievement_percentage' => 0,
+            'monthly_data' => []
         ];
 
         $target = YearlyTarget::where('puskesmas_id', $puskesmasId)
@@ -207,7 +207,7 @@ class StatisticsDataService
             $femalePatients = $latestMonthData ? $latestMonthData->female_count : 0;
 
             $dmArr['total_patients'] = $totalPatients;
-            $dmArr['total_standard_patients'] = $standardPatients;
+            $dmArr['standard_patients'] = $standardPatients;
             $dmArr['non_standard_patients'] = $nonStandardPatients;
             $dmArr['male_patients'] = $malePatients;
             $dmArr['female_patients'] = $femalePatients;
@@ -279,7 +279,7 @@ class StatisticsDataService
         return [
             'target' => (string)($htData['target'] ?? 0),
             'total_patients' => (string)($htData['total_patients'] ?? 0),
-            'total_standard_patients' => (string)($htData['total_standard_patients'] ?? 0),
+            'standard_patients' => (string)($htData['standard_patients'] ?? 0),
             'non_standard_patients' => (string)($htData['non_standard_patients'] ?? 0),
             'male_patients' => (string)($htData['male_patients'] ?? 0),
             'female_patients' => (string)($htData['female_patients'] ?? 0),
@@ -305,7 +305,7 @@ class StatisticsDataService
         return [
             'target' => (string)($dmData['target'] ?? 0),
             'total_patients' => (string)($dmData['total_patients'] ?? 0),
-            'total_standard_patients' => (string)($dmData['total_standard_patients'] ?? 0),
+            'standard_patients' => (string)($dmData['standard_patients'] ?? 0),
             'non_standard_patients' => (string)($dmData['non_standard_patients'] ?? 0),
             'male_patients' => (string)($dmData['male_patients'] ?? 0),
             'female_patients' => (string)($dmData['female_patients'] ?? 0),

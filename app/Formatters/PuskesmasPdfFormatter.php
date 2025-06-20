@@ -75,7 +75,7 @@ class PuskesmasPdfFormatter
             $monthlyData = $diseaseData['monthly_data'] ?? [];
 
             // Calculate yearly totals
-            $yearlyTotal = $this->calculateYearlyTotals($monthlyData);
+            $yearlyTotal = $this->calculateYearlyTotals($monthlyData, $target);
 
             // Format disease type label
             $diseaseTypeLabel = $this->getDiseaseTypeLabel($diseaseType);
@@ -153,9 +153,10 @@ class PuskesmasPdfFormatter
      * Calculate yearly totals from monthly data
      *
      * @param array $monthlyData
+     * @param int $target
      * @return array
      */
-    protected function calculateYearlyTotals($monthlyData)
+    protected function calculateYearlyTotals($monthlyData, $target = 0)
     {
         $totals = [
             'male' => 0,
@@ -177,9 +178,9 @@ class PuskesmasPdfFormatter
         $totals['total'] = $totals['male'] + $totals['female'];
         $totals['total_services'] = $totals['standard'] + $totals['non_standard'];
 
-        // Calculate percentage
-        if ($totals['total_services'] > 0) {
-            $totals['percentage'] = ($totals['standard'] / $totals['total_services']) * 100;
+        // Calculate percentage based on target
+        if ($target > 0) {
+            $totals['percentage'] = ($totals['standard'] / $target) * 100;
         }
 
         return $totals;
@@ -284,8 +285,15 @@ class PuskesmasPdfFormatter
         $quarterlyTotal['total'] = $quarterlyTotal['male'] + $quarterlyTotal['female'];
         $totalServices = $quarterlyTotal['standard'] + $quarterlyTotal['non_standard'];
 
-        if ($totalServices > 0) {
-            $quarterlyTotal['percentage'] = ($quarterlyTotal['standard'] / $totalServices) * 100;
+        // Get target for percentage calculation
+        $yearlyTarget = YearlyTarget::where('puskesmas_id', $fullData['puskesmas_id'])
+            ->where('year', $year)
+            ->where('disease_type', $diseaseType)
+            ->first();
+        $target = $yearlyTarget ? $yearlyTarget->target_count : 0;
+        
+        if ($target > 0) {
+            $quarterlyTotal['percentage'] = ($quarterlyTotal['standard'] / $target) * 100;
         }
 
         return [
