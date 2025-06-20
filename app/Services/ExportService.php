@@ -179,7 +179,7 @@ class ExportService
         // Calculate summary data
         $data['summary'] = [
             'total_patients' => collect($monthlyData)->sum('total'),
-            'standard_patients' => collect($monthlyData)->sum('standard'),
+            'total_standard_patients' => collect($monthlyData)->sum('standard'),
             'non_standard_patients' => collect($monthlyData)->sum('non_standard'),
             'target' => $data['target'],
             'achievement_percentage' => $data['target'] > 0 ?
@@ -683,8 +683,8 @@ class ExportService
                         'label' => $type === 'ht' ? 'Hipertensi' : 'Diabetes Mellitus',
                         'total_target' => $totalTarget,
                         'total_patients' => $totalPatients,
-                        'total_standard' => $totalStandard,
-                        'total_achievement' => $achievement,
+                        'total_standard_patients' => $totalStandard,
+                        'average_achievement_percentage' => $achievement,
                         'puskesmas_count' => $puskesmasCount
                     ];
                 }

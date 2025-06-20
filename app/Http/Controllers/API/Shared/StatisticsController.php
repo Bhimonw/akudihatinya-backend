@@ -100,11 +100,25 @@ class StatisticsController extends Controller
         $diseaseType = $request->disease_type ?? 'all';
         $perPage = $request->per_page ?? 15;
 
-        // Get filtered puskesmas based on user role and bearer token
-        $puskesmasQuery = $this->puskesmasRepository->getFilteredPuskesmasQuery($request);
-        $paginatedPuskesmas = $puskesmasQuery->paginate($perPage);
+        // Get month name if month is provided
+        $monthName = null;
+        if ($month) {
+            $monthNames = [
+                1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+            ];
+            $monthName = $monthNames[$month] ?? null;
+        }
 
-        if ($paginatedPuskesmas->isEmpty()) {
+        // Get all puskesmas for summary calculation (not paginated)
+        $allPuskesmasQuery = $this->puskesmasRepository->getFilteredPuskesmasQuery($request);
+        $allPuskesmas = $allPuskesmasQuery->get();
+
+        // Get paginated puskesmas for data display
+        $paginatedPuskesmas = $allPuskesmasQuery->paginate($perPage);
+
+        if ($allPuskesmas->isEmpty()) {
             return response()->json([
                 'message' => 'Tidak ada data puskesmas yang ditemukan.',
                 'data' => [],
@@ -119,15 +133,11 @@ class StatisticsController extends Controller
             ]);
         }
 
-        // Get fast dashboard statistics using real-time service
-        $formattedData = [];
-        $totalHtTarget = 0;
-        $totalDmTarget = 0;
-        $totalHtPatients = 0;
-        $totalDmPatients = 0;
-        $totalHtStandard = 0;
-        $totalDmStandard = 0;
+        // Calculate summary statistics from ALL puskesmas
+        $summary = $this->calculateSummaryStatistics($allPuskesmas, $diseaseType, $year);
 
+        // Get formatted data for paginated puskesmas
+        $formattedData = [];
         foreach ($paginatedPuskesmas as $puskesmas) {
             $puskesmasData = [
                 'id' => $puskesmas->id,
@@ -139,15 +149,11 @@ class StatisticsController extends Controller
                 $htTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'ht')->value('target_count') ?? 0;
                 
                 $puskesmasData['ht'] = [
-                    'target' => $htTarget,
-                    'total_patients' => $htData['summary']['total_count'],
-                    'standard_patients' => $htData['summary']['standard_count'],
-                    'achievement_percentage' => $htTarget > 0 ? round(($htData['summary']['standard_count'] / $htTarget) * 100, 2) : 0
+                    'target' => (string)$htTarget,
+                    'total_patients' => (string)$htData['yearly_total']['total_count'],
+                    'total_standard_patients' => (string)$htData['yearly_total']['standard_count'],
+                'achievement_percentage' => $htTarget > 0 ? round(($htData['yearly_total']['standard_count'] / $htTarget) * 100, 2) : 0
                 ];
-
-                $totalHtTarget += $htTarget;
-                $totalHtPatients += $htData['summary']['total_count'];
-                $totalHtStandard += $htData['summary']['standard_count'];
             }
 
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
@@ -155,44 +161,22 @@ class StatisticsController extends Controller
                 $dmTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'dm')->value('target_count') ?? 0;
                 
                 $puskesmasData['dm'] = [
-                    'target' => $dmTarget,
-                    'total_patients' => $dmData['summary']['total_count'],
-                    'standard_patients' => $dmData['summary']['standard_count'],
-                    'achievement_percentage' => $dmTarget > 0 ? round(($dmData['summary']['standard_count'] / $dmTarget) * 100, 2) : 0
+                    'target' => (string)$dmTarget,
+                    'total_patients' => (string)$dmData['yearly_total']['total_count'],
+                    'total_standard_patients' => (string)$dmData['yearly_total']['standard_count'],
+                'achievement_percentage' => $dmTarget > 0 ? round(($dmData['yearly_total']['standard_count'] / $dmTarget) * 100, 2) : 0
                 ];
-
-                $totalDmTarget += $dmTarget;
-                $totalDmPatients += $dmData['summary']['total_count'];
-                $totalDmStandard += $dmData['summary']['standard_count'];
             }
 
             $formattedData[] = $puskesmasData;
         }
 
-        // Calculate summary statistics
-        $summary = [];
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $summary['ht'] = [
-                'total_target' => $totalHtTarget,
-                'total_patients' => $totalHtPatients,
-                'total_standard_patients' => $totalHtStandard,
-                'average_achievement_percentage' => $totalHtTarget > 0 ? round(($totalHtStandard / $totalHtTarget) * 100, 2) : 0
-            ];
-        }
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $summary['dm'] = [
-                'total_target' => $totalDmTarget,
-                'total_patients' => $totalDmPatients,
-                'total_standard_patients' => $totalDmStandard,
-                'average_achievement_percentage' => $totalDmTarget > 0 ? round(($totalDmStandard / $totalDmTarget) * 100, 2) : 0
-            ];
-        }
-
         return response()->json([
-            'year' => $year,
+            'year' => (string)$year,
             'disease_type' => $diseaseType,
             'month' => $month,
-            'total_puskesmas' => $this->puskesmasRepository->getTotalCount(),
+            'month_name' => $monthName,
+            'total_puskesmas' => $allPuskesmas->count(),
             'summary' => $summary,
             'data' => $formattedData,
             'meta' => [
@@ -205,6 +189,93 @@ class StatisticsController extends Controller
             ],
             'all_puskesmas' => $this->puskesmasRepository->getAllPuskesmas(['id', 'name'])
         ]);
+    }
+
+    /**
+     * Calculate summary statistics with monthly data breakdown
+     */
+    private function calculateSummaryStatistics($allPuskesmas, $diseaseType, $year): array
+    {
+        $summary = [];
+
+        if ($diseaseType === 'all' || $diseaseType === 'ht') {
+            $summary['ht'] = $this->calculateDiseaseTypeSummary($allPuskesmas, 'ht', $year);
+        }
+
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            $summary['dm'] = $this->calculateDiseaseTypeSummary($allPuskesmas, 'dm', $year);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Calculate summary for specific disease type
+     */
+    private function calculateDiseaseTypeSummary($allPuskesmas, $diseaseType, $year): array
+    {
+        $totalTarget = 0;
+        $totalPatients = 0;
+        $totalStandard = 0;
+        $totalNonStandard = 0;
+        $totalMale = 0;
+        $totalFemale = 0;
+        $monthlyData = [];
+
+        // Initialize monthly data
+        for ($month = 1; $month <= 12; $month++) {
+            $monthlyData[$month] = [
+                'male' => '0',
+                'female' => '0',
+                'total' => '0',
+                'standard' => '0',
+                'non_standard' => '0',
+                'percentage' => 0
+            ];
+        }
+
+        foreach ($allPuskesmas as $puskesmas) {
+            // Get target
+            $target = $puskesmas->yearlyTargets()
+                ->where('year', $year)
+                ->where('disease_type', $diseaseType)
+                ->value('target_count') ?? 0;
+            $totalTarget += $target;
+
+            // Get statistics data
+            $data = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, $diseaseType, $year);
+            
+            $totalPatients += $data['yearly_total']['total_count'];
+            $totalStandard += $data['yearly_total']['standard_count'];
+            $totalNonStandard += $data['yearly_total']['non_standard_count'];
+            $totalMale += $data['yearly_total']['male_count'];
+            $totalFemale += $data['yearly_total']['female_count'];
+
+            // Aggregate monthly data
+            foreach ($data['monthly_data'] as $month => $monthData) {
+                $monthlyData[$month]['male'] = (string)((int)$monthlyData[$month]['male'] + $monthData['male_count']);
+                $monthlyData[$month]['female'] = (string)((int)$monthlyData[$month]['female'] + $monthData['female_count']);
+                $monthlyData[$month]['total'] = (string)((int)$monthlyData[$month]['total'] + $monthData['total_count']);
+                $monthlyData[$month]['standard'] = (string)((int)$monthlyData[$month]['standard'] + $monthData['standard_count']);
+                $monthlyData[$month]['non_standard'] = (string)((int)$monthlyData[$month]['non_standard'] + $monthData['non_standard_count']);
+                
+                // Calculate percentage for this month
+                $monthTotal = (int)$monthlyData[$month]['total'];
+                $monthStandard = (int)$monthlyData[$month]['standard'];
+                $monthlyData[$month]['percentage'] = $monthTotal > 0 ? round(($monthStandard / $monthTotal) * 100, 2) : 0;
+            }
+        }
+
+        return [
+            'target' => (string)$totalTarget,
+            'total_patients' => (string)$totalPatients,
+            'total_standard_patients' => (string)$totalStandard,
+                'non_standard_patients' => (string)$totalNonStandard,
+                'male_patients' => (string)$totalMale,
+                'female_patients' => (string)$totalFemale,
+                'achievement_percentage' => $totalTarget > 0 ? round(($totalStandard / $totalTarget) * 100, 2) : 0,
+            'monthly_data' => $monthlyData
+        ];
     }
 
     /**
@@ -355,8 +426,8 @@ class StatisticsController extends Controller
                 $puskesmasData['ht'] = [
                     'target' => $htTarget,
                     'total_patients' => $htData['summary']['total_count'],
-                    'standard_patients' => $htData['summary']['standard_count'],
-                    'achievement_percentage' => $htTarget > 0 ? round(($htData['summary']['standard_count'] / $htTarget) * 100, 2) : 0,
+                    'total_standard_patients' => $htData['summary']['standard_count'],
+                'achievement_percentage' => $htTarget > 0 ? round(($htData['summary']['standard_count'] / $htTarget) * 100, 2) : 0,
                     'monthly_data' => $htData['monthly_data']
                 ];
 
@@ -372,8 +443,8 @@ class StatisticsController extends Controller
                 $puskesmasData['dm'] = [
                     'target' => $dmTarget,
                     'total_patients' => $dmData['summary']['total_count'],
-                    'standard_patients' => $dmData['summary']['standard_count'],
-                    'achievement_percentage' => $dmTarget > 0 ? round(($dmData['summary']['standard_count'] / $dmTarget) * 100, 2) : 0,
+                    'total_standard_patients' => $dmData['summary']['standard_count'],
+                'achievement_percentage' => $dmTarget > 0 ? round(($dmData['summary']['standard_count'] / $dmTarget) * 100, 2) : 0,
                     'monthly_data' => $dmData['monthly_data']
                 ];
 
@@ -454,14 +525,14 @@ class StatisticsController extends Controller
     /**
      * Calculate summary statistics for admin view
      */
-    private function calculateSummaryStatistics($data, $diseaseType)
+    private function calculateAdminSummaryStatistics($data, $diseaseType)
     {
         $summary = [];
 
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
             $htTargets = collect($data)->sum('ht.target');
             $htPatients = collect($data)->sum('ht.total_patients');
-            $htStandardPatients = collect($data)->sum('ht.standard_patients');
+            $htStandardPatients = collect($data)->sum('ht.total_standard_patients');
             $htAchievement = $htTargets > 0 ? round(($htStandardPatients / $htTargets) * 100, 2) : 0;
 
             $summary['ht'] = [
@@ -475,7 +546,7 @@ class StatisticsController extends Controller
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
             $dmTargets = collect($data)->sum('dm.target');
             $dmPatients = collect($data)->sum('dm.total_patients');
-            $dmStandardPatients = collect($data)->sum('dm.standard_patients');
+            $dmStandardPatients = collect($data)->sum('dm.total_standard_patients');
             $dmAchievement = $dmTargets > 0 ? round(($dmStandardPatients / $dmTargets) * 100, 2) : 0;
 
             $summary['dm'] = [

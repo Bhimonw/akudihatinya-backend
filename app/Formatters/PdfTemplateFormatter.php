@@ -215,7 +215,7 @@ class PdfTemplateFormatter
         $totals = [
             'target' => 0,
             'total_patients' => 0,
-            'standard_patients' => 0,
+            'total_standard_patients' => 0,
             'percentage' => 0
         ];
 
@@ -241,19 +241,19 @@ class PdfTemplateFormatter
                 'puskesmas_name' => $puskesmas->name,
                 'target' => $target,
                 'total_patients' => $totalPatients,
-                'standard_patients' => $standardPatients,
+                'total_standard_patients' => $standardPatients,
                 'percentage' => $percentage
             ];
 
             // Add to totals
             $totals['target'] += $target;
             $totals['total_patients'] += $totalPatients;
-            $totals['standard_patients'] += $standardPatients;
+            $totals['total_standard_patients'] += $standardPatients;
         }
 
         // Calculate overall percentage
         $totals['percentage'] = $totals['total_patients'] > 0
-            ? round(($totals['standard_patients'] / $totals['total_patients']) * 100, 1)
+            ? round(($totals['total_standard_patients'] / $totals['total_patients']) * 100, 1)
             : 0;
 
         $diseaseLabel = match ($diseaseType) {

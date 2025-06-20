@@ -123,13 +123,13 @@ class StatisticsService
             $htMonthlyData = $this->getMonthlyAggregatedStats('ht', $puskesmasIds, $year, $htTargetTotal);
 
             $summary['ht'] = [
-                'target' => $htTargetTotal,
+                'total_target' => $htTargetTotal,
                 'total_patients' => $htStats->total_patients ?? 0,
-                'standard_patients' => $htStats->standard_patients ?? 0,
+                'total_standard_patients' => $htStats->standard_patients ?? 0,
                 'non_standard_patients' => $htStats->non_standard_patients ?? 0,
                 'male_patients' => $htStats->male_patients ?? 0,
                 'female_patients' => $htStats->female_patients ?? 0,
-                'achievement_percentage' => $htTargetTotal > 0
+                'average_achievement_percentage' => $htTargetTotal > 0
                     ? round((($htStats->standard_patients ?? 0) / $htTargetTotal) * 100, 2)
                     : 0,
                 'monthly_data' => $htMonthlyData,
@@ -189,13 +189,13 @@ class StatisticsService
             $dmMonthlyData = $this->getMonthlyAggregatedStats('dm', $puskesmasIds, $year, $dmTargetTotal);
 
             $summary['dm'] = [
-                'target' => $dmTargetTotal,
+                'total_target' => $dmTargetTotal,
                 'total_patients' => $dmStats->total_patients ?? 0,
-                'standard_patients' => $dmStats->standard_patients ?? 0,
+                'total_standard_patients' => $dmStats->standard_patients ?? 0,
                 'non_standard_patients' => $dmStats->non_standard_patients ?? 0,
                 'male_patients' => $dmStats->male_patients ?? 0,
                 'female_patients' => $dmStats->female_patients ?? 0,
-                'achievement_percentage' => $dmTargetTotal > 0
+                'average_achievement_percentage' => $dmTargetTotal > 0
                     ? round((($dmStats->standard_patients ?? 0) / $dmTargetTotal) * 100, 2)
                     : 0,
                 'monthly_data' => $dmMonthlyData,
@@ -277,7 +277,7 @@ class StatisticsService
             if ($latestMonthData) {
                 $htStats->put($puskesmasId, (object)[
                     'total_patients' => $latestMonthData->total_count,
-                    'standard_patients' => $latestMonthData->standard_count,
+                    'total_standard_patients' => $latestMonthData->standard_count,
                     'male_patients' => $latestMonthData->male_count,
                     'female_patients' => $latestMonthData->female_count
                 ]);
@@ -306,7 +306,7 @@ class StatisticsService
             if ($latestMonthData) {
                 $dmStats->put($puskesmasId, (object)[
                     'total_patients' => $latestMonthData->total_count,
-                    'standard_patients' => $latestMonthData->standard_count,
+                    'total_standard_patients' => $latestMonthData->standard_count,
                     'male_patients' => $latestMonthData->male_count,
                     'female_patients' => $latestMonthData->female_count
                 ]);
@@ -320,7 +320,7 @@ class StatisticsService
             $htTargetCount = $htTarget ? $htTarget->target_count : 0;
             $dmTargetCount = $dmTarget ? $dmTarget->target_count : 0;
             $htStandardPatients = $htStat ? $htStat->standard_patients : 0;
-            $dmStandardPatients = $dmStat ? $dmStat->standard_patients : 0;
+        $dmStandardPatients = $dmStat ? $dmStat->standard_patients : 0;
             $htAchievement = $htTargetCount > 0 ? round(($htStandardPatients / $htTargetCount) * 100, 2) : 0;
             $dmAchievement = $dmTargetCount > 0 ? round(($dmStandardPatients / $dmTargetCount) * 100, 2) : 0;
             $ranking = [
@@ -332,7 +332,7 @@ class StatisticsService
                     'target' => $htTargetCount,
                     'total_patients' => $htStat ? $htStat->total_patients : 0,
                     'achievement_percentage' => $htAchievement,
-                    'standard_patients' => $htStandardPatients,
+            'total_standard_patients' => $htStandardPatients,
                 ];
             }
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
@@ -340,7 +340,7 @@ class StatisticsService
                     'target' => $dmTargetCount,
                     'total_patients' => $dmStat ? $dmStat->total_patients : 0,
                     'achievement_percentage' => $dmAchievement,
-                    'standard_patients' => $dmStandardPatients,
+            'total_standard_patients' => $dmStandardPatients,
                 ];
             }
             if ($diseaseType === 'all') {

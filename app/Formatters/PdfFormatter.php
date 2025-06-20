@@ -144,7 +144,7 @@ class PdfFormatter
                     $diseaseData = $puskesmasData[$type];
                     $summary[$type]['total_target'] += $diseaseData['target'] ?? 0;
                     $summary[$type]['total_patients'] += $diseaseData['total_patients'] ?? 0;
-                    $summary[$type]['total_standard'] += $diseaseData['standard_patients'] ?? 0;
+                    $summary[$type]['total_standard'] += $diseaseData['total_standard_patients'] ?? 0;
                     $summary[$type]['puskesmas_count']++;
                 }
             }
