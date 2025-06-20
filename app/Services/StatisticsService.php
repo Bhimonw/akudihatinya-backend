@@ -70,22 +70,30 @@ class StatisticsService
     {
         $summary = [];
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            // First try to get month 12 data
-            $htStats = DB::table('monthly_statistics_cache')
-                ->select(
-                    DB::raw('SUM(total_count) as total_patients'),
-                    DB::raw('SUM(standard_count) as standard_patients'),
-                    DB::raw('SUM(non_standard_count) as non_standard_patients'),
-                    DB::raw('SUM(male_count) as male_patients'),
-                    DB::raw('SUM(female_count) as female_patients')
-                )
-                ->where('disease_type', 'ht')
-                ->where('year', $year)
-                ->where('month', 12)
-                ->whereIn('puskesmas_id', $puskesmasIds)
-                ->first();
+            // Find the latest month with data for HT statistics
+            $htStats = null;
+            for ($month = 12; $month >= 1; $month--) {
+                $monthStats = DB::table('monthly_statistics_cache')
+                    ->select(
+                        DB::raw('SUM(total_count) as total_patients'),
+                        DB::raw('SUM(standard_count) as standard_patients'),
+                        DB::raw('SUM(non_standard_count) as non_standard_patients'),
+                        DB::raw('SUM(male_count) as male_patients'),
+                        DB::raw('SUM(female_count) as female_patients')
+                    )
+                    ->where('disease_type', 'ht')
+                    ->where('year', $year)
+                    ->where('month', $month)
+                    ->whereIn('puskesmas_id', $puskesmasIds)
+                    ->first();
+                    
+                if ($monthStats && ($monthStats->total_patients ?? 0) > 0) {
+                    $htStats = $monthStats;
+                    break;
+                }
+            }
 
-            // If month 12 data is not found or has no patients, get the latest month's data
+            // If no month has data, try to get any available data
             if (!$htStats || ($htStats->total_patients ?? 0) == 0) {
                 $latestMonth = DB::table('monthly_statistics_cache')
                     ->where('disease_type', 'ht')
@@ -128,22 +136,30 @@ class StatisticsService
             ];
         }
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            // First try to get month 12 data
-            $dmStats = DB::table('monthly_statistics_cache')
-                ->select(
-                    DB::raw('SUM(total_count) as total_patients'),
-                    DB::raw('SUM(standard_count) as standard_patients'),
-                    DB::raw('SUM(non_standard_count) as non_standard_patients'),
-                    DB::raw('SUM(male_count) as male_patients'),
-                    DB::raw('SUM(female_count) as female_patients')
-                )
-                ->where('disease_type', 'dm')
-                ->where('year', $year)
-                ->where('month', 12)
-                ->whereIn('puskesmas_id', $puskesmasIds)
-                ->first();
+            // Find the latest month with data for DM statistics
+            $dmStats = null;
+            for ($month = 12; $month >= 1; $month--) {
+                $monthStats = DB::table('monthly_statistics_cache')
+                    ->select(
+                        DB::raw('SUM(total_count) as total_patients'),
+                        DB::raw('SUM(standard_count) as standard_patients'),
+                        DB::raw('SUM(non_standard_count) as non_standard_patients'),
+                        DB::raw('SUM(male_count) as male_patients'),
+                        DB::raw('SUM(female_count) as female_patients')
+                    )
+                    ->where('disease_type', 'dm')
+                    ->where('year', $year)
+                    ->where('month', $month)
+                    ->whereIn('puskesmas_id', $puskesmasIds)
+                    ->first();
+                    
+                if ($monthStats && ($monthStats->total_patients ?? 0) > 0) {
+                    $dmStats = $monthStats;
+                    break;
+                }
+            }
 
-            // If month 12 data is not found or has no patients, get the latest month's data
+            // If no month has data, try to get any available data
             if (!$dmStats || ($dmStats->total_patients ?? 0) == 0) {
                 $latestMonth = DB::table('monthly_statistics_cache')
                     ->where('disease_type', 'dm')
@@ -238,34 +254,64 @@ class StatisticsService
         $rankings = [];
         $htTargets = $this->yearlyTargetRepository->getByYearAndTypeAndIds($year, 'ht', $puskesmasIds)->keyBy('puskesmas_id');
         $dmTargets = $this->yearlyTargetRepository->getByYearAndTypeAndIds($year, 'dm', $puskesmasIds)->keyBy('puskesmas_id');
-        $htStats = DB::table('monthly_statistics_cache')
-            ->select(
-                'puskesmas_id',
-                DB::raw('SUM(total_count) as total_patients'),
-                DB::raw('SUM(standard_count) as standard_patients'),
-                DB::raw('SUM(male_count) as male_patients'),
-                DB::raw('SUM(female_count) as female_patients')
-            )
+        // Get latest month data for each puskesmas (December if available, otherwise latest month)
+        $htStatsRaw = DB::table('monthly_statistics_cache')
             ->where('disease_type', 'ht')
             ->where('year', $year)
             ->whereIn('puskesmas_id', $puskesmasIds)
-            ->groupBy('puskesmas_id')
             ->get()
-            ->keyBy('puskesmas_id');
-        $dmStats = DB::table('monthly_statistics_cache')
-            ->select(
-                'puskesmas_id',
-                DB::raw('SUM(total_count) as total_patients'),
-                DB::raw('SUM(standard_count) as standard_patients'),
-                DB::raw('SUM(male_count) as male_patients'),
-                DB::raw('SUM(female_count) as female_patients')
-            )
+            ->groupBy('puskesmas_id');
+            
+        $htStats = collect();
+        foreach ($htStatsRaw as $puskesmasId => $monthlyData) {
+            $monthlyDataKeyed = $monthlyData->keyBy('month');
+            $latestMonthData = null;
+            for ($month = 12; $month >= 1; $month--) {
+                $monthData = $monthlyDataKeyed->get($month);
+                if ($monthData && $monthData->total_count > 0) {
+                    $latestMonthData = $monthData;
+                    break;
+                }
+            }
+            
+            if ($latestMonthData) {
+                $htStats->put($puskesmasId, (object)[
+                    'total_patients' => $latestMonthData->total_count,
+                    'standard_patients' => $latestMonthData->standard_count,
+                    'male_patients' => $latestMonthData->male_count,
+                    'female_patients' => $latestMonthData->female_count
+                ]);
+            }
+        }
+        
+        $dmStatsRaw = DB::table('monthly_statistics_cache')
             ->where('disease_type', 'dm')
             ->where('year', $year)
             ->whereIn('puskesmas_id', $puskesmasIds)
-            ->groupBy('puskesmas_id')
             ->get()
-            ->keyBy('puskesmas_id');
+            ->groupBy('puskesmas_id');
+            
+        $dmStats = collect();
+        foreach ($dmStatsRaw as $puskesmasId => $monthlyData) {
+            $monthlyDataKeyed = $monthlyData->keyBy('month');
+            $latestMonthData = null;
+            for ($month = 12; $month >= 1; $month--) {
+                $monthData = $monthlyDataKeyed->get($month);
+                if ($monthData && $monthData->total_count > 0) {
+                    $latestMonthData = $monthData;
+                    break;
+                }
+            }
+            
+            if ($latestMonthData) {
+                $dmStats->put($puskesmasId, (object)[
+                    'total_patients' => $latestMonthData->total_count,
+                    'standard_patients' => $latestMonthData->standard_count,
+                    'male_patients' => $latestMonthData->male_count,
+                    'female_patients' => $latestMonthData->female_count
+                ]);
+            }
+        }
         foreach ($allPuskesmas as $id => $puskesmas) {
             $htTarget = $htTargets->get($id);
             $dmTarget = $dmTargets->get($id);

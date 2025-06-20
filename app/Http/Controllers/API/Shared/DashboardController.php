@@ -508,6 +508,19 @@ class DashboardController extends Controller
         $totalPatients = 0;
         $totalStandard = 0;
 
+        // Get the latest month data for summary (find last available month with data)
+        $latestMonthData = null;
+        for ($month = 12; $month >= 1; $month--) {
+            $monthData = $yearData->get($month);
+            if ($monthData && $monthData->total_count > 0) {
+                $latestMonthData = $monthData;
+                break;
+            }
+        }
+
+        $totalPatients = $latestMonthData ? $latestMonthData->total_count : 0;
+        $totalStandard = $latestMonthData ? $latestMonthData->standard_count : 0;
+
         for ($m = 1; $m <= 12; $m++) {
             $data = $yearData->get($m);
             $monthlyData[$m] = [
@@ -517,11 +530,6 @@ class DashboardController extends Controller
                 'standard' => $data ? $data->standard_count : 0,
                 'non_standard' => $data ? $data->non_standard_count : 0,
             ];
-
-            if ($data) {
-                $totalPatients += $data->total_count;
-                $totalStandard += $data->standard_count;
-            }
         }
 
         return [
@@ -567,8 +575,19 @@ class DashboardController extends Controller
             ->keyBy('month');
 
         $monthlyData = [];
-        $totalPatients = 0;
-        $totalStandard = 0;
+        
+        // Get the latest month data for summary (find last available month with data)
+        $latestMonthData = null;
+        for ($month = 12; $month >= 1; $month--) {
+            $monthData = $yearData->get($month);
+            if ($monthData && $monthData->total_count > 0) {
+                $latestMonthData = $monthData;
+                break;
+            }
+        }
+
+        $totalPatients = $latestMonthData ? $latestMonthData->total_count : 0;
+        $totalStandard = $latestMonthData ? $latestMonthData->standard_count : 0;
 
         for ($m = 1; $m <= 12; $m++) {
             $data = $yearData->get($m);
@@ -579,11 +598,6 @@ class DashboardController extends Controller
                 'standard' => $data ? $data->standard_count : 0,
                 'non_standard' => $data ? $data->non_standard_count : 0,
             ];
-
-            if ($data) {
-                $totalPatients += $data->total_count;
-                $totalStandard += $data->standard_count;
-            }
         }
 
         return [

@@ -5,13 +5,13 @@ namespace App\Services;
 use App\Services\PdfService;
 use App\Services\PuskesmasExportService;
 use App\Exceptions\PuskesmasNotFoundException;
+use App\Formatters\AdminAllFormatter;
+use App\Formatters\AdminMonthlyFormatter;
+use App\Formatters\AdminQuarterlyFormatter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use Carbon\Carbon;
 
 /**
@@ -23,15 +23,24 @@ class StatisticsExportService
     private $pdfService;
     private $puskesmasExportService;
     private $statisticsDataService;
+    private $adminAllFormatter;
+    private $adminMonthlyFormatter;
+    private $adminQuarterlyFormatter;
 
     public function __construct(
         PdfService $pdfService,
         PuskesmasExportService $puskesmasExportService,
-        StatisticsDataService $statisticsDataService
+        StatisticsDataService $statisticsDataService,
+        AdminAllFormatter $adminAllFormatter,
+        AdminMonthlyFormatter $adminMonthlyFormatter,
+        AdminQuarterlyFormatter $adminQuarterlyFormatter
     ) {
         $this->pdfService = $pdfService;
         $this->puskesmasExportService = $puskesmasExportService;
         $this->statisticsDataService = $statisticsDataService;
+        $this->adminAllFormatter = $adminAllFormatter;
+        $this->adminMonthlyFormatter = $adminMonthlyFormatter;
+        $this->adminQuarterlyFormatter = $adminQuarterlyFormatter;
     }
 
     /**
@@ -107,8 +116,8 @@ class StatisticsExportService
         if ($format === 'pdf') {
             return $this->exportPuskesmasPdf($puskesmasAll->first(), $year, $month, $diseaseType, $filename);
         } else {
-            // Implementasi Excel untuk puskesmas bisa ditambahkan di sini
-            return $this->puskesmasExportService->exportToExcel($puskesmasAll->first(), $year, $month, $diseaseType, $filename);
+            // Use PuskesmasFormatter for puskesmas-specific Excel exports
+            return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $puskesmasAll->first()->id);
         }
     }
 
@@ -200,83 +209,41 @@ class StatisticsExportService
     }
 
     /**
-     * Export ke Excel
+     * Export ke Excel menggunakan formatter yang sudah ada
+     * Membedakan antara admin dan puskesmas dengan formatter yang berbeda
      */
     private function exportToExcel($statistics, $year, $month, $diseaseType, $filename)
     {
-        $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Statistik ' . $year);
-
-        // Header
-        $monthName = $month ? $this->statisticsDataService->getMonthName($month) : 'Semua Bulan';
-        $diseaseLabel = $this->getDiseaseLabel($diseaseType);
+        $user = Auth::user();
         
-        $sheet->setCellValue('A1', 'LAPORAN STATISTIK ' . strtoupper($diseaseLabel));
-        $sheet->setCellValue('A2', 'Tahun: ' . $year . ' | Periode: ' . $monthName);
-        $sheet->setCellValue('A3', 'Digenerate pada: ' . Carbon::now()->format('d/m/Y H:i:s'));
-
-        // Style header
-        $sheet->mergeCells('A1:H1');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-        // Column headers
-        $row = 5;
-        $headers = ['No', 'Puskesmas', 'Ranking'];
-        
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $headers = array_merge($headers, ['Target HT', 'Pasien HT', 'Standar HT', 'Pencapaian HT (%)']);
-        }
-        
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $headers = array_merge($headers, ['Target DM', 'Pasien DM', 'Standar DM', 'Pencapaian DM (%)']);
-        }
-
-        $col = 'A';
-        foreach ($headers as $header) {
-            $sheet->setCellValue($col . $row, $header);
-            $sheet->getStyle($col . $row)->getFont()->setBold(true);
-            $sheet->getStyle($col . $row)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E0E0E0');
-            $col++;
-        }
-
-        // Data rows
-        $row++;
-        foreach ($statistics as $index => $stat) {
-            $col = 'A';
-            $sheet->setCellValue($col++ . $row, $index + 1);
-            $sheet->setCellValue($col++ . $row, $stat['puskesmas_name']);
-            $sheet->setCellValue($col++ . $row, $stat['ranking'] ?? '-');
-            
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $ht = $stat['ht'] ?? [];
-                $sheet->setCellValue($col++ . $row, $ht['target'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $ht['total_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $ht['standard_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $ht['achievement_percentage'] ?? 0);
+        // Tentukan template dan formatter berdasarkan role user dan jenis laporan
+        if ($user && $user->isAdmin()) {
+            // Admin menggunakan AdminFormatter berdasarkan jenis laporan dan disease type
+            if ($diseaseType === 'all') {
+                // All disease types - gunakan AdminAllFormatter
+                $templatePath = resource_path('excel/all.xlsx');
+                $formatter = $this->adminAllFormatter;
+            } elseif ($month) {
+                // Monthly report untuk admin
+                $templatePath = resource_path('excel/monthly.xlsx');
+                $formatter = $this->adminMonthlyFormatter;
+            } else {
+                // Quarterly or yearly report untuk admin
+                $templatePath = resource_path('excel/quarterly.xlsx');
+                $formatter = $this->adminQuarterlyFormatter;
             }
-            
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dm = $stat['dm'] ?? [];
-                $sheet->setCellValue($col++ . $row, $dm['target'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $dm['total_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $dm['standard_patients'] ?? 0);
-                $sheet->setCellValue($col++ . $row, $dm['achievement_percentage'] ?? 0);
-            }
-            
-            $row++;
+        } else {
+            // Puskesmas menggunakan PuskesmasFormatter melalui PuskesmasExportService
+            // Redirect ke PuskesmasExportService untuk konsistensi
+            $puskesmasId = $user ? $user->puskesmas_id : null;
+            return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $puskesmasId);
         }
 
-        // Auto-size columns
-        foreach (range('A', $sheet->getHighestColumn()) as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
-        }
+        // Load template Excel untuk admin
+        $spreadsheet = IOFactory::load($templatePath);
 
-        // Add borders
-        $highestRow = $sheet->getHighestRow();
-        $highestCol = $sheet->getHighestColumn();
-        $sheet->getStyle('A5:' . $highestCol . $highestRow)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        // Format spreadsheet menggunakan formatter admin
+        $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year);
 
         // Save file
         $writer = new Xlsx($spreadsheet);

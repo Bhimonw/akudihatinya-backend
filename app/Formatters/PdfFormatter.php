@@ -83,12 +83,24 @@ class PdfFormatter
                 $formattedData['grand_total']['quarterly'][$quarter]['total'] += $formattedPuskesmas['quarterly'][$quarter]['total'];
             }
 
-            // Calculate total patients and achievement percentage (using December data)
-            $decemberData = $formattedPuskesmas['monthly'][11]; // December is index 11
-            $formattedPuskesmas['total_patients'] = $decemberData['total'];
-            $formattedPuskesmas['achievement_percentage'] = $formattedPuskesmas['target'] > 0
-                ? round(($decemberData['standard'] / $formattedPuskesmas['target']) * 100, 2)
-                : 0;
+            // Calculate total patients and achievement percentage (using last available month data)
+            $lastMonthData = null;
+            for ($month = 11; $month >= 0; $month--) { // December is index 11, January is 0
+                if ($formattedPuskesmas['monthly'][$month]['total'] > 0) {
+                    $lastMonthData = $formattedPuskesmas['monthly'][$month];
+                    break;
+                }
+            }
+            
+            if ($lastMonthData) {
+                $formattedPuskesmas['total_patients'] = $lastMonthData['total'];
+                $formattedPuskesmas['achievement_percentage'] = $formattedPuskesmas['target'] > 0
+                    ? round(($lastMonthData['standard'] / $formattedPuskesmas['target']) * 100, 2)
+                    : 0;
+            } else {
+                $formattedPuskesmas['total_patients'] = 0;
+                $formattedPuskesmas['achievement_percentage'] = 0;
+            }
 
             $formattedData['puskesmas_data'][] = $formattedPuskesmas;
         }
@@ -186,10 +198,22 @@ class PdfFormatter
                 : 0;
         }
 
-        // Calculate total achievement using December data
-        $decemberData = $grandTotal['monthly'][11];
-        $grandTotal['total_patients'] = $decemberData['total'];
-        $grandTotal['achievement_percentage'] = $decemberData['percentage'];
+        // Calculate total achievement using last available month data
+        $lastMonthData = null;
+        for ($month = 11; $month >= 0; $month--) { // December is index 11, January is 0
+            if ($grandTotal['monthly'][$month]['total'] > 0) {
+                $lastMonthData = $grandTotal['monthly'][$month];
+                break;
+            }
+        }
+        
+        if ($lastMonthData) {
+            $grandTotal['total_patients'] = $lastMonthData['total'];
+            $grandTotal['achievement_percentage'] = $lastMonthData['percentage'];
+        } else {
+            $grandTotal['total_patients'] = 0;
+            $grandTotal['achievement_percentage'] = 0;
+        }
     }
 
     private function generateTitle($diseaseType, $year, $reportType)

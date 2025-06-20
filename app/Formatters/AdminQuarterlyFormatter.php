@@ -147,12 +147,21 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
             'total' => 0
         ];
         foreach ($allMonthlyData as $monthlyData) {
-            if (isset($monthlyData[12])) {
-                $decSummary['male'] += $monthlyData[12]['male'] ?? 0;
-                $decSummary['female'] += $monthlyData[12]['female'] ?? 0;
-                $decSummary['standard'] += $monthlyData[12]['standard'] ?? 0;
-                $decSummary['non_standard'] += $monthlyData[12]['non_standard'] ?? 0;
-                $decSummary['total'] += $monthlyData[12]['total'] ?? 0;
+            // Get last available month data (flexible, not hardcoded to December)
+            $lastMonthData = null;
+            for ($month = 12; $month >= 1; $month--) {
+                if (isset($monthlyData[$month]) && ($monthlyData[$month]['total'] ?? 0) > 0) {
+                    $lastMonthData = $monthlyData[$month];
+                    break;
+                }
+            }
+            
+            if ($lastMonthData) {
+                $decSummary['male'] += $lastMonthData['male'] ?? 0;
+                $decSummary['female'] += $lastMonthData['female'] ?? 0;
+                $decSummary['standard'] += $lastMonthData['standard'] ?? 0;
+                $decSummary['non_standard'] += $lastMonthData['non_standard'] ?? 0;
+                $decSummary['total'] += $lastMonthData['total'] ?? 0;
             }
         }
         $yearlyCols = ['X', 'Y', 'Z', 'AA', 'AB', 'AC'];
@@ -201,15 +210,29 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
             'AC'  // Persentase Tahunan
         ];
 
-        // Get data from last quarter (Q4) - data terakhir triwulan
-        $lastQuarterData = $diseaseData['monthly_data'][12] ?? [
-            'male' => 0,
-            'female' => 0,
-            'standard' => 0,     // S Total
-            'non_standard' => 0, // TS
-            'total' => 0,
-            'percentage' => 0
-        ];
+        // Get data from last available quarter - data terakhir triwulan yang tersedia
+        $lastQuarterData = null;
+        
+        // Check quarters from Q4 to Q1 (months 12,9,6,3)
+        $quarterEndMonths = [12, 9, 6, 3];
+        foreach ($quarterEndMonths as $month) {
+            if (isset($diseaseData['monthly_data'][$month]) && ($diseaseData['monthly_data'][$month]['total'] ?? 0) > 0) {
+                $lastQuarterData = $diseaseData['monthly_data'][$month];
+                break;
+            }
+        }
+        
+        // Fallback to empty data if no quarter has data
+        if (!$lastQuarterData) {
+            $lastQuarterData = [
+                'male' => 0,
+                'female' => 0,
+                'standard' => 0,     // S Total
+                'non_standard' => 0, // TS
+                'total' => 0,
+                'percentage' => 0
+            ];
+        }
 
         $this->sheet->setCellValue($yearlyColumns[0] . $this->currentRow, $lastQuarterData['male']);      // L (Laki-laki Standar)
         $this->sheet->setCellValue($yearlyColumns[1] . $this->currentRow, $lastQuarterData['female']);    // P (Perempuan Standar)

@@ -123,11 +123,22 @@ class StatisticsDataService
         $htArr['target'] = $targetCount;
 
         if (isset($htStats[$puskesmasId])) {
-            $totalPatients = $htStats[$puskesmasId]->sum('total_count');
-            $standardPatients = $htStats[$puskesmasId]->sum('standard_count');
-            $nonStandardPatients = $htStats[$puskesmasId]->sum('non_standard_count');
-            $malePatients = $htStats[$puskesmasId]->sum('male_count');
-            $femalePatients = $htStats[$puskesmasId]->sum('female_count');
+            // Get the latest month data for summary (find last available month with data)
+            $monthlyData = $htStats[$puskesmasId]->keyBy('month');
+            $latestMonthData = null;
+            for ($month = 12; $month >= 1; $month--) {
+                $monthData = $monthlyData->get($month);
+                if ($monthData && $monthData->total_count > 0) {
+                    $latestMonthData = $monthData;
+                    break;
+                }
+            }
+
+            $totalPatients = $latestMonthData ? $latestMonthData->total_count : 0;
+            $standardPatients = $latestMonthData ? $latestMonthData->standard_count : 0;
+            $nonStandardPatients = $latestMonthData ? $latestMonthData->non_standard_count : 0;
+            $malePatients = $latestMonthData ? $latestMonthData->male_count : 0;
+            $femalePatients = $latestMonthData ? $latestMonthData->female_count : 0;
 
             $htArr['total_patients'] = $totalPatients;
             $htArr['standard_patients'] = $standardPatients;
@@ -178,11 +189,22 @@ class StatisticsDataService
         $dmArr['target'] = $targetCount;
 
         if (isset($dmStats[$puskesmasId])) {
-            $totalPatients = $dmStats[$puskesmasId]->sum('total_count');
-            $standardPatients = $dmStats[$puskesmasId]->sum('standard_count');
-            $nonStandardPatients = $dmStats[$puskesmasId]->sum('non_standard_count');
-            $malePatients = $dmStats[$puskesmasId]->sum('male_count');
-            $femalePatients = $dmStats[$puskesmasId]->sum('female_count');
+            // Get the latest month data for summary (find last available month with data)
+            $monthlyData = $dmStats[$puskesmasId]->keyBy('month');
+            $latestMonthData = null;
+            for ($month = 12; $month >= 1; $month--) {
+                $monthData = $monthlyData->get($month);
+                if ($monthData && $monthData->total_count > 0) {
+                    $latestMonthData = $monthData;
+                    break;
+                }
+            }
+
+            $totalPatients = $latestMonthData ? $latestMonthData->total_count : 0;
+            $standardPatients = $latestMonthData ? $latestMonthData->standard_count : 0;
+            $nonStandardPatients = $latestMonthData ? $latestMonthData->non_standard_count : 0;
+            $malePatients = $latestMonthData ? $latestMonthData->male_count : 0;
+            $femalePatients = $latestMonthData ? $latestMonthData->female_count : 0;
 
             $dmArr['total_patients'] = $totalPatients;
             $dmArr['standard_patients'] = $standardPatients;

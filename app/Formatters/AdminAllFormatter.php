@@ -208,15 +208,26 @@ class AdminAllFormatter extends BaseAdminFormatter
             'CC'  // Persentase Tahunan
         ];
 
-        // Get data from last month (December)
-        $lastMonthData = $diseaseData['monthly_data'][12] ?? [
-            'male' => 0,
-            'female' => 0,
-            'standard' => 0,
-            'non_standard' => 0,
-            'total' => 0,
-            'percentage' => 0
-        ];
+        // Get data from last available month (flexible, not hardcoded to December)
+        $lastMonthData = null;
+        for ($month = 12; $month >= 1; $month--) {
+            if (isset($diseaseData['monthly_data'][$month]) && ($diseaseData['monthly_data'][$month]['total'] ?? 0) > 0) {
+                $lastMonthData = $diseaseData['monthly_data'][$month];
+                break;
+            }
+        }
+        
+        // Fallback to empty data if no month has data
+        if (!$lastMonthData) {
+            $lastMonthData = [
+                'male' => 0,
+                'female' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'total' => 0,
+                'percentage' => 0
+            ];
+        }
 
         $this->sheet->setCellValue($yearlyColumns[0] . $this->currentRow, $lastMonthData['male']);      // L (Laki-laki Standar)
         $this->sheet->setCellValue($yearlyColumns[1] . $this->currentRow, $lastMonthData['female']);    // P (Perempuan Standar)

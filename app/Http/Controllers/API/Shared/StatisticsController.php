@@ -81,11 +81,71 @@ class StatisticsController extends Controller
      */
     public function dashboardStatistics(Request $request): JsonResponse
     {
-        // This method still uses old logic and needs to be refactored
-        // TODO: Refactor to use StatisticsDataService
+        // Validate request parameters
+        $validation = $this->validateDashboardStatisticsRequest($request);
+        if ($validation->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validation->errors()
+            ], 422);
+        }
+
+        // Get request parameters
+        $year = $request->year ?? date('Y');
+        $month = $request->month;
+        $diseaseType = $request->disease_type ?? 'all';
+        $perPage = $request->per_page ?? 15;
+
+        // Get filtered puskesmas based on user role and bearer token
+        $puskesmasQuery = $this->puskesmasRepository->getFilteredPuskesmasQuery($request);
+        $paginatedPuskesmas = $puskesmasQuery->paginate($perPage);
+
+        if ($paginatedPuskesmas->isEmpty()) {
+            return response()->json([
+                'message' => 'Tidak ada data puskesmas yang ditemukan.',
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'from' => 0,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'to' => 0,
+                    'total' => 0,
+                ],
+            ]);
+        }
+
+        // Get statistics data for filtered puskesmas
+        $statistics = $this->statisticsDataService->getConsistentStatisticsData(
+            $paginatedPuskesmas,
+            $year,
+            $month,
+            $diseaseType
+        );
+
+        // Format data for dashboard view
+        $formattedData = $this->statisticsDataService->formatDataForAdmin($statistics, $diseaseType);
+
+        // Calculate summary statistics
+        $summary = $this->calculateSummaryStatistics($formattedData, $diseaseType);
+
         return response()->json([
-            'message' => 'Dashboard statistics endpoint needs refactoring'
-        ], 501);
+            'year' => $year,
+            'disease_type' => $diseaseType,
+            'month' => $month,
+            'total_puskesmas' => $this->puskesmasRepository->getTotalCount(),
+            'summary' => $summary,
+            'data' => $formattedData,
+            'meta' => [
+                'current_page' => $paginatedPuskesmas->currentPage(),
+                'from' => $paginatedPuskesmas->firstItem(),
+                'last_page' => $paginatedPuskesmas->lastPage(),
+                'per_page' => $paginatedPuskesmas->perPage(),
+                'to' => $paginatedPuskesmas->lastItem(),
+                'total' => $paginatedPuskesmas->total(),
+            ],
+            'all_puskesmas' => $this->puskesmasRepository->getAllPuskesmas(['id', 'name'])
+        ]);
     }
 
     /**
@@ -285,4 +345,7 @@ class StatisticsController extends Controller
 
         return $summary;
     }
+
+
+
 }

@@ -52,9 +52,18 @@ abstract class BaseAdminFormatter
             'percentage' => 0
         ];
         foreach ($allMonthlyData as $monthlyData) {
-            if (isset($monthlyData[12])) {
-                $summary['standard'] += $monthlyData[12]['standard'] ?? 0;
-                $summary['total'] += $monthlyData[12]['total'] ?? 0;
+            // Get last available month data (flexible, not hardcoded to December)
+            $lastMonthData = null;
+            for ($month = 12; $month >= 1; $month--) {
+                if (isset($monthlyData[$month]) && ($monthlyData[$month]['total'] ?? 0) > 0) {
+                    $lastMonthData = $monthlyData[$month];
+                    break;
+                }
+            }
+            
+            if ($lastMonthData) {
+                $summary['standard'] += $lastMonthData['standard'] ?? 0;
+                $summary['total'] += $lastMonthData['total'] ?? 0;
             }
         }
         $summary['percentage'] = $target > 0 ? round(($summary['standard'] / $target) * 100, 2) : 0;

@@ -96,13 +96,31 @@ class DiseaseStatisticsService
             ];
         }
 
-        // Summary ambil dari bulan 12
-        $summary_december = $monthly_data[12];
-        $total_patients = (int)$summary_december['total'];
-        $standard_patients = (int)$summary_december['standard'];
-        $non_standard_patients = (int)$summary_december['non_standard'];
-        $male_patients = (int)$summary_december['male'];
-        $female_patients = (int)$summary_december['female'];
+        // Summary ambil dari bulan terakhir yang tersedia
+        $summary_last_month = null;
+        for ($month = 12; $month >= 1; $month--) {
+            if (isset($monthly_data[$month]) && ($monthly_data[$month]['total'] ?? 0) > 0) {
+                $summary_last_month = $monthly_data[$month];
+                break;
+            }
+        }
+        
+        // Fallback to empty data if no month has data
+        if (!$summary_last_month) {
+            $summary_last_month = [
+                'total' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'male' => 0,
+                'female' => 0
+            ];
+        }
+        
+        $total_patients = (int)$summary_last_month['total'];
+        $standard_patients = (int)$summary_last_month['standard'];
+        $non_standard_patients = (int)$summary_last_month['non_standard'];
+        $male_patients = (int)$summary_last_month['male'];
+        $female_patients = (int)$summary_last_month['female'];
         $achievement_percentage = $target > 0 ? round(($standard_patients / $target) * 100, 2) : 0;
         $standard_percentage = $total_patients > 0 ? round(($standard_patients / $total_patients) * 100, 2) : 0;
 
@@ -126,17 +144,28 @@ class DiseaseStatisticsService
 
     public function processCachedStats($statsList, $target = null)
     {
-        $totalPatients = $statsList->sum('total_count');
-        $standardPatients = $statsList->sum('standard_count');
-        $nonStandardPatients = $statsList->sum('non_standard_count');
-        $malePatients = $statsList->sum('male_count');
-        $femalePatients = $statsList->sum('female_count');
+        // Get the latest month data for summary (find last available month with data)
+        $monthlyData = $statsList->keyBy('month');
+        $latestMonthData = null;
+        for ($month = 12; $month >= 1; $month--) {
+            $monthData = $monthlyData->get($month);
+            if ($monthData && $monthData->total_count > 0) {
+                $latestMonthData = $monthData;
+                break;
+            }
+        }
+
+        $totalPatients = $latestMonthData ? $latestMonthData->total_count : 0;
+        $standardPatients = $latestMonthData ? $latestMonthData->standard_count : 0;
+        $nonStandardPatients = $latestMonthData ? $latestMonthData->non_standard_count : 0;
+        $malePatients = $latestMonthData ? $latestMonthData->male_count : 0;
+        $femalePatients = $latestMonthData ? $latestMonthData->female_count : 0;
         $targetCount = $target ? $target->target_count : 0;
         $achievement = $targetCount > 0 ? round(($standardPatients / $targetCount) * 100, 2) : 0;
-        $monthlyData = [];
+        $monthlyDataFormatted = [];
 
         foreach ($statsList as $stat) {
-            $monthlyData[$stat->month] = [
+            $monthlyDataFormatted[$stat->month] = [
                 'target' => (string)$targetCount,
                 'male' => (string)$stat->male_count,
                 'female' => (string)$stat->female_count,
@@ -155,7 +184,7 @@ class DiseaseStatisticsService
             'non_standard_patients' => $nonStandardPatients,
             'male_patients' => $malePatients,
             'female_patients' => $femalePatients,
-            'monthly_data' => $monthlyData
+            'monthly_data' => $monthlyDataFormatted
         ];
     }
 
@@ -171,11 +200,21 @@ class DiseaseStatisticsService
 
         $monthlyData = $query->get()->keyBy('month');
 
-        $totalPatients = $monthlyData->sum('total_count');
-        $standardPatients = $monthlyData->sum('standard_count');
-        $nonStandardPatients = $monthlyData->sum('non_standard_count');
-        $malePatients = $monthlyData->sum('male_count');
-        $femalePatients = $monthlyData->sum('female_count');
+        // Get the latest month data for summary (find last available month with data)
+        $latestMonthData = null;
+        for ($month = 12; $month >= 1; $month--) {
+            $monthData = $monthlyData->get($month);
+            if ($monthData && $monthData->total_count > 0) {
+                $latestMonthData = $monthData;
+                break;
+            }
+        }
+
+        $totalPatients = $latestMonthData ? $latestMonthData->total_count : 0;
+        $standardPatients = $latestMonthData ? $latestMonthData->standard_count : 0;
+        $nonStandardPatients = $latestMonthData ? $latestMonthData->non_standard_count : 0;
+        $malePatients = $latestMonthData ? $latestMonthData->male_count : 0;
+        $femalePatients = $latestMonthData ? $latestMonthData->female_count : 0;
 
         $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, $diseaseType, $year);
         $yearlyTarget = $target ? (int)$target->target_count : 0;

@@ -114,8 +114,8 @@ class PuskesmasFormatter
         // Baris 17-19: Data Juli-September (data asli per bulan)
         // Baris 20: Data Triwulan III (menggunakan data September)
         // Baris 21-23: Data Oktober-Desember (data asli per bulan)
-        // Baris 24: Data Triwulan IV (menggunakan data Desember)
-        // Baris 25: Data terakhir (menggunakan data Desember)
+        // Baris 24: Data Triwulan IV (menggunakan data bulan terakhir dari Q4)
+        // Baris 25: Data terakhir (menggunakan data bulan terakhir yang tersedia)
 
         $currentRow = 9;
 
@@ -155,15 +155,66 @@ class PuskesmasFormatter
             $currentRow++;
         }
 
-        // Baris 24: Triwulan IV (data Desember)
-        $this->fillQuarterlyRow($currentRow, $monthlyData[12] ?? [], 'Triwulan IV');
+        // Baris 24: Triwulan IV (data bulan terakhir dari Q4)
+        $q4Data = $this->getLastAvailableDataFromQuarter(4, $monthlyData);
+        $this->fillQuarterlyRow($currentRow, $q4Data, 'Triwulan IV');
         $currentRow++;
 
-        // Baris 25: Data terakhir (data Desember)
-        $this->fillYearlyRow($currentRow, $monthlyData[12] ?? []);
+        // Baris 25: Data terakhir (data bulan terakhir yang tersedia)
+        $lastAvailableData = $this->getLastAvailableMonthData($monthlyData);
+        $this->fillYearlyRow($currentRow, $lastAvailableData);
 
-        // H10-M10: Rekap summary dengan data Desember
-        $this->fillSummaryRow(10, $monthlyData[12] ?? []);
+        // H10-M10: Rekap summary dengan data bulan terakhir yang tersedia
+        $this->fillSummaryRow(10, $lastAvailableData);
+    }
+
+    /**
+     * Get last available month data from quarterly data
+     */
+    protected function getLastAvailableDataFromQuarter($quarter, $monthlyData)
+    {
+        $startMonth = ($quarter - 1) * 3 + 1;
+        $endMonth = $quarter * 3;
+        
+        // Cari data bulan terakhir yang terisi pada triwulan
+        for ($month = $endMonth; $month >= $startMonth; $month--) {
+            if (isset($monthlyData[$month]) && ($monthlyData[$month]['total'] ?? 0) > 0) {
+                return $monthlyData[$month];
+            }
+        }
+        
+        // Jika tidak ada data sama sekali di triwulan, kembalikan data kosong
+        return [
+            'male' => 0,
+            'female' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total' => 0,
+            'percentage' => 0
+        ];
+    }
+
+    /**
+     * Get last available month data from all months
+     */
+    protected function getLastAvailableMonthData($monthlyData)
+    {
+        // Cari data bulan terakhir yang terisi dari Desember ke Januari
+        for ($month = 12; $month >= 1; $month--) {
+            if (isset($monthlyData[$month]) && ($monthlyData[$month]['total'] ?? 0) > 0) {
+                return $monthlyData[$month];
+            }
+        }
+        
+        // Jika tidak ada data sama sekali, kembalikan data kosong
+        return [
+            'male' => 0,
+            'female' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total' => 0,
+            'percentage' => 0
+        ];
     }
 
     protected function fillMonthlyRow($row, $month, $monthData)
@@ -212,7 +263,7 @@ class PuskesmasFormatter
         // Kolom A: Data Terakhir
         $this->sheet->setCellValue('A' . $row, 'Data Terakhir');
 
-        // Menggunakan data Desember
+        // Menggunakan data bulan terakhir yang tersedia
         $this->sheet->setCellValue('B' . $row, $monthData['male'] ?? 0);
         $this->sheet->setCellValue('C' . $row, $monthData['female'] ?? 0);
         $this->sheet->setCellValue('D' . $row, $monthData['standard'] ?? 0);
@@ -222,7 +273,7 @@ class PuskesmasFormatter
 
     protected function fillSummaryRow($row, $monthData)
     {
-        // H10-M10: Rekap summary dengan data Desember
+        // H10-M10: Rekap summary dengan data bulan terakhir yang tersedia
         $this->sheet->setCellValue('H' . $row, $monthData['male'] ?? 0);
         $this->sheet->setCellValue('I' . $row, $monthData['female'] ?? 0);
         $this->sheet->setCellValue('J' . $row, $monthData['standard'] ?? 0);
