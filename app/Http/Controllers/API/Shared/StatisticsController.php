@@ -245,19 +245,21 @@ class StatisticsController extends Controller
             // Get statistics data
             $data = $this->realTimeStatisticsService->getFastDashboardStats($puskesmas->id, $diseaseType, $year);
             
-            $totalPatients += $data['yearly_total']['total_count'];
-            $totalStandard += $data['yearly_total']['standard_count'];
-            $totalNonStandard += $data['yearly_total']['non_standard_count'];
-            $totalMale += $data['yearly_total']['male_count'];
-            $totalFemale += $data['yearly_total']['female_count'];
+            // Use latest month data instead of accumulating yearly_total
+            $latestData = $data['yearly_total']; // yearly_total now contains latest month data
+            $totalPatients = $latestData['total'];
+            $totalStandard = $latestData['standard'];
+            $totalNonStandard = $latestData['non_standard'];
+            $totalMale = $latestData['male'];
+            $totalFemale = $latestData['female'];
 
             // Aggregate monthly data
             foreach ($data['monthly_data'] as $month => $monthData) {
-                $monthlyData[$month]['male'] = (string)((int)$monthlyData[$month]['male'] + $monthData['male_count']);
-                $monthlyData[$month]['female'] = (string)((int)$monthlyData[$month]['female'] + $monthData['female_count']);
-                $monthlyData[$month]['total'] = (string)((int)$monthlyData[$month]['total'] + $monthData['total_count']);
-                $monthlyData[$month]['standard'] = (string)((int)$monthlyData[$month]['standard'] + $monthData['standard_count']);
-                $monthlyData[$month]['non_standard'] = (string)((int)$monthlyData[$month]['non_standard'] + $monthData['non_standard_count']);
+                $monthlyData[$month]['male'] = (string)((int)$monthlyData[$month]['male'] + $monthData['male']);
+                $monthlyData[$month]['female'] = (string)((int)$monthlyData[$month]['female'] + $monthData['female']);
+                $monthlyData[$month]['total'] = (string)((int)$monthlyData[$month]['total'] + $monthData['total']);
+                $monthlyData[$month]['standard'] = (string)((int)$monthlyData[$month]['standard'] + $monthData['standard']);
+                $monthlyData[$month]['non_standard'] = (string)((int)$monthlyData[$month]['non_standard'] + $monthData['non_standard']);
                 
                 // Calculate percentage for this month using yearly target
                 $monthStandard = (int)$monthlyData[$month]['standard'];
@@ -430,8 +432,9 @@ class StatisticsController extends Controller
                 ];
 
                 $totalHtTarget += $htTarget;
-                $totalHtPatients += (int)$htData['summary']['total'];
-                $totalHtStandard += (int)$htData['summary']['standard'];
+                // Use latest data instead of accumulating
+                $totalHtPatients = (int)$htData['summary']['total'];
+                $totalHtStandard = (int)$htData['summary']['standard'];
             }
 
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
@@ -446,8 +449,9 @@ class StatisticsController extends Controller
                 ];
 
                 $totalDmTarget += $dmTarget;
-                $totalDmPatients += (int)$dmData['summary']['total'];
-                $totalDmStandard += (int)$dmData['summary']['standard'];
+                // Use latest data instead of accumulating
+                $totalDmPatients = (int)$dmData['summary']['total'];
+                $totalDmStandard = (int)$dmData['summary']['standard'];
             }
 
             $formattedData[] = $puskesmasData;
@@ -474,11 +478,12 @@ class StatisticsController extends Controller
                 $htTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'ht')->value('target_count') ?? 0;
                 
                 $allHtTarget += $htTarget;
-                $allHtPatients += (int)$htData['summary']['total'];
-                $allHtStandard += (int)$htData['summary']['standard'];
-                $allHtNonStandard += (int)$htData['summary']['non_standard'];
-                $allHtMale += (int)$htData['summary']['male'];
-                $allHtFemale += (int)$htData['summary']['female'];
+                // Use latest data instead of accumulating
+                $allHtPatients = (int)$htData['summary']['total'];
+                $allHtStandard = (int)$htData['summary']['standard'];
+                $allHtNonStandard = (int)$htData['summary']['non_standard'];
+                $allHtMale = (int)$htData['summary']['male'];
+                $allHtFemale = (int)$htData['summary']['female'];
             }
 
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
@@ -486,11 +491,12 @@ class StatisticsController extends Controller
                 $dmTarget = $puskesmas->yearlyTargets()->where('year', $year)->where('disease_type', 'dm')->value('target_count') ?? 0;
                 
                 $allDmTarget += $dmTarget;
-                $allDmPatients += (int)$dmData['summary']['total'];
-                $allDmStandard += (int)$dmData['summary']['standard'];
-                $allDmNonStandard += (int)$dmData['summary']['non_standard'];
-                $allDmMale += (int)$dmData['summary']['male'];
-                $allDmFemale += (int)$dmData['summary']['female'];
+                // Use latest data instead of accumulating
+                $allDmPatients = (int)$dmData['summary']['total'];
+                $allDmStandard = (int)$dmData['summary']['standard'];
+                $allDmNonStandard = (int)$dmData['summary']['non_standard'];
+                $allDmMale = (int)$dmData['summary']['male'];
+                $allDmFemale = (int)$dmData['summary']['female'];
             }
         }
 
@@ -545,9 +551,11 @@ class StatisticsController extends Controller
         $summary = [];
 
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            $htTargets = collect($data)->sum('ht.target');
-            $htPatients = collect($data)->sum('ht.total_patients');
-            $htStandardPatients = collect($data)->sum('ht.standard_patients');
+            // Use latest data instead of accumulating
+            $latestHtData = collect($data)->last()['ht'] ?? [];
+            $htTargets = $latestHtData['target'] ?? 0;
+            $htPatients = $latestHtData['total_patients'] ?? 0;
+            $htStandardPatients = $latestHtData['standard_patients'] ?? 0;
             $htAchievement = $htTargets > 0 ? round(($htStandardPatients / $htTargets) * 100, 2) : 0;
 
             $summary['ht'] = [
@@ -559,9 +567,11 @@ class StatisticsController extends Controller
         }
 
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            $dmTargets = collect($data)->sum('dm.target');
-            $dmPatients = collect($data)->sum('dm.total_patients');
-            $dmStandardPatients = collect($data)->sum('dm.standard_patients');
+            // Use latest data instead of accumulating
+            $latestDmData = collect($data)->last()['dm'] ?? [];
+            $dmTargets = $latestDmData['target'] ?? 0;
+            $dmPatients = $latestDmData['total_patients'] ?? 0;
+            $dmStandardPatients = $latestDmData['standard_patients'] ?? 0;
             $dmAchievement = $dmTargets > 0 ? round(($dmStandardPatients / $dmTargets) * 100, 2) : 0;
 
             $summary['dm'] = [

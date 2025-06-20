@@ -235,15 +235,15 @@ class AllQuartersRecapPdfFormatter
         $grandTotal['target'] += $puskesmasData['target'];
         $grandTotal['total_patients'] += $puskesmasData['total_patients'];
         
-        // Add monthly data
+        // Use latest monthly data instead of accumulating
         foreach ($puskesmasData['monthly'] as $index => $monthData) {
             if (isset($grandTotal['monthly'][$index])) {
-                $grandTotal['monthly'][$index]['standard'] += $monthData['standard'];
-                $grandTotal['monthly'][$index]['male'] += $monthData['male'];
-                $grandTotal['monthly'][$index]['female'] += $monthData['female'];
-                $grandTotal['monthly'][$index]['total'] += $monthData['total'];
-                $grandTotal['monthly'][$index]['non_standard'] += $monthData['non_standard'];
-                $grandTotal['monthly'][$index]['percentage'] += $monthData['percentage'];
+                $grandTotal['monthly'][$index]['standard'] = $monthData['standard'];
+                $grandTotal['monthly'][$index]['male'] = $monthData['male'];
+                $grandTotal['monthly'][$index]['female'] = $monthData['female'];
+                $grandTotal['monthly'][$index]['total'] = $monthData['total'];
+                $grandTotal['monthly'][$index]['non_standard'] = $monthData['non_standard'];
+                $grandTotal['monthly'][$index]['percentage'] = $monthData['percentage'];
             }
         }
         

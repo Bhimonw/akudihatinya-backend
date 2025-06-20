@@ -61,13 +61,14 @@ class PdfFormatter
 
                 $formattedPuskesmas['monthly'][$month - 1] = $formattedMonth;
 
-                // Accumulate for grand totals
+                // Accumulate for grand totals (per puskesmas, not monthly)
                 $formattedData['grand_total']['target'] += $formattedPuskesmas['target'];
-                $formattedData['grand_total']['monthly'][$month - 1]['male'] += $formattedMonth['male'];
-                $formattedData['grand_total']['monthly'][$month - 1]['female'] += $formattedMonth['female'];
-                $formattedData['grand_total']['monthly'][$month - 1]['standard'] += $formattedMonth['standard'];
-                $formattedData['grand_total']['monthly'][$month - 1]['non_standard'] += $formattedMonth['non_standard'];
-                $formattedData['grand_total']['monthly'][$month - 1]['total'] += $formattedMonth['total'];
+                // Use latest month data instead of accumulating monthly data
+                $formattedData['grand_total']['monthly'][$month - 1]['male'] = $formattedMonth['male'];
+                $formattedData['grand_total']['monthly'][$month - 1]['female'] = $formattedMonth['female'];
+                $formattedData['grand_total']['monthly'][$month - 1]['standard'] = $formattedMonth['standard'];
+                $formattedData['grand_total']['monthly'][$month - 1]['non_standard'] = $formattedMonth['non_standard'];
+                $formattedData['grand_total']['monthly'][$month - 1]['total'] = $formattedMonth['total'];
             }
 
             // Format quarterly data (using last month of each quarter)
@@ -75,12 +76,12 @@ class PdfFormatter
                 $endMonthIndex = ($quarter + 1) * 3 - 1; // 2, 5, 8, 11
                 $formattedPuskesmas['quarterly'][$quarter] = $formattedPuskesmas['monthly'][$endMonthIndex];
                 
-                // Accumulate quarterly grand totals
-                $formattedData['grand_total']['quarterly'][$quarter]['male'] += $formattedPuskesmas['quarterly'][$quarter]['male'];
-                $formattedData['grand_total']['quarterly'][$quarter]['female'] += $formattedPuskesmas['quarterly'][$quarter]['female'];
-                $formattedData['grand_total']['quarterly'][$quarter]['standard'] += $formattedPuskesmas['quarterly'][$quarter]['standard'];
-                $formattedData['grand_total']['quarterly'][$quarter]['non_standard'] += $formattedPuskesmas['quarterly'][$quarter]['non_standard'];
-                $formattedData['grand_total']['quarterly'][$quarter]['total'] += $formattedPuskesmas['quarterly'][$quarter]['total'];
+                // Use latest data instead of accumulating quarterly grand totals
+                $formattedData['grand_total']['quarterly'][$quarter]['male'] = $formattedPuskesmas['quarterly'][$quarter]['male'];
+                $formattedData['grand_total']['quarterly'][$quarter]['female'] = $formattedPuskesmas['quarterly'][$quarter]['female'];
+                $formattedData['grand_total']['quarterly'][$quarter]['standard'] = $formattedPuskesmas['quarterly'][$quarter]['standard'];
+                $formattedData['grand_total']['quarterly'][$quarter]['non_standard'] = $formattedPuskesmas['quarterly'][$quarter]['non_standard'];
+                $formattedData['grand_total']['quarterly'][$quarter]['total'] = $formattedPuskesmas['quarterly'][$quarter]['total'];
             }
 
             // Calculate total patients and achievement percentage (using last available month data)
@@ -139,14 +140,19 @@ class PdfFormatter
                 'puskesmas_count' => 0
             ];
 
+            // Use latest month data instead of accumulating
+            $latestData = null;
             foreach ($statisticsData['data'] as $puskesmasData) {
                 if (isset($puskesmasData[$type])) {
-                    $diseaseData = $puskesmasData[$type];
-                    $summary[$type]['target'] += $diseaseData['target'] ?? 0;
-                    $summary[$type]['total_patients'] += $diseaseData['total_patients'] ?? 0;
-                    $summary[$type]['standard_patients'] += $diseaseData['standard_patients'] ?? 0;
+                    $latestData = $puskesmasData[$type];
                     $summary[$type]['puskesmas_count']++;
                 }
+            }
+
+            if ($latestData) {
+                $summary[$type]['target'] = $latestData['target'] ?? 0;
+                $summary[$type]['total_patients'] = $latestData['total_patients'] ?? 0;
+                $summary[$type]['standard_patients'] = $latestData['standard_patients'] ?? 0;
             }
 
             $summary[$type]['achievement_percentage'] = $summary[$type]['target'] > 0

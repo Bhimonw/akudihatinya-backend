@@ -168,12 +168,12 @@ class PuskesmasPdfFormatter
             'percentage' => 0
         ];
 
-        foreach ($monthlyData as $month => $data) {
-            $totals['male'] += $data['male'] ?? 0;
-            $totals['female'] += $data['female'] ?? 0;
-            $totals['standard'] += $data['standard'] ?? 0;
-            $totals['non_standard'] += $data['non_standard'] ?? 0;
-        }
+        // Use latest month data instead of accumulating
+        $latestMonthData = collect($monthlyData)->last() ?: ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0];
+        $totals['male'] = $latestMonthData['male'] ?? 0;
+        $totals['female'] = $latestMonthData['female'] ?? 0;
+        $totals['standard'] = $latestMonthData['standard'] ?? 0;
+        $totals['non_standard'] = $latestMonthData['non_standard'] ?? 0;
 
         $totals['total'] = $totals['male'] + $totals['female'];
         $totals['total_services'] = $totals['standard'] + $totals['non_standard'];
@@ -272,15 +272,21 @@ class PuskesmasPdfFormatter
             'percentage' => 0
         ];
 
+        // Use latest month data in quarter instead of accumulating
+        $latestQuarterMonth = null;
         foreach ($months as $month) {
             $monthData = $fullData['monthly_data'][$month] ?? [];
             $quarterlyData[$month] = $monthData;
-
-            $quarterlyTotal['male'] += $monthData['male'] ?? 0;
-            $quarterlyTotal['female'] += $monthData['female'] ?? 0;
-            $quarterlyTotal['standard'] += $monthData['standard'] ?? 0;
-            $quarterlyTotal['non_standard'] += $monthData['non_standard'] ?? 0;
+            if (($monthData['total'] ?? 0) > 0) {
+                $latestQuarterMonth = $monthData;
+            }
         }
+        
+        $latestQuarterMonth = $latestQuarterMonth ?: ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0];
+        $quarterlyTotal['male'] = $latestQuarterMonth['male'] ?? 0;
+        $quarterlyTotal['female'] = $latestQuarterMonth['female'] ?? 0;
+        $quarterlyTotal['standard'] = $latestQuarterMonth['standard'] ?? 0;
+        $quarterlyTotal['non_standard'] = $latestQuarterMonth['non_standard'] ?? 0;
 
         $quarterlyTotal['total'] = $quarterlyTotal['male'] + $quarterlyTotal['female'];
         $totalServices = $quarterlyTotal['standard'] + $quarterlyTotal['non_standard'];

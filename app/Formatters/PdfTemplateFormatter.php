@@ -96,11 +96,11 @@ class PdfTemplateFormatter
                             $lastMonthData = $monthData;
                         }
 
-                        // Add to grand totals (still accumulate for grand total calculation)
-                        $grandTotals['monthly_totals'][$monthIndex]['total'] += $total;
-                        $grandTotals['monthly_totals'][$monthIndex]['standard'] += $standard;
-                        $grandTotals['monthly_totals'][$monthIndex]['male'] += $male;
-                        $grandTotals['monthly_totals'][$monthIndex]['female'] += $female;
+                        // Use latest month data instead of accumulating monthly data
+                        $grandTotals['monthly_totals'][$monthIndex]['total'] = $total;
+                        $grandTotals['monthly_totals'][$monthIndex]['standard'] = $standard;
+                        $grandTotals['monthly_totals'][$monthIndex]['male'] = $male;
+                        $grandTotals['monthly_totals'][$monthIndex]['female'] = $female;
                         $grandTotals['quarter_total']['total'] += $total;
                         $grandTotals['quarter_total']['standard'] += $standard;
                         $grandTotals['quarter_total']['male'] += $male;

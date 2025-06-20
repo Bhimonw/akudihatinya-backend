@@ -236,11 +236,6 @@ class RealTimeStatisticsService
             ->get();
             
         $monthlyData = [];
-        $totalMale = 0;
-        $totalFemale = 0;
-        $totalCount = 0;
-        $totalStandard = 0;
-        $totalNonStandard = 0;
         
         // Initialize 12 months with zero data
         for ($month = 1; $month <= 12; $month++) {
@@ -264,12 +259,6 @@ class RealTimeStatisticsService
                 'non_standard' => (string)$data->non_standard_count,
                 'percentage' => $data->standard_percentage,
             ];
-            
-            $totalMale += $data->male_count;
-            $totalFemale += $data->female_count;
-            $totalCount += $data->total_count;
-            $totalStandard += $data->standard_count;
-            $totalNonStandard += $data->non_standard_count;
         }
         
         // Find last month with data for summary
@@ -281,23 +270,26 @@ class RealTimeStatisticsService
             }
         }
         
+        // Use last month data for both summary and yearly_total to avoid accumulation
+        $summaryData = $lastMonthWithData ?: [
+            'male' => '0',
+            'female' => '0',
+            'total' => '0',
+            'standard' => '0',
+            'non_standard' => '0',
+            'percentage' => 0,
+        ];
+        
         return [
             'monthly_data' => $monthlyData,
-            'summary' => $lastMonthWithData ?: [
-                'male' => '0',
-                'female' => '0',
-                'total' => '0',
-                'standard' => '0',
-                'non_standard' => '0',
-                'percentage' => 0,
-            ],
+            'summary' => $summaryData,
             'yearly_total' => [
-                'male' => (string)$totalMale,
-                'female' => (string)$totalFemale,
-                'total' => (string)$totalCount,
-                'standard' => (string)$totalStandard,
-                'non_standard' => (string)$totalNonStandard,
-                'percentage' => $yearlyTarget > 0 ? round(($totalStandard / $yearlyTarget) * 100, 2) : 0,
+                'male' => $summaryData['male'],
+                'female' => $summaryData['female'],
+                'total' => $summaryData['total'],
+                'standard' => $summaryData['standard'],
+                'non_standard' => $summaryData['non_standard'],
+                'percentage' => $yearlyTarget > 0 ? round(((int)$summaryData['standard'] / $yearlyTarget) * 100, 2) : 0,
             ]
         ];
     }

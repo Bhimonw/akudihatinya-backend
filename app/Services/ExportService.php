@@ -176,16 +176,17 @@ class ExportService
             $data['quarterly_data'] = $quarterlyData;
         }
 
-        // Calculate summary data
+        // Calculate summary data using latest month data instead of accumulation
+        $latestMonthData = collect($monthlyData)->last() ?: ['total' => 0, 'standard' => 0, 'non_standard' => 0, 'male' => 0, 'female' => 0];
         $data['summary'] = [
-            'total_patients' => collect($monthlyData)->sum('total'),
-            'standard_patients' => collect($monthlyData)->sum('standard'),
-            'non_standard_patients' => collect($monthlyData)->sum('non_standard'),
-            'male_patients' => collect($monthlyData)->sum('male'),
-            'female_patients' => collect($monthlyData)->sum('female'),
+            'total_patients' => $latestMonthData['total'],
+            'standard_patients' => $latestMonthData['standard'],
+            'non_standard_patients' => $latestMonthData['non_standard'],
+            'male_patients' => $latestMonthData['male'],
+            'female_patients' => $latestMonthData['female'],
             'target' => $data['target'],
             'achievement_percentage' => $data['target'] > 0 ?
-                round((collect($monthlyData)->sum('standard') / $data['target']) * 100, 2) : 0
+                round(($latestMonthData['standard'] / $data['target']) * 100, 2) : 0
         ];
 
         return $data;
@@ -375,11 +376,11 @@ class ExportService
                         'ps' => $monthData['percentage'],
                     ];
 
-                    // Accumulate monthly grand totals
-                    $grandTotalData['monthly'][$monthNumber]['male'] += $monthData['male'];
-                    $grandTotalData['monthly'][$monthNumber]['female'] += $monthData['female'];
-                    $grandTotalData['monthly'][$monthNumber]['total'] += $monthData['total'];
-                    $grandTotalData['monthly'][$monthNumber]['non_standard'] += $monthData['non_standard'];
+                    // Use latest month data instead of accumulating monthly data
+                    $grandTotalData['monthly'][$monthNumber]['male'] = $monthData['male'];
+                    $grandTotalData['monthly'][$monthNumber]['female'] = $monthData['female'];
+                    $grandTotalData['monthly'][$monthNumber]['total'] = $monthData['total'];
+                    $grandTotalData['monthly'][$monthNumber]['non_standard'] = $monthData['non_standard'];
                 }
 
                 // Format quarterly data (using data from the last month of each quarter)
@@ -675,8 +676,10 @@ class ExportService
 
                     foreach ($typeStats as $stat) {
                         $totalTarget += $stat['target'] ?? 0;
-                        $totalPatients += array_sum(array_column($stat['monthly_data'], 'total'));
-                        $totalStandard += array_sum(array_column($stat['monthly_data'], 'standard'));
+                        // Use latest month data instead of accumulating all months
+                        $latestMonthData = end($stat['monthly_data']);
+                        $totalPatients += $latestMonthData['total'] ?? 0;
+                        $totalStandard += $latestMonthData['standard'] ?? 0;
                     }
 
                     $achievement = $totalTarget > 0 ? round(($totalStandard / $totalTarget) * 100, 2) : 0;
