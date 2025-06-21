@@ -68,31 +68,13 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
 
     protected function formatData($data)
     {
+        // Gunakan data summary yang sudah dihitung dari BaseAdminFormatter
         $totals = [
-            'target' => 0,
-            'monthly_data' => array_fill(1, 12, [
-                'male' => 0,
-                'female' => 0,
-                'standard' => 0,
-                'non_standard' => 0,
-                'total' => 0,
-                'percentage' => 0
-            ])
+            'target' => $data['summary']['target'],
+            'monthly_data' => $data['summary']['monthly_data']
         ];
 
-        foreach ($data['data'] as $puskesmasData) {
-            $diseaseData = $puskesmasData[$data['type']] ?? [];
-            $totals['target'] += $diseaseData['target'] ?? 0;
-            if (isset($diseaseData['monthly_data'])) {
-                foreach ($diseaseData['monthly_data'] as $month => $monthData) {
-                    $totals['monthly_data'][$month]['male'] += $monthData['male'] ?? 0;
-                    $totals['monthly_data'][$month]['female'] += $monthData['female'] ?? 0;
-                    $totals['monthly_data'][$month]['standard'] += $monthData['standard'] ?? 0;
-                    $totals['monthly_data'][$month]['non_standard'] += $monthData['non_standard'] ?? 0;
-                    $totals['monthly_data'][$month]['total'] += $monthData['total'] ?? 0;
-                }
-            }
-        }
+        // Hitung persentase untuk data summary (non-kumulatif untuk monthly)
         foreach ($totals['monthly_data'] as $month => &$monthData) {
             $monthData['percentage'] = $totals['target'] > 0
                 ? round(($monthData['standard'] / $totals['target']) * 100, 2)
@@ -161,7 +143,25 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             12 => ['BG', 'BH', 'BI', 'BJ', 'BK']  // Dec: L, P, Total, TS, %S
         ];
 
-        // Fill monthly data
+        // Hitung data kumulatif perbulan (akumulasi dari Januari hingga bulan tersebut)
+        $cumulativeData = [];
+        $cumulative = [
+            'male' => 0,
+            'female' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total' => 0
+        ];
+
+        // Dapatkan target untuk perhitungan persentase kumulatif
+        $target = 0;
+        if (isset($this->data['data']) && is_array($this->data['data'])) {
+            foreach ($this->data['data'] as $puskesmasData) {
+                $diseaseData = $puskesmasData[$this->data['type']] ?? [];
+                $target += $diseaseData['target'] ?? 0;
+            }
+        }
+
         for ($month = 1; $month <= 12; $month++) {
             $monthData = $monthlyData[$month] ?? [
                 'male' => 0,
@@ -171,12 +171,39 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
                 'non_standard' => 0,
                 'percentage' => 0
             ];
+
+            // Akumulasi data dari Januari hingga bulan ini
+            $cumulative['male'] += $monthData['male'];
+            $cumulative['female'] += $monthData['female'];
+            $cumulative['standard'] += $monthData['standard'];
+            $cumulative['non_standard'] += $monthData['non_standard'];
+            $cumulative['total'] += $monthData['total'];
+
+            // Hitung persentase kumulatif: akumulasi standar / target total
+            $cumulativePercentage = $target > 0
+                ? round(($cumulative['standard'] / $target) * 100, 2)
+                : 0;
+
+            // Simpan data kumulatif untuk bulan ini
+            $cumulativeData[$month] = [
+                'male' => $cumulative['male'],
+                'female' => $cumulative['female'],
+                'standard' => $cumulative['standard'],
+                'non_standard' => $cumulative['non_standard'],
+                'total' => $cumulative['total'],
+                'percentage' => $cumulativePercentage // Gunakan persentase kumulatif
+            ];
+        }
+
+        // Fill monthly data dengan data kumulatif
+        for ($month = 1; $month <= 12; $month++) {
+            $monthData = $cumulativeData[$month];
             $columns = $monthColumns[$month];
 
-            $this->sheet->setCellValue($columns[0] . $this->currentRow, $monthData['male']);      // L (Laki-laki Standar)
-            $this->sheet->setCellValue($columns[1] . $this->currentRow, $monthData['female']);    // P (Perempuan Standar)
-            $this->sheet->setCellValue($columns[2] . $this->currentRow, $monthData['standard']);  // Total (Total Standar)
-            $this->sheet->setCellValue($columns[3] . $this->currentRow, $monthData['non_standard']); // TS (Tidak Standar)
+            $this->sheet->setCellValue($columns[0] . $this->currentRow, $monthData['male']);      // L (Laki-laki Standar Kumulatif)
+            $this->sheet->setCellValue($columns[1] . $this->currentRow, $monthData['female']);    // P (Perempuan Standar Kumulatif)
+            $this->sheet->setCellValue($columns[2] . $this->currentRow, $monthData['standard']);  // Total (Total Standar Kumulatif)
+            $this->sheet->setCellValue($columns[3] . $this->currentRow, $monthData['non_standard']); // TS (Tidak Standar Kumulatif)
             $this->sheet->setCellValue($columns[4] . $this->currentRow, $monthData['percentage']); // %S (tanpa %)
         }
     }

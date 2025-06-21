@@ -69,8 +69,9 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
 
     protected function formatData($data)
     {
+        // Gunakan data summary yang sudah dihitung dari BaseAdminFormatter
         $totals = [
-            'target' => 0,
+            'target' => $data['summary']['target'],
             'quarterly_data' => array_fill(1, 4, [
                 'male' => 0,
                 'female' => 0,
@@ -80,18 +81,9 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
                 'percentage' => 0
             ])
         ];
-        $allMonthlyData = [];
 
-        // Agregasi total target dan kumpulkan monthly_data
-        foreach ($data['data'] as $puskesmasData) {
-            $diseaseData = $puskesmasData[$data['type']] ?? [];
-            $totals['target'] += $diseaseData['target'] ?? 0;
-            if (isset($diseaseData['monthly_data'])) {
-                $allMonthlyData[] = $diseaseData['monthly_data'];
-            }
-        }
-        // Hitung total summary triwulan seluruh puskesmas
-        $quarterTotals = \App\Helpers\QuarterHelper::getQuarterTotals($allMonthlyData, $totals['target']);
+        // Hitung total summary triwulan dari data summary yang sudah ada
+        $quarterTotals = \App\Helpers\QuarterHelper::getQuarterTotals([$data['summary']['monthly_data']], $totals['target']);
 
         // Isi data per puskesmas
         $startRow = $this->currentRow;
@@ -187,14 +179,68 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
             4 => ['S', 'T', 'U', 'V', 'W']      // Triwulan IV: L, P, Total, TS, %S
         ];
 
-        // Process quarterly data
+        // Hitung data kumulatif perbulan (akumulasi dari Januari hingga bulan tersebut)
+        $cumulativeData = [];
+        $cumulative = [
+            'male' => 0,
+            'female' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total' => 0
+        ];
+
+        // Dapatkan target untuk perhitungan persentase kumulatif
+        $target = 0;
+        if (isset($this->data['data']) && is_array($this->data['data'])) {
+            foreach ($this->data['data'] as $puskesmasData) {
+                $diseaseData = $puskesmasData[$this->data['type']] ?? [];
+                $target += $diseaseData['target'] ?? 0;
+            }
+        }
+
+        for ($month = 1; $month <= 12; $month++) {
+            $monthData = $monthlyData[$month] ?? [
+                'male' => 0,
+                'female' => 0,
+                'total' => 0,
+                'standard' => 0,
+                'non_standard' => 0,
+                'percentage' => 0
+            ];
+
+            // Akumulasi data dari Januari hingga bulan ini
+            $cumulative['male'] += $monthData['male'];
+            $cumulative['female'] += $monthData['female'];
+            $cumulative['standard'] += $monthData['standard'];
+            $cumulative['non_standard'] += $monthData['non_standard'];
+            $cumulative['total'] += $monthData['total'];
+
+            // Hitung persentase kumulatif: akumulasi standar / target total
+            $cumulativePercentage = $target > 0
+                ? round(($cumulative['standard'] / $target) * 100, 2)
+                : 0;
+
+            // Simpan data kumulatif untuk bulan ini
+            $cumulativeData[$month] = [
+                'male' => $cumulative['male'],
+                'female' => $cumulative['female'],
+                'standard' => $cumulative['standard'],
+                'non_standard' => $cumulative['non_standard'],
+                'total' => $cumulative['total'],
+                'percentage' => $cumulativePercentage // Gunakan persentase kumulatif
+            ];
+        }
+
+        // Process quarterly data menggunakan data kumulatif bulan terakhir di setiap quarter
         for ($quarter = 1; $quarter <= 4; $quarter++) {
-            $quarterData = QuarterHelper::getQuarterSummary($monthlyData, $quarter);
+            $endMonth = $quarter * 3; // Bulan terakhir di quarter (3, 6, 9, 12)
+            $quarterData = $cumulativeData[$endMonth]; // Gunakan data kumulatif bulan terakhir
             $columns = $quarterColumns[$quarter];
-            $this->sheet->setCellValue($columns[0] . $this->currentRow, $quarterData['male']);      // L (Laki-laki Standar)
-            $this->sheet->setCellValue($columns[1] . $this->currentRow, $quarterData['female']);    // P (Perempuan Standar)
-            $this->sheet->setCellValue($columns[2] . $this->currentRow, $quarterData['standard']);  // Total (Total Standar)
-            $this->sheet->setCellValue($columns[3] . $this->currentRow, $quarterData['non_standard']); // TS (Tidak Standar)
+            
+            $this->sheet->setCellValue($columns[0] . $this->currentRow, $quarterData['male']);      // L (Laki-laki Standar Kumulatif)
+            $this->sheet->setCellValue($columns[1] . $this->currentRow, $quarterData['female']);    // P (Perempuan Standar Kumulatif)
+            $this->sheet->setCellValue($columns[2] . $this->currentRow, $quarterData['standard']);  // Total (Total Standar Kumulatif)
+            $this->sheet->setCellValue($columns[3] . $this->currentRow, $quarterData['non_standard']); // TS (Tidak Standar Kumulatif)
             $this->sheet->setCellValue($columns[4] . $this->currentRow, $quarterData['percentage']); // %S (tanpa %)
         }
     }

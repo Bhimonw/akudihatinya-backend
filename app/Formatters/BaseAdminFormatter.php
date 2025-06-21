@@ -29,11 +29,93 @@ abstract class BaseAdminFormatter
                 'type' => $diseaseType
             ];
         } else {
-            $request = new \Illuminate\Http\Request([
-                'year' => $year,
+            // Menggunakan pendekatan yang sama seperti StatisticsController dashboard admin
+            $allPuskesmas = \App\Models\Puskesmas::all();
+            $data = [];
+            
+            // Variabel untuk menghitung summary total (seperti di StatisticsController)
+            $totalTarget = 0;
+            $totalPatients = 0;
+            $totalStandard = 0;
+            $totalNonStandard = 0;
+            $totalMale = 0;
+            $totalFemale = 0;
+            $monthlyData = [];
+            
+            foreach ($allPuskesmas as $puskesmas) {
+                // Get statistics data from cache untuk setiap puskesmas
+                if ($diseaseType === 'ht') {
+                    $diseaseData = $this->statisticsService->getHtStatisticsFromCache($puskesmas->id, $year);
+                } else {
+                    $diseaseData = $this->statisticsService->getDmStatisticsFromCache($puskesmas->id, $year);
+                }
+                
+                // Get target untuk puskesmas ini
+                $target = \App\Models\YearlyTarget::where('puskesmas_id', $puskesmas->id)
+                    ->where('year', $year)
+                    ->where('disease_type', $diseaseType)
+                    ->value('target_count') ?? 0;
+                
+                // Tambahkan target ke diseaseData
+                $diseaseData['target'] = $target;
+                
+                // Akumulasi untuk summary (menggunakan data summary dari setiap puskesmas)
+                $summary = $diseaseData['summary'] ?? [];
+                $totalTarget += $target;
+                $totalPatients += (int)($summary['total'] ?? 0);
+                $totalStandard += (int)($summary['standard'] ?? 0);
+                $totalNonStandard += (int)($summary['non_standard'] ?? 0);
+                $totalMale += (int)($summary['male'] ?? 0);
+                $totalFemale += (int)($summary['female'] ?? 0);
+                
+                // Agregasi data bulanan untuk summary
+                foreach ($diseaseData['monthly_data'] ?? [] as $month => $monthData) {
+                    if (!isset($monthlyData[$month])) {
+                        $monthlyData[$month] = [
+                            'male' => 0,
+                            'female' => 0,
+                            'total' => 0,
+                            'standard' => 0,
+                            'non_standard' => 0,
+                            'percentage' => 0
+                        ];
+                    }
+                    $monthlyData[$month]['male'] += (int)($monthData['male'] ?? 0);
+                    $monthlyData[$month]['female'] += (int)($monthData['female'] ?? 0);
+                    $monthlyData[$month]['total'] += (int)($monthData['total'] ?? 0);
+                    $monthlyData[$month]['standard'] += (int)($monthData['standard'] ?? 0);
+                    $monthlyData[$month]['non_standard'] += (int)($monthData['non_standard'] ?? 0);
+                }
+                
+                $data[] = [
+                    'puskesmas_id' => $puskesmas->id,
+                    'puskesmas_name' => $puskesmas->name,
+                    $diseaseType => $diseaseData
+                ];
+            }
+            
+            // Hitung persentase untuk data bulanan summary
+            foreach ($monthlyData as $month => &$monthData) {
+                $monthData['percentage'] = $totalTarget > 0 ? round(($monthData['standard'] / $totalTarget) * 100, 2) : 0;
+            }
+            
+            // Buat data summary seperti di StatisticsController
+            $summaryData = [
+                'target' => $totalTarget,
+                'total' => $totalPatients,
+                'standard' => $totalStandard,
+                'non_standard' => $totalNonStandard,
+                'male' => $totalMale,
+                'female' => $totalFemale,
+                'percentage' => $totalTarget > 0 ? round(($totalStandard / $totalTarget) * 100, 2) : 0,
+                'monthly_data' => $monthlyData
+            ];
+            
+            return [
+                'data' => $data,
+                'summary' => $summaryData,
                 'type' => $diseaseType
-            ]);
-            return app(\App\Services\StatisticsAdminService::class)->getAdminStatistics($request);
+            ];
         }
     }
 
