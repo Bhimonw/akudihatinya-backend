@@ -12,6 +12,7 @@ use App\Repositories\PuskesmasRepositoryInterface;
 use App\Traits\StatisticsValidationTrait;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 
 class StatisticsController extends Controller
 {
@@ -179,9 +180,17 @@ class StatisticsController extends Controller
         $htTotalTarget = 0;
         $htTotalPatients = 0;
         $htTotalStandard = 0;
+        $htTotalNonStandard = 0;
+        $htTotalMale = 0;
+        $htTotalFemale = 0;
         $dmTotalTarget = 0;
         $dmTotalPatients = 0;
         $dmTotalStandard = 0;
+        $dmTotalNonStandard = 0;
+        $dmTotalMale = 0;
+        $dmTotalFemale = 0;
+        $htMonthlyData = [];
+        $dmMonthlyData = [];
 
         foreach ($allPuskesmas as $puskesmas) {
             $puskesmasData = [
@@ -205,6 +214,30 @@ class StatisticsController extends Controller
                 $htTotalTarget += $htTarget;
                 $htTotalPatients += (int)$htData['summary']['total'];
                 $htTotalStandard += (int)$htData['summary']['standard'];
+                $htTotalNonStandard += (int)$htData['summary']['non_standard'];
+                $htTotalMale += (int)$htData['summary']['male'];
+                $htTotalFemale += (int)$htData['summary']['female'];
+                
+                // Aggregate monthly data for summary
+                foreach ($htData['monthly_data'] as $month => $monthData) {
+                    if (!isset($htMonthlyData[$month])) {
+                        $htMonthlyData[$month] = [
+                            'target' => 0,
+                            'male' => 0,
+                            'female' => 0,
+                            'total' => 0,
+                            'standard' => 0,
+                            'non_standard' => 0,
+                            'percentage' => 0
+                        ];
+                    }
+                    $htMonthlyData[$month]['target'] += $monthData['target'] ?? 0;
+                    $htMonthlyData[$month]['male'] += $monthData['male'] ?? 0;
+                    $htMonthlyData[$month]['female'] += $monthData['female'] ?? 0;
+                    $htMonthlyData[$month]['total'] += $monthData['total'] ?? 0;
+                    $htMonthlyData[$month]['standard'] += $monthData['standard'] ?? 0;
+                    $htMonthlyData[$month]['non_standard'] += $monthData['non_standard'] ?? 0;
+                }
             }
 
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
@@ -223,6 +256,30 @@ class StatisticsController extends Controller
                 $dmTotalTarget += $dmTarget;
                 $dmTotalPatients += (int)$dmData['summary']['total'];
                 $dmTotalStandard += (int)$dmData['summary']['standard'];
+                $dmTotalNonStandard += (int)$dmData['summary']['non_standard'];
+                $dmTotalMale += (int)$dmData['summary']['male'];
+                $dmTotalFemale += (int)$dmData['summary']['female'];
+                
+                // Aggregate monthly data for summary
+                foreach ($dmData['monthly_data'] as $month => $monthData) {
+                    if (!isset($dmMonthlyData[$month])) {
+                        $dmMonthlyData[$month] = [
+                            'target' => 0,
+                            'male' => 0,
+                            'female' => 0,
+                            'total' => 0,
+                            'standard' => 0,
+                            'non_standard' => 0,
+                            'percentage' => 0
+                        ];
+                    }
+                    $dmMonthlyData[$month]['target'] += $monthData['target'] ?? 0;
+                    $dmMonthlyData[$month]['male'] += $monthData['male'] ?? 0;
+                    $dmMonthlyData[$month]['female'] += $monthData['female'] ?? 0;
+                    $dmMonthlyData[$month]['total'] += $monthData['total'] ?? 0;
+                    $dmMonthlyData[$month]['standard'] += $monthData['standard'] ?? 0;
+                    $dmMonthlyData[$month]['non_standard'] += $monthData['non_standard'] ?? 0;
+                }
             }
 
             $data[] = $puskesmasData;
@@ -231,31 +288,48 @@ class StatisticsController extends Controller
         // Calculate ranking based on achievement percentage
         $data = $this->calculateRanking($data, $diseaseType);
         
+        // Calculate monthly percentages for summary
+        foreach ($htMonthlyData as $month => &$monthData) {
+            $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+        }
+        foreach ($dmMonthlyData as $month => &$monthData) {
+            $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+        }
+        
         // Build summary
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
             $summary['ht'] = [
-                'total_target' => $htTotalTarget,
-                'total_patients' => $htTotalPatients,
-                'total_standard_patients' => $htTotalStandard,
-                'average_achievement_percentage' => $htTotalTarget > 0 ? round(($htTotalStandard / $htTotalTarget) * 100, 2) : 0
+                'target' => (string)$htTotalTarget,
+                'total_patients' => (string)$htTotalPatients,
+                'standard_patients' => (string)$htTotalStandard,
+                'non_standard_patients' => (string)$htTotalNonStandard,
+                'male_patients' => (string)$htTotalMale,
+                'female_patients' => (string)$htTotalFemale,
+                'achievement_percentage' => $htTotalTarget > 0 ? round(($htTotalStandard / $htTotalTarget) * 100, 2) : 0,
+                'monthly_data' => $htMonthlyData
             ];
         }
         
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
             $summary['dm'] = [
-                'total_target' => $dmTotalTarget,
-                'total_patients' => $dmTotalPatients,
-                'total_standard_patients' => $dmTotalStandard,
-                'average_achievement_percentage' => $dmTotalTarget > 0 ? round(($dmTotalStandard / $dmTotalTarget) * 100, 2) : 0
+                'target' => (string)$dmTotalTarget,
+                'total_patients' => (string)$dmTotalPatients,
+                'standard_patients' => (string)$dmTotalStandard,
+                'non_standard_patients' => (string)$dmTotalNonStandard,
+                'male_patients' => (string)$dmTotalMale,
+                'female_patients' => (string)$dmTotalFemale,
+                'achievement_percentage' => $dmTotalTarget > 0 ? round(($dmTotalStandard / $dmTotalTarget) * 100, 2) : 0,
+                'monthly_data' => $dmMonthlyData
             ];
         }
         
         $totalPuskesmas = count($allPuskesmas);
 
         return response()->json([
-            'year' => (int)$year,
+            'year' => (string)$year,
             'disease_type' => $diseaseType,
             'month' => null,
+            'month_name' => null,
             'total_puskesmas' => $totalPuskesmas,
             'summary' => $summary,
             'data' => $data,
