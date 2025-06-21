@@ -207,6 +207,7 @@ class StatisticsController extends Controller
                     'total_patients' => (string)$htData['summary']['total'],
                     'achievement_percentage' => $htTarget > 0 ? round(((int)$htData['summary']['standard'] / $htTarget) * 100, 2) : 0,
                     'standard_patients' => (string)$htData['summary']['standard'],
+                    'non_standard_patients' => (string)$htData['summary']['non_standard'],
                     'monthly_data' => $this->formatMonthlyData($htData['monthly_data'], $htTarget)
                 ];
                 
@@ -249,6 +250,7 @@ class StatisticsController extends Controller
                     'total_patients' => (string)$dmData['summary']['total'],
                     'achievement_percentage' => $dmTarget > 0 ? round(((int)$dmData['summary']['standard'] / $dmTarget) * 100, 2) : 0,
                     'standard_patients' => (string)$dmData['summary']['standard'],
+                    'non_standard_patients' => (string)$dmData['summary']['non_standard'],
                     'monthly_data' => $this->formatMonthlyData($dmData['monthly_data'], $dmTarget)
                 ];
                 
