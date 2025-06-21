@@ -168,7 +168,12 @@ class StatisticsExportService
 
             $filename = $filename ?: $this->generateFilename($year, $month, $diseaseType, 'puskesmas', 'pdf', $month ? 'single' : 'recap');
 
-            return $this->pdfService->generatePdf('exports.puskesmas_statistics', $templateData, $filename);
+            // Use the correct method from PdfService for puskesmas
+            return $this->pdfService->generatePuskesmasPdf(
+                $puskesmas->id,
+                $diseaseType,
+                $year
+            );
 
         } catch (PuskesmasNotFoundException $e) {
             Log::error('Puskesmas not found during PDF export', ['error' => $e->getMessage()]);
@@ -205,7 +210,15 @@ class StatisticsExportService
             'generated_by' => Auth::user()->name ?? 'System'
         ];
 
-        return $this->pdfService->generatePdf('exports.statistics', $templateData, $filename);
+        // Use the correct method from PdfService
+        return $this->pdfService->generateStatisticsPdfFromTemplate(
+            null, // puskesmasAll - not needed for this call
+            $templateData['year'],
+            null, // month
+            $templateData['disease_type'],
+            $filename,
+            'statistics'
+        );
     }
 
     /**
@@ -347,7 +360,13 @@ class StatisticsExportService
 
             $filename = 'statistik_quarterly_' . strtolower($puskesmas->name) . '_' . $year . '_' . $diseaseType . '_' . date('Ymd-His') . '.pdf';
 
-            return $this->pdfService->generatePdf('exports.puskesmas_quarterly', $templateData, $filename);
+            // Use the correct method from PdfService
+            return $this->pdfService->generatePuskesmasQuarterlyPdf(
+                $puskesmasId,
+                $year,
+                $diseaseType,
+                $filename
+            );
 
         } catch (PuskesmasNotFoundException $e) {
             return response()->json([

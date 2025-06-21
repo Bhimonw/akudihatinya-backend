@@ -211,7 +211,17 @@ class PdfService
             ini_set('memory_limit', '512M');
             set_time_limit(300);
 
-            // Format data using AllQuartersRecapPdfFormatter
+            // Choose template and formatter based on report type
+            if ($reportType === 'puskesmas') {
+                // For puskesmas reports, use puskesmas template and formatter
+                $puskesmasId = $puskesmasAll ? $puskesmasAll->first()->id : null;
+                if (!$puskesmasId) {
+                    throw new \Exception('Puskesmas ID is required for puskesmas reports');
+                }
+                return $this->generatePuskesmasPdf($puskesmasId, $diseaseType, $year);
+            }
+
+            // For admin reports, use AllQuartersRecapPdfFormatter
             $formattedData = $this->allQuartersRecapPdfFormatter->formatAllQuartersRecapData($year, $diseaseType);
 
             Log::info('Statistics PDF generation data prepared', [
@@ -222,7 +232,7 @@ class PdfService
                 'quarters_count' => count($formattedData['quarters_data'])
             ]);
 
-            // Always use all_quarters_recap_pdf template
+            // Use all_quarters_recap_pdf template for admin reports
             $templateName = 'all_quarters_recap_pdf';
 
             // Check if template exists
@@ -377,5 +387,44 @@ class PdfService
         $cleanPuskesmasName = preg_replace('/[^A-Za-z0-9_-]/', '_', $puskesmasName);
 
         return "Rekapitulasi_SPM_{$cleanPuskesmasName}_{$diseaseLabel}_Q{$quarter}_{$year}_{$timestamp}.pdf";
+    }
+
+    /**
+     * Generic PDF generation method for various templates
+     *
+     * @param string $template
+     * @param array $data
+     * @param string $filename
+     * @return \Illuminate\Http\Response
+     */
+    public function generatePdf($template, $data, $filename)
+    {
+        try {
+            // Set memory and time limits
+            ini_set('memory_limit', '512M');
+            set_time_limit(300);
+
+            $pdf = Pdf::loadView($template, $data)
+                ->setPaper('a4', 'landscape')
+                ->setOptions([
+                    'isHtml5ParserEnabled' => true,
+                    'isPhpEnabled' => true,
+                    'defaultFont' => 'sans-serif'
+                ]);
+
+            return $pdf->download($filename);
+
+        } catch (\Exception $e) {
+            Log::error('PDF generation failed', [
+                'template' => $template,
+                'filename' => $filename,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => 'PDF generation failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

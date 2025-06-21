@@ -235,45 +235,25 @@ class AllQuartersRecapPdfFormatter
         $grandTotal['target'] += $puskesmasData['target'];
         $grandTotal['total_patients'] += $puskesmasData['total_patients'];
         
-        // Use latest monthly data instead of accumulating
+        // Accumulate monthly data from all puskesmas
         foreach ($puskesmasData['monthly'] as $index => $monthData) {
             if (isset($grandTotal['monthly'][$index])) {
-                $grandTotal['monthly'][$index]['standard'] = $monthData['standard'];
-                $grandTotal['monthly'][$index]['male'] = $monthData['male'];
-                $grandTotal['monthly'][$index]['female'] = $monthData['female'];
-                $grandTotal['monthly'][$index]['total'] = $monthData['total'];
-                $grandTotal['monthly'][$index]['non_standard'] = $monthData['non_standard'];
-                $grandTotal['monthly'][$index]['percentage'] = $monthData['percentage'];
+                $grandTotal['monthly'][$index]['standard'] += $monthData['standard'];
+                $grandTotal['monthly'][$index]['male'] += $monthData['male'];
+                $grandTotal['monthly'][$index]['female'] += $monthData['female'];
+                $grandTotal['monthly'][$index]['total'] += $monthData['total'];
+                $grandTotal['monthly'][$index]['non_standard'] += $monthData['non_standard'];
+                // Percentage will be recalculated later based on accumulated values
             }
         }
         
-        // Use quarterly data from last month instead of accumulation
+        // Accumulate quarterly data from all puskesmas
         if (isset($puskesmasData['quarterly'][0])) {
-            // Find the last month with data from this puskesmas
-            $lastMonthData = null;
-            if (isset($puskesmasData['monthly']) && is_array($puskesmasData['monthly'])) {
-                for ($i = count($puskesmasData['monthly']) - 1; $i >= 0; $i--) {
-                    if ($puskesmasData['monthly'][$i]['total'] > 0 || $puskesmasData['monthly'][$i]['standard'] > 0) {
-                        $lastMonthData = $puskesmasData['monthly'][$i];
-                        break;
-                    }
-                }
-            }
-            
-            // Use data from last month if available, otherwise use quarterly data
-            if ($lastMonthData !== null) {
-                $grandTotal['quarterly'][0]['male'] = $lastMonthData['male'];
-                $grandTotal['quarterly'][0]['female'] = $lastMonthData['female'];
-                $grandTotal['quarterly'][0]['standard'] = $lastMonthData['standard'];
-                $grandTotal['quarterly'][0]['total'] = $lastMonthData['total'];
-                $grandTotal['quarterly'][0]['achievement_percentage'] = $lastMonthData['percentage'];
-            } else {
-                $grandTotal['quarterly'][0]['male'] = $puskesmasData['quarterly'][0]['male'];
-                $grandTotal['quarterly'][0]['female'] = $puskesmasData['quarterly'][0]['female'];
-                $grandTotal['quarterly'][0]['standard'] = $puskesmasData['quarterly'][0]['standard'];
-                $grandTotal['quarterly'][0]['total'] = $puskesmasData['quarterly'][0]['total'];
-                $grandTotal['quarterly'][0]['achievement_percentage'] = $puskesmasData['quarterly'][0]['achievement_percentage'];
-            }
+            $grandTotal['quarterly'][0]['male'] += $puskesmasData['quarterly'][0]['male'];
+            $grandTotal['quarterly'][0]['female'] += $puskesmasData['quarterly'][0]['female'];
+            $grandTotal['quarterly'][0]['standard'] += $puskesmasData['quarterly'][0]['standard'];
+            $grandTotal['quarterly'][0]['total'] += $puskesmasData['quarterly'][0]['total'];
+            // Achievement percentage will be recalculated later based on accumulated values
         }
     }
 
@@ -289,25 +269,15 @@ class AllQuartersRecapPdfFormatter
                 : 0;
         }
         
-        // For TOTAL STANDAR TW: use standard from previous month (last month with data)
-        // For % CAPAIAN TW: use percentage from last month
-        $lastMonthIndex = count($grandTotal['monthly']) - 1;
-        $lastMonthWithData = null;
-        
-        // Find the last month that has data
-        for ($i = $lastMonthIndex; $i >= 0; $i--) {
-            if ($grandTotal['monthly'][$i]['standard'] > 0 || $grandTotal['monthly'][$i]['total'] > 0) {
-                $lastMonthWithData = $grandTotal['monthly'][$i];
-                break;
-            }
+        // Calculate quarterly achievement percentage based on accumulated data
+        if (isset($grandTotal['quarterly'][0])) {
+            $grandTotal['quarterly'][0]['achievement_percentage'] = $grandTotal['target'] > 0
+                ? round(($grandTotal['quarterly'][0]['standard'] / $grandTotal['target']) * 100, 2)
+                : 0;
         }
         
-        // Set achievement percentage from last month's percentage
-        if ($lastMonthWithData !== null) {
-            $grandTotal['achievement_percentage'] = $lastMonthWithData['percentage'];
-        } else {
-            $grandTotal['achievement_percentage'] = 0;
-        }
+        // Set overall achievement percentage from quarterly data
+        $grandTotal['achievement_percentage'] = $grandTotal['quarterly'][0]['achievement_percentage'] ?? 0;
     }
 
     /**
