@@ -1,4 +1,4 @@
-# PDF Generation Best Practices & Implementation Guide
+# 📄 PDF Generation Best Practices
 
 Dokumen ini menjelaskan best practices yang telah diimplementasikan untuk PDF generation, termasuk formatter khusus, error handling "Puskesmas not found", dan peningkatan kualitas kode secara keseluruhan.
 

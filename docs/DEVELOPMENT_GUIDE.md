@@ -1,4 +1,4 @@
-# Development Guide - Akudihatinya Backend
+# 💻 Development Guide
 
 Panduan pengembangan untuk kontributor dan developer yang bekerja pada proyek Akudihatinya Backend.
 

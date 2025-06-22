@@ -1,4 +1,4 @@
-# Migration to Statistics Controller
+# 🔄 Migration to StatisticsController
 
 Dokumentasi ini menjelaskan migrasi dari `DashboardController` ke `StatisticsController` dengan implementasi `RealTimeStatisticsService`.
 

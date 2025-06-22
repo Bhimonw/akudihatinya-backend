@@ -1,6 +1,12 @@
-# Akudihatinya Backend
+# 🏥 Akudihatinya Backend
 
-Sistem backend untuk aplikasi Akudihatinya - platform monitoring dan pelaporan kesehatan untuk Puskesmas dengan fokus pada penyakit Hipertensi (HT) dan Diabetes Melitus (DM).
+> **Platform monitoring dan pelaporan kesehatan untuk Puskesmas**  
+> Sistem backend untuk monitoring penyakit Hipertensi (HT) dan Diabetes Melitus (DM)
+
+[![Laravel](https://img.shields.io/badge/Laravel-10.x-red.svg)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.1+-blue.svg)](https://php.net)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0+-orange.svg)](https://mysql.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 🚀 Features
 
@@ -58,9 +64,27 @@ Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk setup production yang l
 
 ## 📚 Documentation
 
-- [API Documentation](docs/API_DOCUMENTATION.md) - Dokumentasi lengkap API endpoints
-- [Development Guide](docs/DEVELOPMENT_GUIDE.md) - Panduan untuk developer
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) - Panduan deployment production
+> **📖 Dokumentasi lengkap tersedia di folder [`docs/`](./docs/)**
+
+### 🚀 Quick Links
+| Kategori | Dokumen | Deskripsi |
+|----------|---------|----------|
+| **Getting Started** | [Development Guide](./docs/DEVELOPMENT_GUIDE.md) | Setup environment & coding standards |
+| | [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md) | Production deployment instructions |
+| **API Reference** | [API Documentation](./docs/API_DOCUMENTATION.md) | Complete API endpoints reference |
+| | [Yearly Target API](./docs/YEARLY_TARGET_API.md) | Yearly targets management API |
+| **System Design** | [ERD](./docs/ERD.md) | Entity Relationship Diagram |
+| | [System Diagrams](./docs/SYSTEM_DIAGRAMS.md) | Architecture & design diagrams |
+| **Features** | [Profile Picture Upload](./docs/PROFILE_PICTURE_UPLOAD.md) | Image upload implementation |
+| | [PDF Generation](./docs/PDF_GENERATION_BEST_PRACTICES.md) | PDF generation best practices |
+| | [Real-Time Statistics](./docs/REAL_TIME_STATISTICS.md) | Real-time statistics implementation |
+| | [Examination CRUD](./docs/EXAMINATION_CRUD_IMPROVEMENTS.md) | CRUD enhancements |
+| **Project Info** | [Contributing Guidelines](./docs/CONTRIBUTING.md) | How to contribute to the project |
+| | [Changelog](./docs/CHANGELOG.md) | Version history and changes |
+| | [Code Quality Insights](./docs/CODE_QUALITY_INSIGHTS.md) | Code quality recommendations |
+
+### 📋 Documentation Index
+Lihat [**docs/README.md**](./docs/README.md) untuk daftar lengkap semua dokumentasi yang tersedia.
 
 ## 🏗️ Architecture
 

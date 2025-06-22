@@ -1,4 +1,4 @@
-# Profile Picture Upload Documentation
+# 📸 Profile Picture Upload Implementation
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# System Diagrams
+# 🏗️ System Diagrams
 
 Dokumen ini berisi berbagai diagram sistem untuk Akudihatinya Backend meliputi Activity Diagram, Sequence Diagram, Class Diagram, dan Architecture Diagram.
 

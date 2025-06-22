@@ -1,4 +1,4 @@
-# Entity Relationship Diagram (ERD)
+# 🗄️ Entity Relationship Diagram (ERD)
 
 Dokumen ini berisi Entity Relationship Diagram lengkap untuk sistem Akudihatinya Backend.
 

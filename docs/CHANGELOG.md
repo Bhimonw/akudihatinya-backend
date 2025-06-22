@@ -1,4 +1,4 @@
-# Changelog
+# 📝 Changelog
 
 Semua perubahan penting pada proyek Akudihatinya Backend akan didokumentasikan dalam file ini.
 

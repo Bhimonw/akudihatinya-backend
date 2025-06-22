@@ -1,4 +1,4 @@
-# State Diagram
+# 🔀 State Diagram
 
 Dokumen ini berisi State Diagram untuk sistem Akudihatinya Backend yang menunjukkan berbagai state dan transisi dalam sistem.
 

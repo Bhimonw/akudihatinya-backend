@@ -1,4 +1,4 @@
-# Real-Time Statistics Implementation
+# ⚡ Real-Time Statistics Implementation
 
 Sistem ini mengimplementasikan perhitungan statistik real-time untuk data examination yang dijalankan saat ada input dari user (puskesmas), sehingga tidak membebani dashboard dan data akan lebih cepat dalam penyajiannya.
 

@@ -1,4 +1,4 @@
-# Contributing to Akudihatinya Backend
+# 🤝 Contributing to Akudihatinya Backend
 
 Terima kasih atas minat Anda untuk berkontribusi pada proyek Akudihatinya Backend! Panduan ini akan membantu Anda memahami cara berkontribusi dengan efektif.
 

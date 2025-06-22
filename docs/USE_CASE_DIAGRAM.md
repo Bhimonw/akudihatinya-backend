@@ -1,7 +1,6 @@
-# Use Case Diagrams - Akudihatinya Backend
+# 🎯 Use Case Diagram
 
 Dokumen ini berisi semua Use Case Diagram untuk sistem Akudihatinya Backend, termasuk diagram utama, diagram sederhana untuk modul akun/user, dan diagram untuk fitur-fitur spesifik.
-
 ## 1. Use Case Diagram Utama
 
 ```mermaid

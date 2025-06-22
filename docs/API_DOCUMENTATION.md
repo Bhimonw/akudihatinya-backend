@@ -1,6 +1,6 @@
-# API Documentation - Akudihatinya Backend
+# 📚 API Documentation
 
-Dokumentasi lengkap untuk semua endpoint API yang tersedia dalam sistem Akudihatinya.
+Dokumentasi lengkap untuk semua endpoint API yang tersedia dalam sistem Akudihatinya Backend.
 
 ## Base URL
 ```

@@ -1,4 +1,4 @@
-# API Dokumentasi Target Tahunan
+# 🎯 Yearly Target API Documentation
 
 Dokumentasi lengkap untuk API manajemen target tahunan dalam sistem Akudihatinya.
 
