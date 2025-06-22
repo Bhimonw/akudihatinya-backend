@@ -1,48 +1,88 @@
-# 📚 Dokumentasi Akudihatinya Backend
+<div align="center">
 
-> **Dokumentasi lengkap untuk sistem monitoring kesehatan Puskesmas**  
-> Panduan komprehensif untuk pengembangan, deployment, dan penggunaan sistem
+# 🏥 Akudihatinya Backend Documentation
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white" alt="Laravel">
+  <img src="https://img.shields.io/badge/PHP-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP">
+  <img src="https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL">
+  <img src="https://img.shields.io/badge/Version-2.0-brightgreen?style=for-the-badge" alt="Version">
+</p>
+
+<h3>🩺 Sistem Monitoring Kesehatan Puskesmas</h3>
+<p><em>Dokumentasi lengkap untuk pengembangan, deployment, dan penggunaan sistem</em></p>
+
+<p>
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-api-reference">API Reference</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-contributing">Contributing</a>
+</p>
+
+</div>
 
 ---
 
-## 📋 Daftar Isi
+## 📋 Table of Contents
 
-### 🚀 Getting Started
-| Dokumen | Deskripsi | Status |
-|---------|-----------|--------|
-| [**DEVELOPMENT_GUIDE.md**](./DEVELOPMENT_GUIDE.md) | Setup environment & coding standards | ✅ Complete |
-| [**DEPLOYMENT_GUIDE.md**](./DEPLOYMENT_GUIDE.md) | Production deployment instructions | ✅ Complete |
-| [**API_DOCUMENTATION.md**](./API_DOCUMENTATION.md) | Complete API endpoints reference | ✅ Complete |
-| [**CONTRIBUTING.md**](./CONTRIBUTING.md) | Contribution guidelines & standards | ✅ Complete |
+<details>
+<summary><strong>🚀 Quick Start</strong></summary>
 
-### 🏗️ System Architecture & Design
-| Dokumen | Deskripsi | Status |
-|---------|-----------|--------|
-| [**ERD.md**](./ERD.md) | Entity Relationship Diagram | ✅ Complete |
-| [**SYSTEM_DIAGRAMS.md**](./SYSTEM_DIAGRAMS.md) | Activity, Sequence, Class & Architecture | ✅ Complete |
-| [**USE_CASE_DIAGRAM.md**](./USE_CASE_DIAGRAM.md) | Complete use case diagrams | ✅ Complete |
-| [**DATA_FLOW_DIAGRAM.md**](./DATA_FLOW_DIAGRAM.md) | Data flow context diagram | ✅ Complete |
-| [**STATE_DIAGRAM.md**](./STATE_DIAGRAM.md) | User & patient state diagrams | ✅ Complete |
+| 📖 Document | 📝 Description | 🎯 Status |
+|-------------|----------------|------------|
+| [**🛠️ Development Guide**](./DEVELOPMENT_GUIDE.md) | Environment setup & coding standards | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🚀 Deployment Guide**](./DEPLOYMENT_GUIDE.md) | Production deployment instructions | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📚 API Documentation**](./API_DOCUMENTATION.md) | Complete API endpoints reference | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🤝 Contributing Guide**](./CONTRIBUTING.md) | Contribution guidelines & standards | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
-### 🔧 Features & Implementation
-| Dokumen | Deskripsi | Status |
-|---------|-----------|--------|
-| [**PROFILE_PICTURE_UPLOAD.md**](./PROFILE_PICTURE_UPLOAD.md) | Complete image upload system | ✅ Complete |
-| [**YEARLY_TARGET_API.md**](./YEARLY_TARGET_API.md) | Yearly targets management API | ✅ Complete |
-| [**EXAMINATION_CRUD_IMPROVEMENTS.md**](./EXAMINATION_CRUD_IMPROVEMENTS.md) | Examination CRUD enhancements | ✅ Complete |
-| [**REAL_TIME_STATISTICS.md**](./REAL_TIME_STATISTICS.md) | Real-time statistics implementation | ✅ Complete |
-| [**MIGRATION_TO_STATISTICS_CONTROLLER.md**](./MIGRATION_TO_STATISTICS_CONTROLLER.md) | Controller migration documentation | ✅ Complete |
+</details>
 
-### 📊 Best Practices & Guidelines
-| Dokumen | Deskripsi | Status |
-|---------|-----------|--------|
-| [**PDF_GENERATION_BEST_PRACTICES.md**](./PDF_GENERATION_BEST_PRACTICES.md) | Comprehensive PDF generation guide | ✅ Complete |
-| [**CODE_QUALITY_INSIGHTS.md**](./CODE_QUALITY_INSIGHTS.md) | Code quality recommendations | ✅ Complete |
+<details>
+<summary><strong>🏗️ System Architecture & Design</strong></summary>
 
-### 📝 Project Management
-| Dokumen | Deskripsi | Status |
-|---------|-----------|--------|
-| [**CHANGELOG.md**](./CHANGELOG.md) | Project version history & changes | ✅ Complete |
+| 📖 Document | 📝 Description | 🎯 Status |
+|-------------|----------------|------------|
+| [**🗄️ Entity Relationship Diagram**](./ERD.md) | Database structure & relationships | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🏛️ System Diagrams**](./SYSTEM_DIAGRAMS.md) | Activity, Sequence, Class & Architecture | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**👥 Use Case Diagrams**](./USE_CASE_DIAGRAM.md) | Complete system use cases | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🔄 Data Flow Diagrams**](./DATA_FLOW_DIAGRAM.md) | Data flow context diagrams | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🔀 State Diagrams**](./STATE_DIAGRAM.md) | User & patient state diagrams | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+
+</details>
+
+<details>
+<summary><strong>🔧 Features & Implementation</strong></summary>
+
+| 📖 Document | 📝 Description | 🎯 Status |
+|-------------|----------------|------------|
+| [**📸 Profile Picture Upload**](./PROFILE_PICTURE_UPLOAD.md) | Complete image upload system | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🎯 Yearly Target API**](./YEARLY_TARGET_API.md) | Yearly targets management API | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🔍 Examination CRUD**](./EXAMINATION_CRUD_IMPROVEMENTS.md) | Examination CRUD enhancements | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📊 Real-time Statistics**](./REAL_TIME_STATISTICS.md) | Real-time statistics implementation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🔄 Controller Migration**](./MIGRATION_TO_STATISTICS_CONTROLLER.md) | Statistics controller migration | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📋 Dashboard Structure**](./DASHBOARD_PUSKESMAS_STRUCTURE.md) | Dashboard response structure & metadata | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🔧 Dashboard API Fixes**](./DASHBOARD_API_FIXES.md) | Dashboard API statistics fixes | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+
+</details>
+
+<details>
+<summary><strong>📊 Best Practices & Guidelines</strong></summary>
+
+| 📖 Document | 📝 Description | 🎯 Status |
+|-------------|----------------|------------|
+| [**📄 PDF Generation Guide**](./PDF_GENERATION_BEST_PRACTICES.md) | Comprehensive PDF generation guide | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**⚡ Code Quality Insights**](./CODE_QUALITY_INSIGHTS.md) | Code quality recommendations | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+
+</details>
+
+<details>
+<summary><strong>📝 Project Management</strong></summary>
+
+| 📖 Document | 📝 Description | 🎯 Status |
+|-------------|----------------|------------|
+| [**📋 Changelog**](./CHANGELOG.md) | Project version history & changes | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+
+</details>
 
 ## 📁 Documentation Structure
 
@@ -68,7 +108,8 @@ docs/
 ├── ├── YEARLY_TARGET_API.md            # Yearly targets API
 ├── ├── EXAMINATION_CRUD_IMPROVEMENTS.md # CRUD enhancements
 ├── ├── REAL_TIME_STATISTICS.md         # Real-time statistics
-├── └── MIGRATION_TO_STATISTICS_CONTROLLER.md # Controller migration
+├── ├── MIGRATION_TO_STATISTICS_CONTROLLER.md # Controller migration
+├── └── DASHBOARD_PUSKESMAS_STRUCTURE.md # Dashboard structure & metadata
 ├── 
 ├── 📊 Best Practices & Guidelines
 ├── ├── PDF_GENERATION_BEST_PRACTICES.md # PDF generation guide
@@ -84,75 +125,264 @@ docs/
 ├── 
 └── 📊 Best Practices & Guidelines
     └── PDF_GENERATION_BEST_PRACTICES.md # PDF generation guide
-## 🔍 Quick Navigation
+## 🚀 Quick Start
 
-### 👨‍💻 For Developers
-1. **Start Here:** [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) - Environment setup & coding standards
-2. **API Reference:** [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - Complete endpoints documentation
-3. **Database:** [ERD.md](ERD.md) - Database structure & relationships
+<div align="center">
 
-### 🔧 For System Administrators
-1. **Deployment:** [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Production setup guide
-2. **Architecture:** [SYSTEM_DIAGRAMS.md](SYSTEM_DIAGRAMS.md) - System architecture overview
+### Choose Your Path
 
-### 📊 For Project Managers
-1. **Functionality:** [USE_CASE_DIAGRAM.md](USE_CASE_DIAGRAM.md) - System use cases
-2. **Data Flow:** [DATA_FLOW_DIAGRAM.md](DATA_FLOW_DIAGRAM.md) - Data flow understanding
+</div>
+
+<table>
+<tr>
+<td width="33%">
+
+#### 👨‍💻 **Developers**
+```bash
+# Quick Setup
+git clone <repository>
+composer install
+php artisan serve
+```
+
+**Essential Docs:**
+- 🛠️ [Development Guide](DEVELOPMENT_GUIDE.md)
+- 📚 [API Documentation](API_DOCUMENTATION.md) 
+- 🗄️ [Database ERD](ERD.md)
+
+</td>
+<td width="33%">
+
+#### 🔧 **System Admins**
+```bash
+# Production Deploy
+docker-compose up -d
+php artisan migrate
+php artisan optimize
+```
+
+**Essential Docs:**
+- 🚀 [Deployment Guide](DEPLOYMENT_GUIDE.md)
+- 🏛️ [System Architecture](SYSTEM_DIAGRAMS.md)
+- 📊 [Monitoring Setup](REAL_TIME_STATISTICS.md)
+
+</td>
+<td width="33%">
+
+#### 📊 **Project Managers**
+```text
+# Understanding System
+✓ Review use cases
+✓ Check data flows  
+✓ Monitor progress
+```
+
+**Essential Docs:**
+- 👥 [Use Cases](USE_CASE_DIAGRAM.md)
+- 🔄 [Data Flow](DATA_FLOW_DIAGRAM.md)
+- 📋 [Project Status](CHANGELOG.md)
+
+</td>
+</tr>
+</table>
 
 ---
 
 ## 📝 Documentation Standards
 
-### ✅ Writing Guidelines
-- **Clear & Concise:** Use simple, direct language
-- **Code Examples:** Include practical examples
-- **Consistent Format:** Follow established patterns
-- **Keep Updated:** Sync with code changes
+<div align="center">
 
-### 📁 File Conventions
-- **Naming:** `UPPERCASE_WITH_UNDERSCORES.md`
-- **Structure:** Title → TOC → Content → Examples → References
-- **Links:** Use relative paths for internal references
+### 🎯 Our Documentation Philosophy
+*"Great documentation is code that teaches itself"*
+
+</div>
+
+<table>
+<tr>
+<td width="50%">
+
+#### ✅ **Writing Guidelines**
+
+```markdown
+📝 Clear & Concise
+   └── Use simple, direct language
+   └── Avoid technical jargon
+   └── Write for your audience
+
+💡 Code Examples
+   └── Include practical examples
+   └── Show real-world usage
+   └── Test all code snippets
+
+🔄 Consistent Format
+   └── Follow established patterns
+   └── Use standard templates
+   └── Maintain visual consistency
+
+🔄 Keep Updated
+   └── Sync with code changes
+   └── Review quarterly
+   └── Version control docs
+```
+
+</td>
+<td width="50%">
+
+#### 📁 **File Conventions**
+
+```markdown
+📂 Naming Convention
+   └── UPPERCASE_WITH_UNDERSCORES.md
+   └── Descriptive, not cryptic
+   └── Group related docs
+
+🏗️ Document Structure
+   ├── 📋 Title & Description
+   ├── 📑 Table of Contents
+   ├── 📖 Main Content
+   ├── 💡 Examples & Usage
+   └── 🔗 References & Links
+
+🔗 Linking Standards
+   └── Use relative paths
+   └── Test all links
+   └── Provide context
+```
+
+</td>
+</tr>
+</table>
 
 ---
 
 ## 🔄 Maintenance & Support
 
-### 📅 Update Schedule
-- **Quarterly Reviews:** Documentation accuracy check
-- **Release Updates:** API docs with each version
-- **Link Verification:** Monthly broken link checks
+<div align="center">
 
-### 🆘 Getting Help
-1. 🔍 Search existing documentation
-2. 📋 Check project issues
-3. 🐛 Create detailed issue report
-4. 👥 Contact development team
+### 🛠️ Keeping Documentation Fresh & Helpful
+
+</div>
+
+<table>
+<tr>
+<td width="50%">
+
+#### 📅 **Update Schedule**
+
+```yaml
+Quarterly Reviews:
+  - Documentation accuracy check
+  - Content relevance review
+  - User feedback integration
+  
+Release Updates:
+  - API docs with each version
+  - Feature documentation
+  - Breaking changes notice
+  
+Monthly Maintenance:
+  - Link verification
+  - Image optimization
+  - Performance check
+```
+
+</td>
+<td width="50%">
+
+#### 🆘 **Getting Help**
+
+```mermaid
+graph TD
+    A[Need Help?] --> B[🔍 Search Docs]
+    B --> C{Found Answer?}
+    C -->|Yes| D[✅ Great!]
+    C -->|No| E[📋 Check Issues]
+    E --> F{Issue Exists?}
+    F -->|Yes| G[👀 Follow Issue]
+    F -->|No| H[🐛 Create Issue]
+    H --> I[👥 Team Response]
+```
+
+**Support Channels:**
+- 📚 Documentation Search
+- 🐛 GitHub Issues
+- 💬 Team Discussion
+- 📧 Direct Contact
+
+</td>
+</tr>
+</table>
 
 ---
 
-**📅 Last Updated:** December 2024  
-**🏷️ Version:** 2.0  
-**👥 Maintainer:** Development Team
-
 ---
+
+<div align="center">
 
 ## 🔄 Recent Updates
 
-### ✨ Version 2.0 (Current)
-- 🆕 **Enhanced Documentation Structure** - Reorganized for better navigation
-- 📸 **Profile Picture Upload** - Complete implementation guide
-- 📄 **PDF Generation** - Comprehensive best practices
+</div>
+
+<details>
+<summary><strong>✨ Version 2.0 (Current) - December 2024</strong></summary>
+
+### 🆕 **Major Enhancements**
+- 🎨 **Enhanced Documentation Structure** - Modern, professional design with collapsible sections
+- 📸 **Profile Picture Upload** - Complete implementation guide with best practices
+- 📄 **PDF Generation** - Comprehensive guide with optimization techniques
 - 🎯 **Use Case Diagrams** - Complete system functionality mapping
 - 🏗️ **System Architecture** - Detailed diagrams and documentation
-- 🔗 **API Documentation** - Enhanced endpoint reference
+- 🔗 **API Documentation** - Enhanced endpoint reference with examples
+- 🔧 **Dashboard API Fixes** - Improved JSON response consistency
 
-### 📋 Version 1.0
-- 🚀 Initial documentation framework
+### 🐛 **Bug Fixes & Improvements**
+- ✅ Fixed dashboard statistics endpoint inconsistencies
+- ✅ Improved monthly target calculations
+- ✅ Enhanced error handling documentation
+- ✅ Updated code quality guidelines
+
+</details>
+
+<details>
+<summary><strong>📋 Version 1.0 - Initial Release</strong></summary>
+
+### 🚀 **Foundation**
+- 🏗️ Initial documentation framework
 - 🗄️ Database design & ERD
 - 🚀 Deployment guidelines
 - 💻 Development environment setup
+- 📚 Basic API documentation
+
+</details>
 
 ---
 
-**Happy Coding! 🚀**
+<div align="center">
+
+### 📊 **Project Information**
+
+<table>
+<tr>
+<td align="center"><strong>📅 Last Updated</strong><br>December 2024</td>
+<td align="center"><strong>🏷️ Version</strong><br>2.0</td>
+<td align="center"><strong>👥 Maintainer</strong><br>Development Team</td>
+<td align="center"><strong>📈 Status</strong><br>Active Development</td>
+</tr>
+</table>
+
+### 🤝 **Contributing**
+
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### 📄 **License**
+
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
+
+---
+
+<p>
+  <strong>🚀 Happy Coding!</strong><br>
+  <em>Built with ❤️ by the Akudihatinya Team</em>
+</p>
+
+</div>

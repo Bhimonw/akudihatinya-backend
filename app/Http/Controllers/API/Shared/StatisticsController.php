@@ -140,7 +140,10 @@ class StatisticsController extends Controller
                 'total_patients' => (string)$htData['summary']['total'],
                 'achievement_percentage' => $htTarget > 0 ? round(((int)$htData['summary']['standard'] / $htTarget) * 100, 2) : 0,
                 'standard_patients' => (string)$htData['summary']['standard'],
-                'monthly_data' => $this->formatMonthlyData($htData['monthly_data'], $htTarget)
+                'non_standard_patients' => (string)$htData['summary']['non_standard'],
+                'male_patients' => (string)$htData['summary']['male'],
+                'female_patients' => (string)$htData['summary']['female'],
+                'monthly_data' => $this->formatMonthlyDataForPuskesmas($htData['monthly_data'], $htTarget)
             ];
         }
 
@@ -153,7 +156,10 @@ class StatisticsController extends Controller
                 'total_patients' => (string)$dmData['summary']['total'],
                 'achievement_percentage' => $dmTarget > 0 ? round(((int)$dmData['summary']['standard'] / $dmTarget) * 100, 2) : 0,
                 'standard_patients' => (string)$dmData['summary']['standard'],
-                'monthly_data' => $this->formatMonthlyData($dmData['monthly_data'], $dmTarget)
+                'non_standard_patients' => (string)$dmData['summary']['non_standard'],
+                'male_patients' => (string)$dmData['summary']['male'],
+                'female_patients' => (string)$dmData['summary']['female'],
+                'monthly_data' => $this->formatMonthlyDataForPuskesmas($dmData['monthly_data'], $dmTarget)
             ];
         }
 
@@ -163,6 +169,8 @@ class StatisticsController extends Controller
         return response()->json([
             'year' => (string)$year,
             'disease_type' => $diseaseType,
+            'month' => null,
+            'month_name' => null,
             'data' => $data
         ]);
     }
@@ -208,7 +216,9 @@ class StatisticsController extends Controller
                     'achievement_percentage' => $htTarget > 0 ? round(((int)$htData['summary']['standard'] / $htTarget) * 100, 2) : 0,
                     'standard_patients' => (string)$htData['summary']['standard'],
                     'non_standard_patients' => (string)$htData['summary']['non_standard'],
-                    'monthly_data' => $this->formatMonthlyData($htData['monthly_data'], $htTarget)
+                    'male_patients' => (string)$htData['summary']['male'],
+                    'female_patients' => (string)$htData['summary']['female'],
+                    'monthly_data' => $this->formatMonthlyDataForPuskesmas($htData['monthly_data'], $htTarget)
                 ];
                 
                 // Add to summary totals
@@ -251,7 +261,9 @@ class StatisticsController extends Controller
                     'achievement_percentage' => $dmTarget > 0 ? round(((int)$dmData['summary']['standard'] / $dmTarget) * 100, 2) : 0,
                     'standard_patients' => (string)$dmData['summary']['standard'],
                     'non_standard_patients' => (string)$dmData['summary']['non_standard'],
-                    'monthly_data' => $this->formatMonthlyData($dmData['monthly_data'], $dmTarget)
+                    'male_patients' => (string)$dmData['summary']['male'],
+                    'female_patients' => (string)$dmData['summary']['female'],
+                    'monthly_data' => $this->formatMonthlyDataForPuskesmas($dmData['monthly_data'], $dmTarget)
                 ];
                 
                 // Add to summary totals
@@ -293,9 +305,23 @@ class StatisticsController extends Controller
         // Calculate monthly percentages for summary
         foreach ($htMonthlyData as $month => &$monthData) {
             $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+            // Convert all values to strings for consistency
+            $monthData['target'] = (string)$monthData['target'];
+            $monthData['male'] = (string)$monthData['male'];
+            $monthData['female'] = (string)$monthData['female'];
+            $monthData['total'] = (string)$monthData['total'];
+            $monthData['standard'] = (string)$monthData['standard'];
+            $monthData['non_standard'] = (string)$monthData['non_standard'];
         }
         foreach ($dmMonthlyData as $month => &$monthData) {
             $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+            // Convert all values to strings for consistency
+            $monthData['target'] = (string)$monthData['target'];
+            $monthData['male'] = (string)$monthData['male'];
+            $monthData['female'] = (string)$monthData['female'];
+            $monthData['total'] = (string)$monthData['total'];
+            $monthData['standard'] = (string)$monthData['standard'];
+            $monthData['non_standard'] = (string)$monthData['non_standard'];
         }
         
         // Build summary
@@ -376,6 +402,37 @@ class StatisticsController extends Controller
                 'standard' => (string)$monthData['standard'],
                 'non_standard' => (string)$monthData['non_standard'],
                 'percentage' => $target > 0 ? round(((int)$monthData['standard'] / $target) * 100, 2) : 0
+            ];
+        }
+        return $formatted;
+    }
+
+    /**
+     * Format monthly data for puskesmas with proper monthly targets
+     */
+    private function formatMonthlyDataForPuskesmas($monthlyData, $yearlyTarget): array
+    {
+        $formatted = [];
+        $monthlyTarget = $yearlyTarget > 0 ? round($yearlyTarget / 12) : 0;
+        
+        for ($month = 1; $month <= 12; $month++) {
+            $monthStr = (string)$month;
+            $monthData = $monthlyData[$monthStr] ?? [
+                'male' => 0,
+                'female' => 0,
+                'total' => 0,
+                'standard' => 0,
+                'non_standard' => 0
+            ];
+            
+            $formatted[$monthStr] = [
+                'target' => (string)$monthlyTarget,
+                'male' => (string)$monthData['male'],
+                'female' => (string)$monthData['female'],
+                'total' => (string)$monthData['total'],
+                'standard' => (string)$monthData['standard'],
+                'non_standard' => (string)$monthData['non_standard'],
+                'percentage' => $monthlyTarget > 0 ? round(((int)$monthData['standard'] / $monthlyTarget) * 100, 2) : 0
             ];
         }
         return $formatted;

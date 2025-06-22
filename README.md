@@ -79,6 +79,7 @@ Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk setup production yang l
 | | [PDF Generation](./docs/PDF_GENERATION_BEST_PRACTICES.md) | PDF generation best practices |
 | | [Real-Time Statistics](./docs/REAL_TIME_STATISTICS.md) | Real-time statistics implementation |
 | | [Examination CRUD](./docs/EXAMINATION_CRUD_IMPROVEMENTS.md) | CRUD enhancements |
+| | [Dashboard Structure](./docs/DASHBOARD_PUSKESMAS_STRUCTURE.md) | Dashboard response structure & metadata |
 | **Project Info** | [Contributing Guidelines](./docs/CONTRIBUTING.md) | How to contribute to the project |
 | | [Changelog](./docs/CHANGELOG.md) | Version history and changes |
 | | [Code Quality Insights](./docs/CODE_QUALITY_INSIGHTS.md) | Code quality recommendations |
