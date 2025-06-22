@@ -30,10 +30,8 @@
 
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
-| [**🛠️ Development Guide**](./DEVELOPMENT_GUIDE.md) | Environment setup & coding standards | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🚀 Deployment Guide**](./DEPLOYMENT_GUIDE.md) | Production deployment instructions | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**📚 API Documentation**](./API_DOCUMENTATION.md) | Complete API endpoints reference | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🤝 Contributing Guide**](./CONTRIBUTING.md) | Contribution guidelines & standards | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**👨‍💻 Developer Guide**](./DEVELOPER_GUIDE.md) | Complete development, deployment & contribution guide | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📚 API Reference**](./API_REFERENCE.md) | Complete API endpoints & documentation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
 
@@ -42,11 +40,7 @@
 
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
-| [**🗄️ Entity Relationship Diagram**](./ERD.md) | Database structure & relationships | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🏛️ System Diagrams**](./SYSTEM_DIAGRAMS.md) | Activity, Sequence, Class & Architecture | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**👥 Use Case Diagrams**](./USE_CASE_DIAGRAM.md) | Complete system use cases | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🔄 Data Flow Diagrams**](./DATA_FLOW_DIAGRAM.md) | Data flow context diagrams | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🔀 State Diagrams**](./STATE_DIAGRAM.md) | User & patient state diagrams | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🏗️ System Architecture**](./SYSTEM_ARCHITECTURE.md) | Complete system design: ERD, use cases, diagrams & data flow | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
 
@@ -90,26 +84,23 @@
 docs/
 ├── README.md                           # 📋 Documentation index
 ├── 
-├── 🚀 Getting Started
-├── ├── DEVELOPMENT_GUIDE.md            # Development environment setup
-├── ├── DEPLOYMENT_GUIDE.md             # Production deployment guide
-├── ├── API_DOCUMENTATION.md            # Complete API reference
-├── └── CONTRIBUTING.md                 # Contribution guidelines
-├── 
-├── 🏗️ System Architecture & Design
-├── ├── ERD.md                          # Entity Relationship Diagram
-├── ├── SYSTEM_DIAGRAMS.md              # Activity, Sequence, Class diagrams
-├── ├── USE_CASE_DIAGRAM.md             # Use case diagrams
-├── ├── DATA_FLOW_DIAGRAM.md            # Data flow diagrams
-├── └── STATE_DIAGRAM.md                # State diagrams
+├── 🚀 Core Documentation
+├── ├── DEVELOPER_GUIDE.md              # Complete development & deployment guide
+├── ├── API_REFERENCE.md                # Complete API endpoints reference
+├── ├── SYSTEM_ARCHITECTURE.md          # Complete system design & diagrams
+├── └── NEW_YEAR_SETUP.md               # New year automation setup
 ├── 
 ├── 🔧 Features & Implementation
-├── ├── PROFILE_PICTURE_UPLOAD.md       # Image upload system
-├── ├── YEARLY_TARGET_API.md            # Yearly targets API
-├── ├── EXAMINATION_CRUD_IMPROVEMENTS.md # CRUD enhancements
-├── ├── REAL_TIME_STATISTICS.md         # Real-time statistics
-├── ├── MIGRATION_TO_STATISTICS_CONTROLLER.md # Controller migration
-├── └── DASHBOARD_PUSKESMAS_STRUCTURE.md # Dashboard structure & metadata
+├── ├── PATIENT_MANAGEMENT.md           # Patient management features
+├── ├── EXAMINATION_MANAGEMENT.md       # Examination management
+├── ├── STATISTICS_MANAGEMENT.md        # Statistics & reporting
+├── ├── USER_MANAGEMENT.md              # User & role management
+├── ├── PUSKESMAS_MANAGEMENT.md         # Puskesmas management
+├── ├── YEARLY_TARGET_MANAGEMENT.md     # Yearly targets management
+├── ├── MONTHLY_STATISTICS.md           # Monthly statistics
+├── ├── YEARLY_STATISTICS.md            # Yearly statistics
+├── ├── DASHBOARD_ADMIN.md              # Admin dashboard
+├── └── DASHBOARD_PUSKESMAS.md          # Puskesmas dashboard
 ├── 
 ├── 📊 Best Practices & Guidelines
 ├── ├── PDF_GENERATION_BEST_PRACTICES.md # PDF generation guide
