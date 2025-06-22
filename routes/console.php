@@ -18,3 +18,7 @@ Artisan::command('examinations:archive', function () {
 Artisan::command('statistics:rebuild-cache', function () {
     return (new RebuildStatisticsCache())->handle(app(\App\Services\StatisticsCacheService::class));
 })->purpose('Rebuild the monthly statistics cache from existing examination data');
+
+Artisan::command('year:setup', function () {
+    return (new \App\Console\Commands\SetupNewYear())->handle(app(\App\Services\NewYearSetupService::class));
+})->purpose('Setup new year by clearing examination data while preserving patient data');
