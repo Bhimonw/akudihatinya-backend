@@ -75,10 +75,8 @@ Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk setup production yang l
 | | [Yearly Target API](./docs/YEARLY_TARGET_API.md) | Yearly targets management API |
 | **System Design** | [ERD](./docs/ERD.md) | Entity Relationship Diagram |
 | | [System Diagrams](./docs/SYSTEM_DIAGRAMS.md) | Architecture & design diagrams |
-| **Features** | [Profile Picture Upload](./docs/PROFILE_PICTURE_UPLOAD.md) | Image upload implementation |
-| | [PDF Generation](./docs/PDF_GENERATION_BEST_PRACTICES.md) | PDF generation best practices |
-| | [Real-Time Statistics](./docs/REAL_TIME_STATISTICS.md) | Real-time statistics implementation |
-| | [Examination CRUD](./docs/EXAMINATION_CRUD_IMPROVEMENTS.md) | CRUD enhancements |
+| **Features** | [API Reference](./docs/API_REFERENCE.md) | Complete API documentation with all features |
+| | [New Year Setup](./docs/NEW_YEAR_SETUP.md) | Annual data reset and target creation |
 | | [Dashboard Structure](./docs/DASHBOARD_PUSKESMAS_STRUCTURE.md) | Dashboard response structure & metadata |
 | **Project Info** | [Contributing Guidelines](./docs/CONTRIBUTING.md) | How to contribute to the project |
 | | [Changelog](./docs/CHANGELOG.md) | Version history and changes |

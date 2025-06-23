@@ -19,8 +19,12 @@
 4. [Puskesmas APIs](#puskesmas-apis)
 5. [Statistics APIs](#statistics-apis)
 6. [Dashboard APIs](#dashboard-apis)
-7. [Response Structures](#response-structures)
-8. [Error Handling](#error-handling)
+7. [User Profile APIs](#user-profile-apis)
+8. [Export APIs](#export-apis)
+9. [Response Structures](#response-structures)
+10. [Error Handling](#error-handling)
+11. [Real-Time Features](#real-time-features)
+12. [System Architecture](#system-architecture)
 
 ---
 
@@ -430,6 +434,185 @@ GET /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024
 
 ---
 
+## 👤 User Profile APIs
+
+### Get Current User Profile
+**GET** `/api/users/me`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "puskesmas",
+    "puskesmas_id": 1,
+    "profile_picture": "http://localhost:8000/img/1642123456_profile.jpg",
+    "created_at": "2024-01-01T00:00:00.000000Z",
+    "updated_at": "2024-01-15T10:30:00.000000Z",
+    "puskesmas": {
+      "id": 1,
+      "name": "Puskesmas A",
+      "address": "Jl. Kesehatan No. 1",
+      "phone": "021-1234567",
+      "email": "puskesmasa@example.com"
+    }
+  }
+}
+```
+
+### Update User Profile
+**PUT** `/api/users/me`
+
+**Request Body (Form Data):**
+```
+name: "John Doe Updated"
+email: "john.updated@example.com"
+profile_picture: [File] (optional)
+```
+
+**Features:**
+- **File Upload**: Support JPEG, PNG, JPG, GIF
+- **File Size**: Maximum 2MB
+- **Auto Resize**: Automatically resized to 200x200 pixels
+- **Storage**: Files stored in `resources/img/`
+- **URL Generation**: Automatic URL generation via `asset()` helper
+- **Old File Cleanup**: Previous profile picture automatically deleted
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Profile updated successfully",
+  "data": {
+    "id": 1,
+    "name": "John Doe Updated",
+    "email": "john.updated@example.com",
+    "profile_picture": "http://localhost:8000/img/1642123456_new_profile.jpg",
+    "updated_at": "2024-01-15T10:35:00.000000Z"
+  }
+}
+```
+
+### Profile Picture Serving
+**GET** `/img/{filename}`
+
+**Example:**
+```
+GET /img/1642123456_profile.jpg
+```
+
+**Response:** Binary image file
+
+---
+
+## 📤 Export APIs
+
+### Puskesmas PDF Export
+**POST** `/api/statistics/export/puskesmas-pdf`
+
+**Request Body:**
+```json
+{
+  "disease_type": "ht",
+  "year": 2024,
+  "puskesmas_id": 1
+}
+```
+
+**Validation Rules:**
+- `disease_type`: Required, must be `ht` or `dm`
+- `year`: Required, integer, minimum 2020, maximum current year
+- `puskesmas_id`: Required for admin users, optional for puskesmas users
+
+**Response:** PDF file download
+
+**Error Handling:**
+```json
+{
+  "success": false,
+  "error": "puskesmas_not_found",
+  "message": "Puskesmas not found"
+}
+```
+
+### Puskesmas Quarterly PDF Export
+**POST** `/api/statistics/export/puskesmas-quarterly-pdf`
+
+**Request Body:**
+```json
+{
+  "disease_type": "dm",
+  "year": 2024,
+  "quarter": 1,
+  "puskesmas_id": 1
+}
+```
+
+**Validation Rules:**
+- `quarter`: Required, integer, must be 1, 2, 3, or 4
+- Other rules same as regular PDF export
+
+### Export Options
+**GET** `/api/statistics/export/options`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "years": [2020, 2021, 2022, 2023, 2024],
+    "disease_types": [
+      {"value": "ht", "label": "Hipertensi"},
+      {"value": "dm", "label": "Diabetes Mellitus"}
+    ],
+    "quarters": [
+      {"value": 1, "label": "Q1 (Jan-Mar)"},
+      {"value": 2, "label": "Q2 (Apr-Jun)"},
+      {"value": 3, "label": "Q3 (Jul-Sep)"},
+      {"value": 4, "label": "Q4 (Oct-Dec)"}
+    ]
+  }
+}
+```
+
+### Get Available Years
+**GET** `/api/statistics/export/years`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [2020, 2021, 2022, 2023, 2024]
+}
+```
+
+### Get Puskesmas List
+**GET** `/api/statistics/export/puskesmas`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Puskesmas A",
+      "address": "Jl. Kesehatan No. 1"
+    },
+    {
+      "id": 2,
+      "name": "Puskesmas B",
+      "address": "Jl. Kesehatan No. 2"
+    }
+  ]
+}
+```
+
+---
+
 ## 🎯 Dashboard APIs
 
 ### Dashboard Response Structure
@@ -733,22 +916,273 @@ curl -X POST http://localhost:8000/api/admin/yearly-targets \
 
 ---
 
+## 🚀 Feature Implementation Details
+
+### 1. Real-Time Statistics System
+
+Sistem ini mengimplementasikan perhitungan statistik real-time untuk data examination yang dijalankan saat ada input dari user (puskesmas), sehingga tidak membebani dashboard dan data akan lebih cepat dalam penyajiannya.
+
+#### Pre-calculated Statistics
+Data examination langsung dihitung dan disimpan sebagai angka di database dengan kolom tambahan:
+- `is_controlled`: Boolean untuk menentukan apakah hasil examination terkontrol
+- `is_first_visit_this_month`: Boolean untuk menentukan apakah ini kunjungan pertama pasien di bulan tersebut
+- `is_standard_patient`: Boolean untuk menentukan apakah pasien termasuk "standard" (rutin kontrol)
+- `patient_gender`: Gender pasien (disimpan untuk menghindari join)
+
+#### Real-Time Processing Flow
+```
+User Input → Observer (creating) → Set year/month
+           → Observer (created) → RealTimeStatisticsService.processExaminationData()
+```
+
+### 2. Examination CRUD Improvements
+
+#### Masalah yang Diperbaiki:
+- **Method `store()`**: Sebelumnya melakukan DELETE + INSERT, sekarang INSERT murni
+- **Method `update()`**: Sebelumnya DELETE + INSERT, sekarang UPDATE yang sebenarnya
+- **Kehilangan History**: Data pemeriksaan lama tidak hilang lagi
+- **ID Berubah**: ID pemeriksaan tetap konsisten
+
+#### Solusi yang Diimplementasikan:
+
+**Store Method - INSERT Murni:**
+```php
+// SEBELUM: DELETE + INSERT
+DmExamination::where(...)->delete();
+$examination = DmExamination::create($data);
+
+// SESUDAH: INSERT Murni
+$examination = DmExamination::create($data);
+```
+
+**Update Method - UPDATE Sebenarnya:**
+```php
+// SEBELUM: DELETE + INSERT
+DmExamination::where(...)->delete();
+DmExamination::create($newData);
+
+// SESUDAH: UPDATE yang sebenarnya
+$dmExamination->update($newData);
+```
+
+### 3. Profile Picture Upload System
+
+#### Features:
+- **File Upload Service**: Centralized file handling dengan `FileUploadService`
+- **Validation & Security**: Format file JPEG, PNG, JPG, GIF dengan ukuran maksimal 2MB
+- **Automatic Image Resizing**: Resize otomatis ke 200x200 pixels
+- **Storage Management**: File disimpan di `resources/img/`
+
+#### API Endpoints:
+- `PUT /api/users/me` - Upload/update foto profil user yang sedang login
+- `GET /api/users/me` - Mendapatkan profil user dengan URL foto profil
+- `GET /img/{filename}` - Serving file gambar
+
+#### Example Request:
+```bash
+curl -X PUT \
+  http://localhost:8000/api/users/me \
+  -H 'Authorization: Bearer YOUR_TOKEN' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'profile_picture=@/path/to/image.jpg'
+```
+
+### 4. Statistics Controller Migration
+
+Migrasi dari `DashboardController` ke `StatisticsController` dengan implementasi `RealTimeStatisticsService`.
+
+#### Route Changes:
+
+**Admin Routes:**
+```php
+// SEBELUM:
+Route::get('/dashboard', [DashboardController::class, 'dinasIndex']);
+
+// SESUDAH:
+Route::get('/dashboard', [StatisticsController::class, 'adminStatistics']);
+```
+
+**Puskesmas Routes:**
+```php
+// SEBELUM:
+Route::get('/dashboard', [DashboardController::class, 'puskesmasIndex']);
+
+// SESUDAH:
+Route::get('/dashboard', [StatisticsController::class, 'dashboardStatistics']);
+```
+
+### 5. PDF Generation Best Practices
+
+#### Custom Exception Handling:
+- `PuskesmasNotFoundException` untuk error handling yang spesifik
+- Custom error response dengan format JSON yang konsisten
+- Context data untuk debugging dan correlation ID untuk tracking
+
+#### Repository Pattern Implementation:
+- `PuskesmasRepositoryInterface` dan `PuskesmasRepository`
+- Separation of concerns dan easier testing
+- Built-in caching dan consistent error handling
+
+#### Form Request Validation:
+- `PuskesmasPdfRequest` untuk validasi input PDF generation
+- Centralized validation rules
+
 ## 📝 API Changelog
 
-### Version 2.0 (Latest)
-- ✅ Fixed dashboard statistics JSON response consistency
-- ✅ Added missing fields: `non_standard_patients`, `male_patients`, `female_patients`
-- ✅ Improved yearly targets API with flexible filtering
-- ✅ Enhanced error handling and validation
-- ✅ Added comprehensive dashboard response structure
-- ✅ Implemented proper pagination for all list endpoints
+### Version 1.3.0 (Latest)
+- Added real-time statistics system with pre-calculated data
+- Implemented profile picture upload with automatic resizing
+- Fixed examination CRUD operations (proper INSERT/UPDATE)
+- Migrated to StatisticsController with RealTimeStatisticsService
+- Added PDF generation best practices and custom exception handling
+- Enhanced error handling and validation
 
-### Version 1.0
-- ✅ Initial API implementation
-- ✅ Basic CRUD operations
-- ✅ Authentication system
-- ✅ Statistics endpoints
+### Version 1.2.0
+- Added yearly targets management endpoints
+- Enhanced dashboard statistics with real-time data
+- Improved error handling and validation
+- Added comprehensive API documentation
+
+### Version 1.1.0
+- Fixed dashboard statistics endpoint
+- Added Puskesmas dashboard structure
+- Improved response formatting
+
+### Version 1.0.0
+- Initial API implementation
+- Basic CRUD operations
+- Authentication system
+- Statistics endpoints
 
 ---
 
-*This API reference provides complete documentation for all available endpoints. For implementation examples and best practices, refer to the development guide.*
+## ⚡ Real-Time Features
+
+### Real-Time Statistics System
+
+Sistem ini mengimplementasikan perhitungan statistik real-time untuk data examination yang dijalankan saat ada input dari user (puskesmas), sehingga tidak membebani dashboard dan data akan lebih cepat dalam penyajiannya.
+
+#### Pre-calculated Statistics
+Data examination langsung dihitung dan disimpan sebagai angka di database dengan kolom tambahan:
+- `is_controlled`: Boolean untuk menentukan apakah hasil examination terkontrol
+- `is_first_visit_this_month`: Boolean untuk menentukan apakah ini kunjungan pertama pasien di bulan tersebut
+- `is_standard_patient`: Boolean untuk menentukan apakah pasien termasuk "standard" (rutin kontrol)
+- `patient_gender`: Gender pasien (disimpan untuk menghindari join)
+
+#### Real-Time Processing Flow
+```
+User Input → Observer (creating) → Set year/month
+           → Observer (created) → RealTimeStatisticsService.processExaminationData()
+           → Calculate statistics → Update cache → Update patient standard status
+```
+
+#### Performance Benefits
+1. **Faster Dashboard Loading**: Data sudah pre-calculated, tidak perlu query kompleks
+2. **Real-time Updates**: Cache otomatis update saat ada input baru
+3. **Reduced Database Load**: Mengurangi beban query kompleks pada dashboard
+4. **Scalable**: Sistem dapat menangani volume data yang besar dengan performa konsisten
+
+### Examination CRUD Improvements
+
+#### Fixed Issues:
+- **Method `store()`**: Sebelumnya melakukan DELETE + INSERT, sekarang INSERT murni
+- **Method `update()`**: Sebelumnya DELETE + INSERT, sekarang UPDATE yang sebenarnya
+- **Kehilangan History**: Data pemeriksaan lama tidak hilang lagi
+- **ID Berubah**: ID pemeriksaan tetap konsisten
+
+#### Implementation:
+
+**Store Method - INSERT Murni:**
+```php
+// SEBELUM: DELETE + INSERT
+DmExamination::where(...)->delete();
+$examination = DmExamination::create($data);
+
+// SESUDAH: INSERT Murni
+$examination = DmExamination::create($data);
+```
+
+**Update Method - UPDATE Sebenarnya:**
+```php
+// SEBELUM: DELETE + INSERT
+DmExamination::where(...)->delete();
+DmExamination::create($newData);
+
+// SESUDAH: UPDATE yang sebenarnya
+$dmExamination->update($newData);
+```
+
+---
+
+## 🏗️ System Architecture
+
+### Database Schema Overview
+
+#### Core Tables
+- **users**: User management dengan role-based access
+- **puskesmas**: Puskesmas data dan konfigurasi
+- **patients**: Data pasien dengan NIK unik
+- **ht_examinations**: Pemeriksaan hipertensi
+- **dm_examinations**: Pemeriksaan diabetes mellitus
+- **yearly_targets**: Target tahunan per puskesmas
+- **monthly_statistics**: Cache statistik bulanan
+- **archived_examinations**: Data pemeriksaan yang diarsipkan
+
+#### Key Relationships
+```
+users → puskesmas (belongs_to)
+puskesmas → patients (has_many)
+puskesmas → examinations (has_many)
+puskesmas → yearly_targets (has_many)
+patients → examinations (has_many)
+```
+
+### API Architecture
+
+#### Authentication Flow
+```
+Client → API → Sanctum Auth → Controller → Service → Repository → Database
+```
+
+#### Service Layer Pattern
+- **RealTimeStatisticsService**: Real-time calculation dan cache management
+- **FileUploadService**: Centralized file handling
+- **ArchiveService**: Data archiving dan cleanup
+- **StatisticsCacheService**: Cache management untuk performa
+
+#### Repository Pattern
+- **PuskesmasRepositoryInterface**: Abstraction untuk data access
+- **Consistent Error Handling**: Custom exceptions dan response format
+- **Built-in Caching**: Optimized query performance
+
+### Security Features
+
+#### Authentication & Authorization
+- **Laravel Sanctum**: Token-based authentication
+- **Role-based Access**: Admin vs Puskesmas user permissions
+- **Rate Limiting**: API endpoint protection
+- **CORS Configuration**: Cross-origin request handling
+
+#### Data Validation
+- **Form Request Validation**: Centralized validation rules
+- **Custom Validation Rules**: Disease type, year range validation
+- **File Upload Security**: Type, size, dan content validation
+- **SQL Injection Protection**: Eloquent ORM protection
+
+### Performance Optimizations
+
+#### Caching Strategy
+- **Monthly Statistics Cache**: Pre-calculated dashboard data
+- **Real-time Updates**: Automatic cache invalidation
+- **Query Optimization**: Efficient database queries
+- **File Serving**: Optimized image serving
+
+#### Database Optimizations
+- **Indexed Columns**: Performance-critical columns
+- **Relationship Eager Loading**: Reduced N+1 queries
+- **Batch Operations**: Efficient bulk data processing
+- **Archive Strategy**: Historical data management
+
+---
+
+*This comprehensive API reference provides complete documentation for all available endpoints, real-time features, and system architecture. For implementation examples and best practices, refer to the development guide.*

@@ -49,11 +49,7 @@
 
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
-| [**📸 Profile Picture Upload**](./PROFILE_PICTURE_UPLOAD.md) | Complete image upload system | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🎯 Yearly Target API**](./YEARLY_TARGET_API.md) | Yearly targets management API | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🔍 Examination CRUD**](./EXAMINATION_CRUD_IMPROVEMENTS.md) | Examination CRUD enhancements | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**📊 Real-time Statistics**](./REAL_TIME_STATISTICS.md) | Real-time statistics implementation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🔄 Controller Migration**](./MIGRATION_TO_STATISTICS_CONTROLLER.md) | Statistics controller migration | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📋 API Reference**](./API_REFERENCE.md) | Complete API documentation with all features | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 | [**📋 Dashboard Structure**](./DASHBOARD_PUSKESMAS_STRUCTURE.md) | Dashboard response structure & metadata | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 | [**🔧 Dashboard API Fixes**](./DASHBOARD_API_FIXES.md) | Dashboard API statistics fixes | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
@@ -64,7 +60,7 @@
 
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
-| [**📄 PDF Generation Guide**](./PDF_GENERATION_BEST_PRACTICES.md) | Comprehensive PDF generation guide | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**🎯 New Year Setup**](./NEW_YEAR_SETUP.md) | Annual data reset and target creation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 | [**⚡ Code Quality Insights**](./CODE_QUALITY_INSIGHTS.md) | Code quality recommendations | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
@@ -103,19 +99,11 @@ docs/
 ├── └── DASHBOARD_PUSKESMAS.md          # Puskesmas dashboard
 ├── 
 ├── 📊 Best Practices & Guidelines
-├── ├── PDF_GENERATION_BEST_PRACTICES.md # PDF generation guide
+├── ├── NEW_YEAR_SETUP.md               # Annual setup guide
 ├── └── CODE_QUALITY_INSIGHTS.md        # Code quality recommendations
 ├── 
 └── 📝 Project Management
     └── CHANGELOG.md                    # Version history & changes
-├── 
-├── 🔧 Features & Implementation
-├── ├── PROFILE_PICTURE_UPLOAD.md       # Image upload system
-├── ├── YEARLY_TARGET_API.md            # Yearly targets API
-├── └── EXAMINATION_CRUD_IMPROVEMENTS.md # CRUD enhancements
-├── 
-└── 📊 Best Practices & Guidelines
-    └── PDF_GENERATION_BEST_PRACTICES.md # PDF generation guide
 ## 🚀 Quick Start
 
 <div align="center">
@@ -155,7 +143,7 @@ php artisan optimize
 **Essential Docs:**
 - 🚀 [Deployment Guide](DEPLOYMENT_GUIDE.md)
 - 🏛️ [System Architecture](SYSTEM_DIAGRAMS.md)
-- 📊 [Monitoring Setup](REAL_TIME_STATISTICS.md)
+- 📊 [API Reference](API_REFERENCE.md)
 
 </td>
 <td width="33%">
