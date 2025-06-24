@@ -8,7 +8,7 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased] - 2025-03-XX
 
 ### Added
-- Comprehensive API documentation (`docs/API_REFERENCE.md`)
+- Comprehensive API documentation (`docs/API_COMPLETE.md`)
 - Development guide for contributors (`docs/DEVELOPER_GUIDE.md`)
 - System architecture and deployment guide (`docs/SYSTEM_ARCHITECTURE.md`)
 - Code quality insights and guidelines (`docs/CODE_QUALITY_INSIGHTS.md`)
@@ -26,7 +26,7 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Duplicate export endpoints (`exportHtStatistics`, `exportDmStatistics`)
 - Redundant routes in `routes/api/statistics.php`
 - Unused test files (`test.html`, `test.http`, `test_endpoint.ps1`)
-- Duplicate documentation files (`PUSKESMAS_EXPORT_API.md`, `PUSKESMAS_PDF_EXPORT_API.md`)
+- Duplicate documentation files and consolidated into single API documentation
 
 ### Fixed
 - Route consolidation for better maintainability

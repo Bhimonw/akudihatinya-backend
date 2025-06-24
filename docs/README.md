@@ -31,7 +31,7 @@
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
 | [**👨‍💻 Developer Guide**](./DEVELOPER_GUIDE.md) | Complete development, deployment & contribution guide | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**📚 API Reference**](./API_REFERENCE.md) | Complete API endpoints & documentation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📚 Complete API Documentation**](./API_COMPLETE.md) | Comprehensive API reference & documentation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
 
@@ -49,7 +49,7 @@
 
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
-| [**📋 API Reference**](./API_REFERENCE.md) | Complete API documentation with all features | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📚 Complete API Documentation**](./API_COMPLETE.md) | Comprehensive API reference with all features | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
 
@@ -60,6 +60,7 @@
 |-------------|----------------|------------|
 | [**🎯 New Year Setup**](./NEW_YEAR_SETUP.md) | Annual data reset and target creation | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 | [**⚡ Code Quality Insights**](./CODE_QUALITY_INSIGHTS.md) | Code quality recommendations | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
+| [**📁 File Upload Guide**](./FILE_UPLOAD_GUIDE.md) | File upload and image optimization | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
 
@@ -80,7 +81,7 @@ docs/
 ├── 
 ├── 🚀 Core Documentation
 ├── ├── DEVELOPER_GUIDE.md              # Complete development & deployment guide
-├── ├── API_REFERENCE.md                # Complete API endpoints reference
+├── ├── API_COMPLETE.md                 # Complete API endpoints reference
 ├── ├── SYSTEM_ARCHITECTURE.md          # Complete system design & diagrams
 ├── └── NEW_YEAR_SETUP.md               # New year automation setup
 ├── 
@@ -112,7 +113,7 @@ php artisan serve
 
 **Essential Docs:**
 - 🛠️ [Developer Guide](DEVELOPER_GUIDE.md)
-- 📚 [API Reference](API_REFERENCE.md) 
+- 📚 [Complete API Documentation](API_COMPLETE.md) 
 - 🏗️ [System Architecture](SYSTEM_ARCHITECTURE.md)
 
 </td>
@@ -129,7 +130,7 @@ php artisan optimize
 **Essential Docs:**
 - 🛠️ [Developer Guide](DEVELOPER_GUIDE.md)
 - 🏗️ [System Architecture](SYSTEM_ARCHITECTURE.md)
-- 📊 [API Reference](API_REFERENCE.md)
+- 📊 [Complete API Documentation](API_COMPLETE.md)
 
 </td>
 <td width="33%">

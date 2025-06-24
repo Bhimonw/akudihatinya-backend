@@ -71,9 +71,9 @@ Lihat [System Architecture](docs/SYSTEM_ARCHITECTURE.md) untuk setup production 
 |----------|---------|----------|
 | **Getting Started** | [Developer Guide](./docs/DEVELOPER_GUIDE.md) | Setup environment & coding standards |
 | | [System Architecture](./docs/SYSTEM_ARCHITECTURE.md) | Production deployment & architecture |
-| **API Reference** | [API Reference](./docs/API_REFERENCE.md) | Complete API endpoints reference |
+| **Complete API Documentation** | [API Complete](./docs/API_COMPLETE.md) | Comprehensive API endpoints reference |
 | **System Design** | [System Architecture](./docs/SYSTEM_ARCHITECTURE.md) | Complete system design & diagrams |
-| **Features** | [API Reference](./docs/API_REFERENCE.md) | Complete API documentation with all features |
+| **Features** | [API Complete](./docs/API_COMPLETE.md) | Complete API documentation with all features |
 | | [New Year Setup](./docs/NEW_YEAR_SETUP.md) | Annual data reset and target creation |
 | | [Code Quality Insights](./docs/CODE_QUALITY_INSIGHTS.md) | Code quality recommendations |
 | **Project Info** | [Changelog](./docs/CHANGELOG.md) | Version history and changes |
@@ -192,7 +192,7 @@ GET /api/puskesmas/{id}
 PUT /api/puskesmas/{id}/yearly-targets
 ```
 
-Lihat [API Reference](docs/API_REFERENCE.md) untuk dokumentasi lengkap.
+Lihat [Complete API Documentation](docs/API_COMPLETE.md) untuk dokumentasi lengkap.
 
 ## 🧪 Testing
 
