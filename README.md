@@ -60,7 +60,7 @@ php artisan serve
 
 ### Production Setup
 
-Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk setup production yang lengkap.
+Lihat [System Architecture](docs/SYSTEM_ARCHITECTURE.md) untuk setup production yang lengkap.
 
 ## 📚 Documentation
 
@@ -69,17 +69,15 @@ Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk setup production yang l
 ### 🚀 Quick Links
 | Kategori | Dokumen | Deskripsi |
 |----------|---------|----------|
-| **Getting Started** | [Development Guide](./docs/DEVELOPMENT_GUIDE.md) | Setup environment & coding standards |
-| | [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md) | Production deployment instructions |
-| **API Reference** | [API Documentation](./docs/API_DOCUMENTATION.md) | Complete API endpoints reference |
-| | [Yearly Target API](./docs/YEARLY_TARGET_API.md) | Yearly targets management API |
-| **System Design** | [ERD](./docs/ERD.md) | Entity Relationship Diagram |
-| | [System Diagrams](./docs/SYSTEM_DIAGRAMS.md) | Architecture & design diagrams |
+| **Getting Started** | [Developer Guide](./docs/DEVELOPER_GUIDE.md) | Setup environment & coding standards |
+| | [System Architecture](./docs/SYSTEM_ARCHITECTURE.md) | Production deployment & architecture |
+| **API Reference** | [API Reference](./docs/API_REFERENCE.md) | Complete API endpoints reference |
+| **System Design** | [System Architecture](./docs/SYSTEM_ARCHITECTURE.md) | Complete system design & diagrams |
 | **Features** | [API Reference](./docs/API_REFERENCE.md) | Complete API documentation with all features |
 | | [New Year Setup](./docs/NEW_YEAR_SETUP.md) | Annual data reset and target creation |
-| | [Dashboard Structure](./docs/DASHBOARD_PUSKESMAS_STRUCTURE.md) | Dashboard response structure & metadata |
-| **Project Info** | [Contributing Guidelines](./docs/CONTRIBUTING.md) | How to contribute to the project |
-| | [Changelog](./docs/CHANGELOG.md) | Version history and changes |
+| | [Code Quality Insights](./docs/CODE_QUALITY_INSIGHTS.md) | Code quality recommendations |
+| **Project Info** | [Changelog](./docs/CHANGELOG.md) | Version history and changes |
+| | [Developer Guide](./docs/DEVELOPER_GUIDE.md) | Complete development guide |
 | | [Code Quality Insights](./docs/CODE_QUALITY_INSIGHTS.md) | Code quality recommendations |
 
 ### 📋 Documentation Index
@@ -194,7 +192,7 @@ GET /api/puskesmas/{id}
 PUT /api/puskesmas/{id}/yearly-targets
 ```
 
-Lihat [API Documentation](docs/API_DOCUMENTATION.md) untuk dokumentasi lengkap.
+Lihat [API Reference](docs/API_REFERENCE.md) untuk dokumentasi lengkap.
 
 ## 🧪 Testing
 
@@ -233,11 +231,11 @@ docker run -d \
 
 ### Manual Deployment
 
-Lihat [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) untuk panduan deployment manual yang lengkap.
+Lihat [System Architecture](docs/SYSTEM_ARCHITECTURE.md) untuk panduan deployment manual yang lengkap.
 
 ## 🤝 Contributing
 
-Kami menyambut kontribusi dari developer! Silakan baca [Development Guide](docs/DEVELOPMENT_GUIDE.md) untuk panduan lengkap.
+Kami menyambut kontribusi dari developer! Silakan baca [Developer Guide](docs/DEVELOPER_GUIDE.md) untuk panduan lengkap.
 
 ### Quick Contributing Steps
 

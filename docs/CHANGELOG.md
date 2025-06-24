@@ -8,10 +8,10 @@ dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased] - 2025-03-XX
 
 ### Added
-- Comprehensive API documentation (`docs/API_DOCUMENTATION.md`)
-- Development guide for contributors (`docs/DEVELOPMENT_GUIDE.md`)
-- Deployment guide for production setup (`docs/DEPLOYMENT_GUIDE.md`)
-- Contributing guidelines (`CONTRIBUTING.md`)
+- Comprehensive API documentation (`docs/API_REFERENCE.md`)
+- Development guide for contributors (`docs/DEVELOPER_GUIDE.md`)
+- System architecture and deployment guide (`docs/SYSTEM_ARCHITECTURE.md`)
+- Code quality insights and guidelines (`docs/CODE_QUALITY_INSIGHTS.md`)
 - Enhanced README.md with project overview and quick start guide
 - Changelog documentation
 - Code quality improvements and project cleanup

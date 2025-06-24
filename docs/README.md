@@ -50,8 +50,6 @@
 | 📖 Document | 📝 Description | 🎯 Status |
 |-------------|----------------|------------|
 | [**📋 API Reference**](./API_REFERENCE.md) | Complete API documentation with all features | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**📋 Dashboard Structure**](./DASHBOARD_PUSKESMAS_STRUCTURE.md) | Dashboard response structure & metadata | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
-| [**🔧 Dashboard API Fixes**](./DASHBOARD_API_FIXES.md) | Dashboard API statistics fixes | ![Complete](https://img.shields.io/badge/Status-Complete-success) |
 
 </details>
 
@@ -86,18 +84,6 @@ docs/
 ├── ├── SYSTEM_ARCHITECTURE.md          # Complete system design & diagrams
 ├── └── NEW_YEAR_SETUP.md               # New year automation setup
 ├── 
-├── 🔧 Features & Implementation
-├── ├── PATIENT_MANAGEMENT.md           # Patient management features
-├── ├── EXAMINATION_MANAGEMENT.md       # Examination management
-├── ├── STATISTICS_MANAGEMENT.md        # Statistics & reporting
-├── ├── USER_MANAGEMENT.md              # User & role management
-├── ├── PUSKESMAS_MANAGEMENT.md         # Puskesmas management
-├── ├── YEARLY_TARGET_MANAGEMENT.md     # Yearly targets management
-├── ├── MONTHLY_STATISTICS.md           # Monthly statistics
-├── ├── YEARLY_STATISTICS.md            # Yearly statistics
-├── ├── DASHBOARD_ADMIN.md              # Admin dashboard
-├── └── DASHBOARD_PUSKESMAS.md          # Puskesmas dashboard
-├── 
 ├── 📊 Best Practices & Guidelines
 ├── ├── NEW_YEAR_SETUP.md               # Annual setup guide
 ├── └── CODE_QUALITY_INSIGHTS.md        # Code quality recommendations
@@ -125,9 +111,9 @@ php artisan serve
 ```
 
 **Essential Docs:**
-- 🛠️ [Development Guide](DEVELOPMENT_GUIDE.md)
-- 📚 [API Documentation](API_DOCUMENTATION.md) 
-- 🗄️ [Database ERD](ERD.md)
+- 🛠️ [Developer Guide](DEVELOPER_GUIDE.md)
+- 📚 [API Reference](API_REFERENCE.md) 
+- 🏗️ [System Architecture](SYSTEM_ARCHITECTURE.md)
 
 </td>
 <td width="33%">
@@ -141,8 +127,8 @@ php artisan optimize
 ```
 
 **Essential Docs:**
-- 🚀 [Deployment Guide](DEPLOYMENT_GUIDE.md)
-- 🏛️ [System Architecture](SYSTEM_DIAGRAMS.md)
+- 🛠️ [Developer Guide](DEVELOPER_GUIDE.md)
+- 🏗️ [System Architecture](SYSTEM_ARCHITECTURE.md)
 - 📊 [API Reference](API_REFERENCE.md)
 
 </td>
@@ -157,8 +143,8 @@ php artisan optimize
 ```
 
 **Essential Docs:**
-- 👥 [Use Cases](USE_CASE_DIAGRAM.md)
-- 🔄 [Data Flow](DATA_FLOW_DIAGRAM.md)
+- 🏗️ [System Architecture](SYSTEM_ARCHITECTURE.md)
+- 🎯 [New Year Setup](NEW_YEAR_SETUP.md)
 - 📋 [Project Status](CHANGELOG.md)
 
 </td>
@@ -351,7 +337,7 @@ graph TD
 
 ### 🤝 **Contributing**
 
-We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please refer to our [Developer Guide](DEVELOPER_GUIDE.md) for development guidelines.
 
 ### 📄 **License**
 
