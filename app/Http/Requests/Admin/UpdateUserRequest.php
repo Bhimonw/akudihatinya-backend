@@ -32,6 +32,7 @@ class UpdateUserRequest extends FormRequest
             ],
             'name' => 'sometimes|string|max:255',
             'password' => 'sometimes|string|min:8|nullable|confirmed',
+            'puskesmas_name' => 'sometimes|nullable|string|max:255', // Nama puskesmas untuk update
             'profile_picture' => [
                 'sometimes',
                 'nullable',

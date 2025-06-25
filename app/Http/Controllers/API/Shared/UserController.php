@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Puskesmas;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -67,16 +69,41 @@ class UserController extends Controller
             // Hash password
             $data['password'] = Hash::make($data['password']);
             
-            // Handle profile picture upload
-            if ($request->hasFile('profile_picture')) {
-                Log::info('Processing profile picture upload for new user', [
-                    'file_name' => $request->file('profile_picture')->getClientOriginalName(),
-                    'file_size' => $request->file('profile_picture')->getSize()
-                ]);
-                
-                try {
+            // Use database transaction for data consistency
+            $user = DB::transaction(function () use ($data, $request) {
+                // Auto-create puskesmas and assign ID for puskesmas role
+                if ($data['role'] === 'puskesmas') {
+                    $puskesmasName = $request->input('puskesmas_name', $data['name']);
+                    
+                    // Create puskesmas entry first
+                    $puskesmas = Puskesmas::create([
+                        'name' => $puskesmasName
+                    ]);
+                    
+                    $data['puskesmas_id'] = $puskesmas->id;
+                    
+                    Log::info('Auto-created puskesmas for new user', [
+                        'puskesmas_id' => $puskesmas->id,
+                        'puskesmas_name' => $puskesmas->name,
+                        'user_name' => $data['name']
+                    ]);
+                }
+            
+                // Handle profile picture upload
+                if ($request->hasFile('profile_picture')) {
+                    Log::info('Processing profile picture upload for new user', [
+                        'file_name' => $request->file('profile_picture')->getClientOriginalName(),
+                        'file_size' => $request->file('profile_picture')->getSize()
+                    ]);
+                    
                     $file = $request->file('profile_picture');
-                    $fileName = time() . '_' . $file->getClientOriginalName();
+                    
+                    // Sanitize filename
+                    $originalName = $file->getClientOriginalName();
+                    $extension = $file->getClientOriginalExtension();
+                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+                    $fileName = time() . '_' . $sanitizedName . '.' . $extension;
+                    
                     $destinationPath = resource_path('img');
                     
                     // Create directory if it doesn't exist
@@ -91,7 +118,7 @@ class UserController extends Controller
                     }
                     
                     // Resize image to 200x200
-                    $fullImagePath = $destinationPath . '/' . $fileName;
+                    $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
                     $this->resizeImage($fullImagePath, 200, 200);
                     
                     $data['profile_picture'] = 'img/' . $fileName;
@@ -99,24 +126,19 @@ class UserController extends Controller
                     Log::info('Profile picture uploaded successfully for new user', [
                         'path' => $data['profile_picture']
                     ]);
-                } catch (\Exception $uploadError) {
-                    Log::error('Failed to upload profile picture for new user', [
-                        'error' => $uploadError->getMessage()
-                    ]);
-                    
-                    return response()->json([
-                        'message' => 'Gagal mengupload foto profil: ' . $uploadError->getMessage()
-                    ], 422);
                 }
-            }
-            
-            $user = User::create($data);
-            $user->refresh();
+                
+                // Create user
+                $user = User::create($data);
+                $user->load('puskesmas'); // Load relationship
+                
+                return $user;
+            });
             
             Log::info('User created successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
-                'created_by' => auth()->user()->name
+                'created_by' => auth()->user()->name ?? 'system'
             ]);
             
             return response()->json([
@@ -124,13 +146,29 @@ class UserController extends Controller
                 'user' => new UserResource($user)
             ], 201);
             
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Data tidak valid',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             Log::error('Failed to create user', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
+            // Check if it's a file upload error
+            if (str_contains($e->getMessage(), 'Failed to move file') || 
+                str_contains($e->getMessage(), 'Invalid image file')) {
+                return response()->json([
+                    'message' => 'Gagal mengupload foto profil',
+                    'error' => config('app.debug') ? $e->getMessage() : 'File upload error'
+                ], 422);
+            }
+            
             return response()->json([
-                'message' => 'Gagal membuat user'
+                'message' => 'Gagal membuat user',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
@@ -190,7 +228,13 @@ class UserController extends Controller
                     }
                     
                     $file = $request->file('profile_picture');
-                    $fileName = time() . '_' . $file->getClientOriginalName();
+                    
+                    // Sanitize filename
+                    $originalName = $file->getClientOriginalName();
+                    $extension = $file->getClientOriginalExtension();
+                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+                    $fileName = time() . '_' . $sanitizedName . '.' . $extension;
+                    
                     $destinationPath = resource_path('img');
                     
                     // Create directory if it doesn't exist
@@ -204,6 +248,10 @@ class UserController extends Controller
                         throw new \Exception('Failed to move file');
                     }
                     
+                    // Resize image to 200x200
+                    $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
+                    $this->resizeImage($fullImagePath, 200, 200);
+                    
                     $data['profile_picture'] = 'img/' . $fileName;
                     
                     Log::info('Profile picture uploaded successfully', [
@@ -213,22 +261,53 @@ class UserController extends Controller
                 } catch (\Exception $uploadError) {
                     Log::error('Failed to upload profile picture', [
                         'user_id' => $user->id,
-                        'error' => $uploadError->getMessage()
+                        'error' => $uploadError->getMessage(),
+                        'trace' => $uploadError->getTraceAsString()
                     ]);
                     
                     return response()->json([
-                        'message' => 'Gagal mengupload foto profil: ' . $uploadError->getMessage()
+                        'message' => 'Gagal mengupload foto profil',
+                        'error' => $uploadError->getMessage()
                     ], 422);
                 }
             }
             
+            // Handle puskesmas name update for puskesmas role
+            if ($user->role === 'puskesmas' && isset($data['puskesmas_name']) && $user->puskesmas) {
+                $oldPuskesmasName = $user->puskesmas->name;
+                $user->puskesmas->update(['name' => $data['puskesmas_name']]);
+                
+                Log::info('Puskesmas name updated', [
+                    'user_id' => $user->id,
+                    'puskesmas_id' => $user->puskesmas->id,
+                    'old_name' => $oldPuskesmasName,
+                    'new_name' => $data['puskesmas_name']
+                ]);
+                
+                // Remove puskesmas_name from user data as it's not a user field
+                unset($data['puskesmas_name']);
+            }
+            
+            // Handle puskesmas name update for puskesmas role
+            if ($user->role === 'puskesmas' && $request->filled('puskesmas_name') && $user->puskesmas) {
+                $oldPuskesmasName = $user->puskesmas->name;
+                $user->puskesmas->update(['name' => $request->puskesmas_name]);
+                
+                Log::info('Puskesmas name updated via updateMe', [
+                    'user_id' => $user->id,
+                    'puskesmas_id' => $user->puskesmas->id,
+                    'old_name' => $oldPuskesmasName,
+                    'new_name' => $request->puskesmas_name
+                ]);
+            }
+            
             $user->update($data);
-            $user->refresh();
+            $user->load('puskesmas'); // Load relationship
             
             Log::info('User updated successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
-                'updated_by' => auth()->user()->name
+                'updated_by' => auth()->user()->name ?? 'system'
             ]);
             
             return response()->json([
@@ -236,14 +315,21 @@ class UserController extends Controller
                 'user' => new UserResource($user)
             ]);
             
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Data tidak valid',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             Log::error('Failed to update user', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
-                'message' => 'Gagal memperbarui user'
+                'message' => 'Gagal memperbarui user',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
@@ -285,11 +371,13 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to delete user', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
-                'message' => 'Gagal menghapus user'
+                'message' => 'Gagal menghapus user',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
@@ -330,11 +418,13 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to reset user password', [
                 'user_id' => $user->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
-                'message' => 'Gagal mereset password'
+                'message' => 'Gagal mereset password',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
@@ -388,6 +478,7 @@ class UserController extends Controller
             $request->validate([
                 'name' => 'sometimes|string|max:255',
                 'password' => 'sometimes|string|min:8|confirmed',
+                'puskesmas_name' => 'sometimes|nullable|string|max:255', // Nama puskesmas untuk update
                 'profile_picture' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048'
             ]);
             
@@ -419,7 +510,13 @@ class UserController extends Controller
                     }
                     
                     $file = $request->file('profile_picture');
-                    $fileName = time() . '_' . $file->getClientOriginalName();
+                    
+                    // Sanitize filename
+                    $originalName = $file->getClientOriginalName();
+                    $extension = $file->getClientOriginalExtension();
+                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+                    $fileName = time() . '_' . $sanitizedName . '.' . $extension;
+                    
                     $destinationPath = resource_path('img');
                     
                     // Create directory if it doesn't exist
@@ -433,28 +530,34 @@ class UserController extends Controller
                         throw new \Exception('Failed to move file');
                     }
                     
+                    // Resize image to 200x200
+                    $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
+                    $this->resizeImage($fullImagePath, 200, 200);
+                    
                     $data['profile_picture'] = 'img/' . $fileName;
                     
                     Log::info('Profile picture uploaded successfully for user update', [
                         'user_id' => $user->id,
                         'path' => $data['profile_picture'],
-                        'full_path' => $destinationPath . '/' . $fileName,
-                        'file_exists' => file_exists($destinationPath . '/' . $fileName)
+                        'full_path' => $destinationPath . DIRECTORY_SEPARATOR . $fileName,
+                        'file_exists' => file_exists($destinationPath . DIRECTORY_SEPARATOR . $fileName)
                     ]);
                 } catch (\Exception $uploadError) {
                     Log::error('Failed to upload profile picture', [
                         'user_id' => $user->id,
-                        'error' => $uploadError->getMessage()
+                        'error' => $uploadError->getMessage(),
+                        'trace' => $uploadError->getTraceAsString()
                     ]);
                     
                     return response()->json([
-                        'message' => 'Gagal mengupload foto profil: ' . $uploadError->getMessage()
+                        'message' => 'Gagal mengupload foto profil',
+                        'error' => $uploadError->getMessage()
                     ], 422);
                 }
             }
             
             $user->update($data);
-            $user->refresh();
+            $user->load('puskesmas'); // Load relationship
             
             Log::info('User profile updated', [
                 'user_id' => $user->id,
@@ -476,11 +579,13 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to update user profile', [
                 'user_id' => auth()->id(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
-                'message' => 'Gagal memperbarui profil'
+                'message' => 'Gagal memperbarui profil',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }

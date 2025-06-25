@@ -26,6 +26,7 @@ class StoreUserRequest extends FormRequest
             'password' => 'required|string|min:8',
             'name' => 'required|string|max:255',
             'role' => 'required|in:puskesmas', // Hanya bisa membuat user puskesmas
+            'puskesmas_name' => 'nullable|string|max:255', // Nama puskesmas opsional
             'profile_picture' => [
                 'nullable',
                 'image',
