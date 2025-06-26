@@ -1,0 +1,88 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; text-anchor: middle; }
+      .actor { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; }
+      .usecase { font-family: Arial, sans-serif; font-size: 10px; text-anchor: middle; }
+      .system-boundary { fill: none; stroke: #333; stroke-width: 2; stroke-dasharray: 5,5; }
+      .actor-line { stroke: #333; stroke-width: 1; }
+      .usecase-oval { fill: #e6f3ff; stroke: #333; stroke-width: 1; }
+      .actor-stick { fill: none; stroke: #333; stroke-width: 2; }
+    </style>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="30" class="title">Use Case Diagram - Modul Autentikasi</text>
+  
+  <!-- System Boundary -->
+  <rect x="200" y="80" width="500" height="450" class="system-boundary" rx="10"/>
+  <text x="450" y="100" class="actor" font-weight="bold">Sistem Akudihatinya</text>
+  
+  <!-- Actors -->
+  <!-- Admin -->
+  <g id="admin">
+    <circle cx="100" cy="150" r="15" fill="#ffeb3b" stroke="#333" stroke-width="2"/>
+    <line x1="100" y1="165" x2="100" y2="200" class="actor-stick"/>
+    <line x1="85" y1="180" x2="115" y2="180" class="actor-stick"/>
+    <line x1="100" y1="200" x2="85" y2="230" class="actor-stick"/>
+    <line x1="100" y1="200" x2="115" y2="230" class="actor-stick"/>
+    <text x="100" y="250" class="actor">Admin</text>
+  </g>
+  
+  <!-- Petugas Puskesmas -->
+  <g id="petugas">
+    <circle cx="100" cy="350" r="15" fill="#4caf50" stroke="#333" stroke-width="2"/>
+    <line x1="100" y1="365" x2="100" y2="400" class="actor-stick"/>
+    <line x1="85" y1="380" x2="115" y2="380" class="actor-stick"/>
+    <line x1="100" y1="400" x2="85" y2="430" class="actor-stick"/>
+    <line x1="100" y1="400" x2="115" y2="430" class="actor-stick"/>
+    <text x="100" y="450" class="actor">Petugas Puskesmas</text>
+  </g>
+  
+  <!-- Use Cases -->
+  <!-- Login -->
+  <ellipse cx="350" cy="150" rx="60" ry="25" class="usecase-oval"/>
+  <text x="350" y="155" class="usecase">Login</text>
+  
+  <!-- Logout -->
+  <ellipse cx="500" cy="150" rx="60" ry="25" class="usecase-oval"/>
+  <text x="500" y="155" class="usecase">Logout</text>
+  
+  <!-- Refresh Token -->
+  <ellipse cx="350" cy="220" rx="70" ry="25" class="usecase-oval"/>
+  <text x="350" y="225" class="usecase">Refresh Token</text>
+  
+  <!-- Change Password -->
+  <ellipse cx="500" cy="220" rx="70" ry="25" class="usecase-oval"/>
+  <text x="500" y="225" class="usecase">Change Password</text>
+  
+  <!-- Connections from Admin -->
+  <line x1="115" y1="150" x2="290" y2="150" class="actor-line"/>
+  <line x1="115" y1="150" x2="440" y2="150" class="actor-line"/>
+  <line x1="115" y1="180" x2="280" y2="220" class="actor-line"/>
+  <line x1="115" y1="180" x2="430" y2="220" class="actor-line"/>
+  
+  <!-- Connections from Petugas Puskesmas -->
+  <line x1="115" y1="350" x2="290" y2="150" class="actor-line"/>
+  <line x1="115" y1="350" x2="440" y2="150" class="actor-line"/>
+  <line x1="115" y1="350" x2="280" y2="220" class="actor-line"/>
+  <line x1="115" y1="350" x2="430" y2="220" class="actor-line"/>
+  
+  <!-- Use Case Details -->
+  <text x="220" y="320" class="usecase" font-size="9" fill="#666">
+    <tspan x="220" dy="0">UC-AUTH-001: Login</tspan>
+    <tspan x="220" dy="12">UC-AUTH-002: Logout</tspan>
+    <tspan x="220" dy="12">UC-AUTH-003: Refresh Token</tspan>
+    <tspan x="220" dy="12">UC-AUTH-004: Change Password</tspan>
+  </text>
+  
+  <!-- Legend -->
+  <rect x="50" y="480" width="700" height="80" fill="#f5f5f5" stroke="#ccc" stroke-width="1" rx="5"/>
+  <text x="60" y="500" class="usecase" font-weight="bold">Keterangan:</text>
+  <text x="60" y="515" class="usecase" font-size="9">
+    <tspan x="60" dy="0">• Admin dan Petugas Puskesmas dapat melakukan semua fungsi autentikasi</tspan>
+    <tspan x="60" dy="12">• Login menghasilkan access token dan refresh token</tspan>
+    <tspan x="60" dy="12">• Refresh token digunakan untuk memperbarui access token yang expired</tspan>
+    <tspan x="60" dy="12">• Change password memerlukan validasi password lama</tspan>
+  </text>
+</svg>
