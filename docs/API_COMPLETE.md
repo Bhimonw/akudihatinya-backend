@@ -302,6 +302,40 @@ GET /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024
 - Proses pembuatan menggunakan database transaction untuk memastikan konsistensi data
 - Username harus unik dalam sistem
 
+su#### Update User
+**PUT** `/api/admin/users/{id}`
+
+**Request Body:**
+```json
+{
+  "name": "Updated User Name",
+  "password": "newpassword123",
+  "profile_picture": "file (optional)"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "message": "Profil berhasil diperbarui",
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "name": "Updated User Name",
+    "role": "admin",
+    "profile_picture": "img/1735372419_updated_profile.jpg",
+    "created_at": "2025-06-28 07:43:39",
+    "updated_at": "2025-06-28 07:43:39"
+  }
+}
+```
+
+**Catatan Update User:**
+- Field `username` dan `role` tidak dapat diubah
+- Field `password` bersifat opsional - jika tidak disertakan, password tidak akan diubah
+- Mendukung upload profile picture baru
+- Jika profile picture baru diupload, gambar lama akan dihapus otomatis
+
 ---
 
 ## 🏥 Puskesmas APIs

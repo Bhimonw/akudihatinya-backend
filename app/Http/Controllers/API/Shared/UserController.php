@@ -5,6 +5,8 @@ namespace App\Http\Controllers\API\Shared;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
+use App\Http\Requests\UpdateMeRequest;
+use App\Services\ProfilePictureService;
 use App\Http\Resources\UserResource;
 use App\Models\Puskesmas;
 use App\Models\User;
@@ -19,6 +21,12 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    protected ProfilePictureService $profilePictureService;
+
+    public function __construct(ProfilePictureService $profilePictureService)
+    {
+        $this->profilePictureService = $profilePictureService;
+    }
     /**
      * Display a listing of users (Admin only)
      * GET /api/admin/users
@@ -58,9 +66,13 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         try {
-            $data = $request->validated();
-            
-            // Debug: Log request data
+            $data = $request->only(['username', 'name', 'password']);
+             
+             // Debug: Log validated data
+             Log::info('Admin update validated data', [
+                 'validated_data' => $data,
+                 'target_user_id' => $user->id
+             ]);
             Log::info('Store user request received', [
                 'has_file' => $request->hasFile('profile_picture'),
                 'files' => $request->allFiles()
@@ -112,7 +124,7 @@ class UserController extends Controller
             $user = DB::transaction(function () use ($data, $request) {
                 // Auto-create puskesmas and assign ID for puskesmas role
                 if ($data['role'] === 'puskesmas') {
-                    $puskesmasName = $request->input('puskesmas_name', $data['name']);
+                    $puskesmasName = $data['name']; // Use name as puskesmas name
                     
                     // 1. Create user first (without puskesmas_id)
                     $tempData = $data;
@@ -202,13 +214,21 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user)
     {
         try {
-            $data = $request->validated();
+            // Log admin update request
+            Log::info('Admin update user request received', [
+                'target_user_id' => $user->id,
+                'admin_user_id' => auth()->id(),
+                'has_file' => $request->hasFile('profile_picture')
+            ]);
             
-            // Debug: Log request data
-            Log::info('Update user request received', [
-                'user_id' => $user->id,
-                'has_file' => $request->hasFile('profile_picture'),
-                'files' => $request->allFiles()
+            DB::beginTransaction();
+            
+            $data = $request->only(['username', 'name', 'password']);
+            
+            // Log validated data
+            Log::info('Admin update data validated', [
+                'fields' => array_keys($data),
+                'target_user_id' => $user->id
             ]);
             
             // Hash password if provided
@@ -220,60 +240,13 @@ class UserController extends Controller
             
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
-                Log::info('Processing profile picture upload', [
-                    'user_id' => $user->id,
-                    'file_name' => $request->file('profile_picture')->getClientOriginalName(),
-                    'file_size' => $request->file('profile_picture')->getSize()
-                ]);
-                
                 try {
-                    // Delete old image if exists
-                    if ($user->profile_picture) {
-                        $oldImagePath = resource_path($user->profile_picture);
-                        if (file_exists($oldImagePath)) {
-                            unlink($oldImagePath);
-                            Log::info('Deleted old profile picture', ['path' => $user->profile_picture]);
-                        }
-                    }
-                    
-                    $file = $request->file('profile_picture');
-                    
-                    // Sanitize filename
-                    $originalName = $file->getClientOriginalName();
-                    $extension = $file->getClientOriginalExtension();
-                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-                    $fileName = time() . '_' . $sanitizedName . '.' . $extension;
-                    
-                    $destinationPath = resource_path('img');
-                    
-                    // Create directory if it doesn't exist
-                    if (!file_exists($destinationPath)) {
-                        mkdir($destinationPath, 0755, true);
-                    }
-                    
-                    $moved = $file->move($destinationPath, $fileName);
-                    
-                    if (!$moved) {
-                        throw new \Exception('Failed to move file');
-                    }
-                    
-                    // Resize image to 200x200
-                    $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-                    $this->resizeImage($fullImagePath, 200, 200);
-                    
-                    $data['profile_picture'] = 'img/' . $fileName;
-                    
-                    Log::info('Profile picture uploaded successfully', [
-                        'user_id' => $user->id,
-                        'path' => $data['profile_picture']
-                    ]);
+                    $data['profile_picture'] = $this->profilePictureService->uploadProfilePicture(
+                        $request->file('profile_picture'),
+                        $user->profile_picture,
+                        $user->id
+                    );
                 } catch (\Exception $uploadError) {
-                    Log::error('Failed to upload profile picture', [
-                        'user_id' => $user->id,
-                        'error' => $uploadError->getMessage(),
-                        'trace' => $uploadError->getTraceAsString()
-                    ]);
-                    
                     return response()->json([
                         'message' => 'Gagal mengupload foto profil',
                         'error' => $uploadError->getMessage()
@@ -281,36 +254,21 @@ class UserController extends Controller
                 }
             }
             
-            // Handle puskesmas name update for puskesmas role
-            if ($user->role === 'puskesmas' && isset($data['puskesmas_name']) && $user->puskesmas) {
-                $oldPuskesmasName = $user->puskesmas->name;
-                $user->puskesmas->update(['name' => $data['puskesmas_name']]);
-                
-                Log::info('Puskesmas name updated', [
-                    'user_id' => $user->id,
-                    'puskesmas_id' => $user->puskesmas->id,
-                    'old_name' => $oldPuskesmasName,
-                    'new_name' => $data['puskesmas_name']
-                ]);
-                
-                // Remove puskesmas_name from user data as it's not a user field
-                unset($data['puskesmas_name']);
-            }
-            
-            // Handle puskesmas name update for puskesmas role
-            if ($user->role === 'puskesmas' && $request->filled('puskesmas_name') && $user->puskesmas) {
-                $oldPuskesmasName = $user->puskesmas->name;
-                $user->puskesmas->update(['name' => $request->puskesmas_name]);
-                
-                Log::info('Puskesmas name updated via updateMe', [
-                    'user_id' => $user->id,
-                    'puskesmas_id' => $user->puskesmas->id,
-                    'old_name' => $oldPuskesmasName,
-                    'new_name' => $request->puskesmas_name
-                ]);
-            }
-            
             $user->update($data);
+            
+            // Handle puskesmas name update for puskesmas role - use name as puskesmas name
+            if ($user->role === 'puskesmas' && isset($data['name']) && $user->puskesmas) {
+                $oldPuskesmasName = $user->puskesmas->name;
+                $user->puskesmas->update(['name' => $data['name']]);
+                
+                Log::info('Puskesmas name updated using user name', [
+                    'user_id' => $user->id,
+                    'puskesmas_id' => $user->puskesmas->id,
+                    'old_name' => $oldPuskesmasName,
+                    'new_name' => $data['name']
+                ]);
+            }
+            
             $user->load('puskesmas'); // Load relationship
             
             Log::info('User updated successfully', [
@@ -456,19 +414,15 @@ class UserController extends Controller
      * Update current authenticated user profile
      * PUT /api/me
      */
-    public function updateMe(Request $request)
+    public function updateMe(UpdateMeRequest $request)
     {
         try {
             $user = auth()->user();
             
-            // Debug: Log all request data
+            // Log update request
             Log::info('UpdateMe request received', [
                 'user_id' => $user->id,
-                'has_file' => $request->hasFile('profile_picture'),
-                'files' => $request->allFiles(),
-                'all_data' => $request->all(),
-                'content_type' => $request->header('Content-Type'),
-                'method' => $request->method()
+                'has_file' => $request->hasFile('profile_picture')
             ]);
             
             // Log before validation
@@ -484,16 +438,15 @@ class UserController extends Controller
                 ]);
             }
             
-            $request->validate([
-                'name' => 'sometimes|string|max:255',
-                'password' => 'sometimes|string|min:8|confirmed',
-                'puskesmas_name' => 'sometimes|nullable|string|max:255', // Nama puskesmas untuk update
-                'profile_picture' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048'
-            ]);
+            $data = $request->validated();
             
             Log::info('Validation passed successfully');
             
-            $data = $request->only(['name']);
+            // Log extracted data for debugging
+            Log::info('UpdateMe data extracted', [
+                'fields' => array_keys($data),
+                'user_id' => $user->id
+            ]);
             
             // Hash password if provided
             if ($request->filled('password')) {
@@ -502,62 +455,13 @@ class UserController extends Controller
             
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
-                Log::info('Processing profile picture upload for user update', [
-                    'user_id' => $user->id,
-                    'file_name' => $request->file('profile_picture')->getClientOriginalName(),
-                    'file_size' => $request->file('profile_picture')->getSize()
-                ]);
-                
                 try {
-                    // Delete old image if exists
-                    if ($user->profile_picture) {
-                        $oldImagePath = resource_path($user->profile_picture);
-                        if (file_exists($oldImagePath)) {
-                            unlink($oldImagePath);
-                            Log::info('Deleted old profile picture', ['path' => $user->profile_picture]);
-                        }
-                    }
-                    
-                    $file = $request->file('profile_picture');
-                    
-                    // Sanitize filename
-                    $originalName = $file->getClientOriginalName();
-                    $extension = $file->getClientOriginalExtension();
-                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-                    $fileName = time() . '_' . $sanitizedName . '.' . $extension;
-                    
-                    $destinationPath = resource_path('img');
-                    
-                    // Create directory if it doesn't exist
-                    if (!file_exists($destinationPath)) {
-                        mkdir($destinationPath, 0755, true);
-                    }
-                    
-                    $moved = $file->move($destinationPath, $fileName);
-                    
-                    if (!$moved) {
-                        throw new \Exception('Failed to move file');
-                    }
-                    
-                    // Resize image to 200x200
-                    $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-                    $this->resizeImage($fullImagePath, 200, 200);
-                    
-                    $data['profile_picture'] = 'img/' . $fileName;
-                    
-                    Log::info('Profile picture uploaded successfully for user update', [
-                        'user_id' => $user->id,
-                        'path' => $data['profile_picture'],
-                        'full_path' => $destinationPath . DIRECTORY_SEPARATOR . $fileName,
-                        'file_exists' => file_exists($destinationPath . DIRECTORY_SEPARATOR . $fileName)
-                    ]);
+                    $data['profile_picture'] = $this->profilePictureService->uploadProfilePicture(
+                        $request->file('profile_picture'),
+                        $user->profile_picture,
+                        $user->id
+                    );
                 } catch (\Exception $uploadError) {
-                    Log::error('Failed to upload profile picture', [
-                        'user_id' => $user->id,
-                        'error' => $uploadError->getMessage(),
-                        'trace' => $uploadError->getTraceAsString()
-                    ]);
-                    
                     return response()->json([
                         'message' => 'Gagal mengupload foto profil',
                         'error' => $uploadError->getMessage()
@@ -566,6 +470,20 @@ class UserController extends Controller
             }
             
             $user->update($data);
+            
+            // Handle puskesmas name update for puskesmas role - use name as puskesmas name
+            if ($user->role === 'puskesmas' && isset($data['name']) && $user->puskesmas) {
+                $oldPuskesmasName = $user->puskesmas->name;
+                $user->puskesmas->update(['name' => $data['name']]);
+                
+                Log::info('Puskesmas name updated using user name via updateMe', [
+                    'user_id' => $user->id,
+                    'puskesmas_id' => $user->puskesmas->id,
+                    'old_name' => $oldPuskesmasName,
+                    'new_name' => $data['name']
+                ]);
+            }
+            
             $user->load('puskesmas'); // Load relationship
             
             Log::info('User profile updated', [
@@ -599,90 +517,5 @@ class UserController extends Controller
         }
     }
     
-    /**
-     * Resize image to specified dimensions
-     *
-     * @param string $imagePath
-     * @param int $width
-     * @param int $height
-     * @return void
-     */
-    private function resizeImage($imagePath, $width, $height)
-    {
-        // Get image info
-        $imageInfo = getimagesize($imagePath);
-        if (!$imageInfo) {
-            throw new \Exception('Invalid image file');
-        }
-        
-        $originalWidth = $imageInfo[0];
-        $originalHeight = $imageInfo[1];
-        $imageType = $imageInfo[2];
-        
-        // Skip resize if already correct size
-        if ($originalWidth == $width && $originalHeight == $height) {
-            return;
-        }
-        
-        // Create image resource based on type
-        switch ($imageType) {
-            case IMAGETYPE_JPEG:
-                $sourceImage = imagecreatefromjpeg($imagePath);
-                break;
-            case IMAGETYPE_PNG:
-                $sourceImage = imagecreatefrompng($imagePath);
-                break;
-            case IMAGETYPE_GIF:
-                $sourceImage = imagecreatefromgif($imagePath);
-                break;
-            default:
-                throw new \Exception('Unsupported image type');
-        }
-        
-        if (!$sourceImage) {
-            throw new \Exception('Failed to create image resource');
-        }
-        
-        // Create new image with target dimensions
-        $resizedImage = imagecreatetruecolor($width, $height);
-        
-        // Preserve transparency for PNG and GIF
-        if ($imageType == IMAGETYPE_PNG || $imageType == IMAGETYPE_GIF) {
-            imagealphablending($resizedImage, false);
-            imagesavealpha($resizedImage, true);
-            $transparent = imagecolorallocatealpha($resizedImage, 255, 255, 255, 127);
-            imagefill($resizedImage, 0, 0, $transparent);
-        }
-        
-        // Resize image
-        imagecopyresampled(
-            $resizedImage, $sourceImage,
-            0, 0, 0, 0,
-            $width, $height,
-            $originalWidth, $originalHeight
-        );
-        
-        // Save resized image
-        switch ($imageType) {
-            case IMAGETYPE_JPEG:
-                imagejpeg($resizedImage, $imagePath, 90);
-                break;
-            case IMAGETYPE_PNG:
-                imagepng($resizedImage, $imagePath, 9);
-                break;
-            case IMAGETYPE_GIF:
-                imagegif($resizedImage, $imagePath);
-                break;
-        }
-        
-        // Clean up memory
-        imagedestroy($sourceImage);
-        imagedestroy($resizedImage);
-        
-        Log::info('Image resized successfully', [
-            'path' => $imagePath,
-            'original_size' => $originalWidth . 'x' . $originalHeight,
-            'new_size' => $width . 'x' . $height
-        ]);
-    }
+
 }

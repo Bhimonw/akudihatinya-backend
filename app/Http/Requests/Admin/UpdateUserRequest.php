@@ -30,9 +30,8 @@ class UpdateUserRequest extends FormRequest
                 'string',
                 Rule::unique('users')->ignore($editingUser?->id),
             ],
-            'name' => 'sometimes|string|max:255',
+            'name' => 'sometimes|string|max:255', // Name will be used as puskesmas name
             'password' => 'sometimes|string|min:8|nullable|confirmed',
-            'puskesmas_name' => 'sometimes|nullable|string|max:255', // Nama puskesmas untuk update
             'profile_picture' => [
                 'sometimes',
                 'nullable',
