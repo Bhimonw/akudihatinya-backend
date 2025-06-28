@@ -83,41 +83,11 @@ class UserController extends Controller
             
             // Handle profile picture upload first
             if ($request->hasFile('profile_picture')) {
-                Log::info('Processing profile picture upload for new user', [
-                    'file_name' => $request->file('profile_picture')->getClientOriginalName(),
-                    'file_size' => $request->file('profile_picture')->getSize()
-                ]);
-                
-                $file = $request->file('profile_picture');
-                
-                // Sanitize filename
-                $originalName = $file->getClientOriginalName();
-                $extension = $file->getClientOriginalExtension();
-                $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-                $fileName = time() . '_' . $sanitizedName . '.' . $extension;
-                
-                $destinationPath = resource_path('img');
-                
-                // Create directory if it doesn't exist
-                if (!file_exists($destinationPath)) {
-                    mkdir($destinationPath, 0755, true);
-                }
-                
-                $moved = $file->move($destinationPath, $fileName);
-                
-                if (!$moved) {
-                    throw new \Exception('Failed to move file');
-                }
-                
-                // Resize image to 200x200
-                $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-                $this->resizeImage($fullImagePath, 200, 200);
-                
-                $data['profile_picture'] = 'img/' . $fileName;
-                
-                Log::info('Profile picture uploaded successfully for new user', [
-                    'path' => $data['profile_picture']
-                ]);
+                $data['profile_picture'] = $this->profilePictureService->uploadProfilePicture(
+                    $request->file('profile_picture'),
+                    null, // No old picture for new user
+                    0 // Temporary user ID for logging
+                );
             }
             
             // Use database transaction for data consistency

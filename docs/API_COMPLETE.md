@@ -15,22 +15,23 @@
 ## 📋 Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Authentication](#authentication)
-3. [Base Configuration](#base-configuration)
-4. [Admin APIs](#admin-apis)
-5. [Puskesmas APIs](#puskesmas-apis)
-6. [Statistics APIs](#statistics-apis)
-7. [Dashboard APIs](#dashboard-apis)
-8. [User Profile APIs](#user-profile-apis)
-9. [Export APIs](#export-apis)
-10. [File Upload APIs](#file-upload-apis)
-11. [Real-Time Features](#real-time-features)
-12. [Response Structures](#response-structures)
-13. [Error Handling](#error-handling)
-14. [System Architecture](#system-architecture)
-15. [Development Guide](#development-guide)
-16. [Testing](#testing)
-17. [Changelog](#changelog)
+2. [API Routes Structure](#api-routes-structure)
+3. [Authentication](#authentication)
+4. [Base Configuration](#base-configuration)
+5. [Admin APIs](#admin-apis)
+6. [Puskesmas APIs](#puskesmas-apis)
+7. [Statistics APIs](#statistics-apis)
+8. [Dashboard APIs](#dashboard-apis)
+9. [User Profile APIs](#user-profile-apis)
+10. [Export APIs](#export-apis)
+11. [File Upload APIs](#file-upload-apis)
+12. [Real-Time Features](#real-time-features)
+13. [Response Structures](#response-structures)
+14. [Error Handling](#error-handling)
+15. [System Architecture](#system-architecture)
+16. [Development Guide](#development-guide)
+17. [Testing](#testing)
+18. [Changelog](#changelog)
 
 ---
 
@@ -58,6 +59,73 @@ curl -X POST http://localhost:8000/api/auth/login \
 curl -X GET http://localhost:8000/api/statistics/dashboard-statistics \
   -H "Authorization: Bearer {token}"
 ```
+
+---
+
+## 🗂️ API Routes Structure
+
+Route telah dipisahkan berdasarkan fungsi untuk meningkatkan maintainability dan organisasi kode.
+
+### File Route dan Fungsinya
+
+#### 1. `auth.php` - Authentication
+- Login, logout, refresh token
+- Change password
+- User authentication endpoints
+
+#### 2. `users.php` - User Management
+- User profile management (`/me`, `/updateMe`)
+- Admin user management (CRUD operations)
+- Password reset functionality
+
+#### 3. `profile.php` - Profile Updates
+- Profile update untuk puskesmas users
+- Upload profile picture
+
+#### 4. `dashboard.php` - Dashboard Statistics
+- Admin dashboard statistics
+- Puskesmas dashboard statistics
+- General dashboard endpoints
+
+#### 5. `statistics.php` - Statistics Data
+- Statistics data retrieval (HT, DM)
+- Admin statistics
+- General statistics endpoints
+
+#### 6. `exports.php` - Export & Reporting
+- Statistics export (PDF, Excel)
+- Patient export
+- Monitoring reports
+- Export utility endpoints
+
+#### 7. `patients.php` - Patient Management
+- Patient CRUD operations
+- Patient listing and filtering
+
+#### 8. `examinations.php` - Medical Examinations
+- HT examination management
+- DM examination management
+- Examination year management
+- Batch operations
+
+#### 9. `admin.php` - Admin-Specific Features
+- Yearly targets management
+- Admin-only functionality
+
+### Middleware dan Prefix
+
+- **Authentication**: `auth:sanctum` untuk semua protected routes
+- **Admin Access**: `IsAdmin` middleware untuk admin-only endpoints
+- **Puskesmas Access**: `IsPuskesmas` middleware untuk puskesmas-only endpoints
+- **Combined Access**: `AdminOrPuskesmas` middleware untuk endpoints yang dapat diakses kedua role
+
+### Keuntungan Struktur Baru
+
+1. **Separation of Concerns**: Setiap file route memiliki tanggung jawab yang jelas
+2. **Maintainability**: Mudah untuk menemukan dan memodifikasi route tertentu
+3. **Scalability**: Mudah menambahkan route baru tanpa mengacaukan struktur existing
+4. **Readability**: Struktur yang lebih mudah dibaca dan dipahami
+5. **Modularity**: Setiap modul dapat dikembangkan secara independen
 
 ---
 

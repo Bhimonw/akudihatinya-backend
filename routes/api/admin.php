@@ -1,21 +1,11 @@
 <?php
 
-use App\Http\Controllers\API\Shared\StatisticsController;
-use App\Http\Controllers\API\Shared\UserController;
 use App\Http\Controllers\API\Admin\YearlyTargetController;
 use Illuminate\Support\Facades\Route;
 
-// Admin routes
+// Admin-specific routes (yearly targets management)
 Route::middleware(['auth:sanctum', \App\Http\Middleware\IsAdmin::class])->prefix('admin')->group(function () {
-    // Dashboard API for Dinas (admin) - using statistics controller
-    Route::get('/dashboard', [StatisticsController::class, 'adminStatistics']);
-
-    // User management
-    Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
-    Route::resource('users', UserController::class)->except(['create', 'edit']);
-    Route::delete('/users/{user}', [UserController::class, 'destroy']);
-
-    // Yearly targets
+    // Yearly targets management
     Route::get('/yearly-targets', [YearlyTargetController::class, 'index']);
     Route::post('/yearly-targets', [YearlyTargetController::class, 'store']);
     Route::put('/yearly-targets', [YearlyTargetController::class, 'update']);
