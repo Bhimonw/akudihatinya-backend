@@ -69,71 +69,80 @@ class UserController extends Controller
             // Hash password
             $data['password'] = Hash::make($data['password']);
             
+            // Handle profile picture upload first
+            if ($request->hasFile('profile_picture')) {
+                Log::info('Processing profile picture upload for new user', [
+                    'file_name' => $request->file('profile_picture')->getClientOriginalName(),
+                    'file_size' => $request->file('profile_picture')->getSize()
+                ]);
+                
+                $file = $request->file('profile_picture');
+                
+                // Sanitize filename
+                $originalName = $file->getClientOriginalName();
+                $extension = $file->getClientOriginalExtension();
+                $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
+                $fileName = time() . '_' . $sanitizedName . '.' . $extension;
+                
+                $destinationPath = resource_path('img');
+                
+                // Create directory if it doesn't exist
+                if (!file_exists($destinationPath)) {
+                    mkdir($destinationPath, 0755, true);
+                }
+                
+                $moved = $file->move($destinationPath, $fileName);
+                
+                if (!$moved) {
+                    throw new \Exception('Failed to move file');
+                }
+                
+                // Resize image to 200x200
+                $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
+                $this->resizeImage($fullImagePath, 200, 200);
+                
+                $data['profile_picture'] = 'img/' . $fileName;
+                
+                Log::info('Profile picture uploaded successfully for new user', [
+                    'path' => $data['profile_picture']
+                ]);
+            }
+            
             // Use database transaction for data consistency
             $user = DB::transaction(function () use ($data, $request) {
                 // Auto-create puskesmas and assign ID for puskesmas role
                 if ($data['role'] === 'puskesmas') {
                     $puskesmasName = $request->input('puskesmas_name', $data['name']);
                     
-                    // Create puskesmas entry first
+                    // 1. Create user first (without puskesmas_id)
+                    $tempData = $data;
+                    unset($tempData['puskesmas_id']); // Remove puskesmas_id temporarily
+                    $user = User::create($tempData);
+                    
+                    // 2. Create puskesmas with user_id
                     $puskesmas = Puskesmas::create([
-                        'name' => $puskesmasName
+                        'name' => $puskesmasName,
+                        'user_id' => $user->id  // Provide required user_id
                     ]);
                     
-                    $data['puskesmas_id'] = $puskesmas->id;
+                    // 3. Update user with puskesmas_id
+                    $user->update(['puskesmas_id' => $puskesmas->id]);
                     
                     Log::info('Auto-created puskesmas for new user', [
                         'puskesmas_id' => $puskesmas->id,
                         'puskesmas_name' => $puskesmas->name,
-                        'user_name' => $data['name']
+                        'user_name' => $user->name
                     ]);
+                    
+                    return $user;
+                } else {
+                    // For admin users, create normally
+                    return User::create($data);
                 }
-            
-                // Handle profile picture upload
-                if ($request->hasFile('profile_picture')) {
-                    Log::info('Processing profile picture upload for new user', [
-                        'file_name' => $request->file('profile_picture')->getClientOriginalName(),
-                        'file_size' => $request->file('profile_picture')->getSize()
-                    ]);
-                    
-                    $file = $request->file('profile_picture');
-                    
-                    // Sanitize filename
-                    $originalName = $file->getClientOriginalName();
-                    $extension = $file->getClientOriginalExtension();
-                    $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-                    $fileName = time() . '_' . $sanitizedName . '.' . $extension;
-                    
-                    $destinationPath = resource_path('img');
-                    
-                    // Create directory if it doesn't exist
-                    if (!file_exists($destinationPath)) {
-                        mkdir($destinationPath, 0755, true);
-                    }
-                    
-                    $moved = $file->move($destinationPath, $fileName);
-                    
-                    if (!$moved) {
-                        throw new \Exception('Failed to move file');
-                    }
-                    
-                    // Resize image to 200x200
-                    $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-                    $this->resizeImage($fullImagePath, 200, 200);
-                    
-                    $data['profile_picture'] = 'img/' . $fileName;
-                    
-                    Log::info('Profile picture uploaded successfully for new user', [
-                        'path' => $data['profile_picture']
-                    ]);
-                }
-                
-                // Create user
-                $user = User::create($data);
-                $user->load('puskesmas'); // Load relationship
-                
-                return $user;
             });
+            
+            // Load relationship
+             $user->load('puskesmas');
             
             Log::info('User created successfully', [
                 'user_id' => $user->id,

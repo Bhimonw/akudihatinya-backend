@@ -254,13 +254,53 @@ GET /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024
 **Request Body:**
 ```json
 {
-  "name": "User Baru",
-  "email": "user@example.com",
+  "username": "user_puskesmas",
+  "name": "User Puskesmas Baru",
   "password": "password123",
   "role": "puskesmas",
-  "puskesmas_id": 1
+  "puskesmas_name": "Puskesmas Martapura Barat",
+  "profile_picture": "file (optional)"
 }
 ```
+
+**Response (Success):**
+```json
+{
+  "message": "User berhasil dibuat",
+  "user": {
+    "id": 1,
+    "username": "user_puskesmas",
+    "name": "User Puskesmas Baru",
+    "role": "puskesmas",
+    "puskesmas_id": 1,
+    "puskesmas": {
+      "id": 1,
+      "name": "Puskesmas Martapura Baru",
+      "user_id": 1
+    },
+    "profile_picture": "img/profile_picture.jpg"
+  }
+}
+```
+
+**Response (Username Already Exists - 422):**
+```json
+{
+  "message": "Data tidak valid",
+  "errors": {
+    "username": [
+      "Username sudah digunakan"
+    ]
+  }
+}
+```
+
+**Catatan Penting:**
+- Untuk role `puskesmas`: Sistem akan otomatis membuat entitas puskesmas baru dan mengaitkannya dengan user
+- Field `puskesmas_name` wajib diisi untuk role puskesmas
+- Field `puskesmas_id` tidak perlu disertakan karena akan dibuat otomatis
+- Proses pembuatan menggunakan database transaction untuk memastikan konsistensi data
+- Username harus unik dalam sistem
 
 ---
 

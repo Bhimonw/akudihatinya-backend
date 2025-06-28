@@ -181,7 +181,12 @@ Sistem Akudihatinya adalah aplikasi backend untuk manajemen data kesehatan yang 
 1. **Create User**
    - Aktor: Admin
    - Deskripsi: Membuat akun user baru untuk puskesmas
-   - Flow: Input data user → Assign puskesmas → Generate credentials
+   - Flow: Input data user → Sistem otomatis membuat puskesmas → Link user dengan puskesmas
+   - **Catatan**: Untuk role puskesmas, sistem akan otomatis:
+     1. Membuat user terlebih dahulu
+     2. Membuat entitas puskesmas dengan user_id
+     3. Update user dengan puskesmas_id
+     4. Menggunakan database transaction untuk konsistensi data
 
 2. **View Users**
    - Aktor: Admin

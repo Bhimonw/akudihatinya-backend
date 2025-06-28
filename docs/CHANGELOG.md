@@ -5,6 +5,24 @@ Semua perubahan penting pada proyek Akudihatinya Backend akan didokumentasikan d
 Format berdasarkan [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 dan proyek ini mengikuti [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2025-06-XX
+
+### Added
+- User creation fix documentation (`docs/USER_CREATION_FIX.md`)
+- Enhanced user management documentation with corrected flow
+- Database transaction implementation for user-puskesmas creation
+
+### Fixed
+- **Critical**: Fixed user creation error `SQLSTATE[HY000]: General error: 1364 Field 'user_id' doesn't have a default value` when creating puskesmas users
+- **UserController**: Corrected order of operations in `UserController::store()` method for puskesmas role users
+- **Puskesmas Model**: Added `user_id` to fillable array to allow mass assignment during puskesmas creation
+- **Database**: Implemented proper database transaction handling for user-puskesmas relationship creation
+
+### Changed
+- Updated API documentation for user creation endpoint
+- Enhanced user creation flow documentation in ERD and use case docs
+- Improved error handling in user creation process
+
 ## [Unreleased] - 2025-03-XX
 
 ### Added

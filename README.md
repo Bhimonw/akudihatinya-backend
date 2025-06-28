@@ -83,6 +83,18 @@ Lihat [System Architecture](docs/SYSTEM_ARCHITECTURE.md) untuk setup production 
 ### 📋 Documentation Index
 Lihat [**docs/README.md**](./docs/README.md) untuk daftar lengkap semua dokumentasi yang tersedia.
 
+## 🔧 Recent Fixes
+
+### User Creation Fix (June 2025)
+**Problem**: Error saat membuat user dengan role puskesmas - `SQLSTATE[HY000]: Field 'user_id' doesn't have a default value`
+
+**Solution**: 
+- Implementasi database transaction untuk konsistensi data
+- Perbaikan urutan pembuatan: User → Puskesmas → Update relasi
+- Enhanced error handling dan validation
+
+📖 **Detail lengkap**: [User Creation Fix Documentation](./docs/USER_CREATION_FIX.md)
+
 ## 🏗️ Architecture
 
 ### Project Structure

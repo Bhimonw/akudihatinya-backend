@@ -82,17 +82,27 @@
 ### Use Cases
 
 #### UC-USER-001: Create User
-**Aktor**: Admin
+
 **Deskripsi**: Admin membuat akun user baru untuk puskesmas
 **Precondition**: Admin sudah login
-**Postcondition**: User baru berhasil dibuat
+**Postcondition**: User baru dan puskesmas terkait berhasil dibuat
 
 **Main Flow**:
-1. Admin mengisi form user baru
-2. Admin memilih puskesmas untuk user
-3. Admin menetapkan role (admin/puskesmas)
-4. Sistem memvalidasi data
-5. Sistem membuat user baru
+1. Admin mengisi form user baru (username, name, password, role)
+2. Jika role = 'puskesmas': Admin mengisi nama puskesmas
+3. Admin dapat upload foto profil (opsional)
+4. Sistem validasi data (username harus unik)
+5. **Database Transaction Process**:
+   - Sistem membuat user terlebih dahulu
+   - Sistem membuat entitas puskesmas dengan user_id
+   - Sistem update user dengan puskesmas_id
+6. Sistem mengembalikan data user lengkap dengan relasi puskesmas
+
+**Business Rules**:
+- Username harus unik dalam sistem
+- Untuk role puskesmas, nama puskesmas wajib diisi
+- Sistem otomatis mengelola relasi bidirectional antara user dan puskesmas
+- Menggunakan database transaction untuk memastikan konsistensi data
 6. Sistem menghasilkan kredensial default
 
 #### UC-USER-002: View Users
