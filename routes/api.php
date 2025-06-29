@@ -26,6 +26,3 @@ require __DIR__ . '/api/examinations.php';
 
 // Admin-specific routes (yearly targets)
 require __DIR__ . '/api/admin.php';
-
-// Legacy routes (deprecated - will be removed)
-require __DIR__ . '/api/puskesmas.php';

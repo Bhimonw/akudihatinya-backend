@@ -45,7 +45,7 @@ class UserController extends Controller
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('username', 'like', "%{$search}%");
+                    ->orWhere('username', 'like', "%{$search}%");
             });
         }
 
@@ -67,20 +67,19 @@ class UserController extends Controller
     {
         try {
             $data = $request->only(['username', 'name', 'password']);
-             
-             // Debug: Log validated data
-             Log::info('Admin update validated data', [
-                 'validated_data' => $data,
-                 'target_user_id' => $user->id
-             ]);
+            
+            // Otomatis set role sebagai 'puskesmas' untuk semua user yang dibuat
+            $data['role'] = 'puskesmas';
+
             Log::info('Store user request received', [
                 'has_file' => $request->hasFile('profile_picture'),
-                'files' => $request->allFiles()
+                'files' => $request->allFiles(),
+                'auto_role' => $data['role']
             ]);
-            
+
             // Hash password
             $data['password'] = Hash::make($data['password']);
-            
+
             // Handle profile picture upload first
             if ($request->hasFile('profile_picture')) {
                 $data['profile_picture'] = $this->profilePictureService->uploadProfilePicture(
@@ -89,54 +88,50 @@ class UserController extends Controller
                     0 // Temporary user ID for logging
                 );
             }
-            
+
             // Use database transaction for data consistency
             $user = DB::transaction(function () use ($data, $request) {
-                // Auto-create puskesmas and assign ID for puskesmas role
-                if ($data['role'] === 'puskesmas') {
-                    $puskesmasName = $data['name']; // Use name as puskesmas name
-                    
-                    // 1. Create user first (without puskesmas_id)
-                    $tempData = $data;
-                    unset($tempData['puskesmas_id']); // Remove puskesmas_id temporarily
-                    $user = User::create($tempData);
-                    
-                    // 2. Create puskesmas with user_id
-                    $puskesmas = Puskesmas::create([
-                        'name' => $puskesmasName,
-                        'user_id' => $user->id  // Provide required user_id
-                    ]);
-                    
-                    // 3. Update user with puskesmas_id
-                    $user->update(['puskesmas_id' => $puskesmas->id]);
-                    
-                    Log::info('Auto-created puskesmas for new user', [
-                        'puskesmas_id' => $puskesmas->id,
-                        'puskesmas_name' => $puskesmas->name,
-                        'user_name' => $user->name
-                    ]);
-                    
-                    return $user;
-                } else {
-                    // For admin users, create normally
-                    return User::create($data);
-                }
+                // Karena semua user yang dibuat otomatis memiliki role 'puskesmas',
+                // selalu auto-create puskesmas dan assign ID
+                $puskesmasName = $data['name']; // Use name as puskesmas name
+
+                // 1. Create user first (without puskesmas_id)
+                $tempData = $data;
+                unset($tempData['puskesmas_id']); // Remove puskesmas_id temporarily
+                $user = User::create($tempData);
+
+                // 2. Create puskesmas with user_id
+                $puskesmas = Puskesmas::create([
+                    'name' => $puskesmasName,
+                    'user_id' => $user->id  // Provide required user_id
+                ]);
+
+                // 3. Update user with puskesmas_id
+                $user->update(['puskesmas_id' => $puskesmas->id]);
+
+                Log::info('Auto-created puskesmas for new user', [
+                    'puskesmas_id' => $puskesmas->id,
+                    'puskesmas_name' => $puskesmas->name,
+                    'user_name' => $user->name,
+                    'auto_role' => 'puskesmas'
+                ]);
+
+                return $user;
             });
-            
+
             // Load relationship
-             $user->load('puskesmas');
-            
+            $user->load('puskesmas');
+
             Log::info('User created successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
                 'created_by' => auth()->user()->name ?? 'system'
             ]);
-            
+
             return response()->json([
                 'message' => 'User berhasil dibuat',
                 'user' => new UserResource($user)
             ], 201);
-            
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Data tidak valid',
@@ -147,16 +142,18 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             // Check if it's a file upload error
-            if (str_contains($e->getMessage(), 'Failed to move file') || 
-                str_contains($e->getMessage(), 'Invalid image file')) {
+            if (
+                str_contains($e->getMessage(), 'Failed to move file') ||
+                str_contains($e->getMessage(), 'Invalid image file')
+            ) {
                 return response()->json([
                     'message' => 'Gagal mengupload foto profil',
                     'error' => config('app.debug') ? $e->getMessage() : 'File upload error'
                 ], 422);
             }
-            
+
             return response()->json([
                 'message' => 'Gagal membuat user',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
@@ -171,7 +168,7 @@ class UserController extends Controller
     public function show(User $user)
     {
         $user->load('puskesmas');
-        
+
         return response()->json([
             'user' => new UserResource($user)
         ]);
@@ -190,24 +187,24 @@ class UserController extends Controller
                 'admin_user_id' => auth()->id(),
                 'has_file' => $request->hasFile('profile_picture')
             ]);
-            
+
             DB::beginTransaction();
-            
+
             $data = $request->only(['username', 'name', 'password']);
-            
+
             // Log validated data
             Log::info('Admin update data validated', [
                 'fields' => array_keys($data),
                 'target_user_id' => $user->id
             ]);
-            
+
             // Hash password if provided
             if (isset($data['password']) && !empty($data['password'])) {
                 $data['password'] = Hash::make($data['password']);
             } else {
                 unset($data['password']);
             }
-            
+
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
                 try {
@@ -223,14 +220,14 @@ class UserController extends Controller
                     ], 422);
                 }
             }
-            
+
             $user->update($data);
-            
+
             // Handle puskesmas name update for puskesmas role - use name as puskesmas name
             if ($user->role === 'puskesmas' && isset($data['name']) && $user->puskesmas) {
                 $oldPuskesmasName = $user->puskesmas->name;
                 $user->puskesmas->update(['name' => $data['name']]);
-                
+
                 Log::info('Puskesmas name updated using user name', [
                     'user_id' => $user->id,
                     'puskesmas_id' => $user->puskesmas->id,
@@ -238,20 +235,19 @@ class UserController extends Controller
                     'new_name' => $data['name']
                 ]);
             }
-            
+
             $user->load('puskesmas'); // Load relationship
-            
+
             Log::info('User updated successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
                 'updated_by' => auth()->user()->name ?? 'system'
             ]);
-            
+
             return response()->json([
                 'message' => 'User berhasil diperbarui',
                 'user' => new UserResource($user)
             ]);
-            
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Data tidak valid',
@@ -263,7 +259,7 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'message' => 'Gagal memperbarui user',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
@@ -284,7 +280,7 @@ class UserController extends Controller
                     'message' => 'Tidak dapat menghapus akun sendiri'
                 ], 422);
             }
-            
+
             // Delete profile picture if exists
             if ($user->profile_picture) {
                 $imagePath = resource_path($user->profile_picture);
@@ -292,26 +288,25 @@ class UserController extends Controller
                     unlink($imagePath);
                 }
             }
-            
+
             $userName = $user->name;
             $user->delete();
-            
+
             Log::info('User deleted successfully', [
                 'user_name' => $userName,
                 'deleted_by' => auth()->user()->name
             ]);
-            
+
             return response()->json([
                 'message' => 'User berhasil dihapus'
             ]);
-            
         } catch (\Exception $e) {
             Log::error('Failed to delete user', [
                 'user_id' => $user->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'message' => 'Gagal menghapus user',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
@@ -329,24 +324,23 @@ class UserController extends Controller
             $request->validate([
                 'password' => 'required|string|min:8|confirmed'
             ]);
-            
+
             $user->update([
                 'password' => Hash::make($request->password)
             ]);
-            
+
             // Revoke all tokens for this user
             $user->refreshTokens()->delete();
-            
+
             Log::info('User password reset successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
                 'reset_by' => auth()->user()->name
             ]);
-            
+
             return response()->json([
                 'message' => 'Password berhasil direset'
             ]);
-            
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Data tidak valid',
@@ -358,7 +352,7 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'message' => 'Gagal mereset password',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
@@ -374,7 +368,7 @@ class UserController extends Controller
     {
         $user = auth()->user();
         $user->load('puskesmas');
-        
+
         return response()->json([
             'user' => new UserResource($user)
         ]);
@@ -388,13 +382,13 @@ class UserController extends Controller
     {
         try {
             $user = auth()->user();
-            
+
             // Log update request
             Log::info('UpdateMe request received', [
                 'user_id' => $user->id,
                 'has_file' => $request->hasFile('profile_picture')
             ]);
-            
+
             // Log before validation
             if ($request->hasFile('profile_picture')) {
                 $file = $request->file('profile_picture');
@@ -407,22 +401,22 @@ class UserController extends Controller
                     'error' => $file->getError()
                 ]);
             }
-            
+
             $data = $request->validated();
-            
+
             Log::info('Validation passed successfully');
-            
+
             // Log extracted data for debugging
             Log::info('UpdateMe data extracted', [
                 'fields' => array_keys($data),
                 'user_id' => $user->id
             ]);
-            
+
             // Hash password if provided
             if ($request->filled('password')) {
                 $data['password'] = Hash::make($request->password);
             }
-            
+
             // Handle profile picture upload
             if ($request->hasFile('profile_picture')) {
                 try {
@@ -438,14 +432,14 @@ class UserController extends Controller
                     ], 422);
                 }
             }
-            
+
             $user->update($data);
-            
+
             // Handle puskesmas name update for puskesmas role - use name as puskesmas name
             if ($user->role === 'puskesmas' && isset($data['name']) && $user->puskesmas) {
                 $oldPuskesmasName = $user->puskesmas->name;
                 $user->puskesmas->update(['name' => $data['name']]);
-                
+
                 Log::info('Puskesmas name updated using user name via updateMe', [
                     'user_id' => $user->id,
                     'puskesmas_id' => $user->puskesmas->id,
@@ -453,21 +447,20 @@ class UserController extends Controller
                     'new_name' => $data['name']
                 ]);
             }
-            
+
             $user->load('puskesmas'); // Load relationship
-            
+
             Log::info('User profile updated', [
                 'user_id' => $user->id,
                 'username' => $user->username,
                 'profile_picture_in_db' => $user->profile_picture,
                 'data_sent_to_update' => $data
             ]);
-            
+
             return response()->json([
                 'message' => 'Profil berhasil diperbarui',
                 'user' => new UserResource($user)
             ]);
-            
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Data tidak valid',
@@ -479,13 +472,11 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'message' => 'Gagal memperbarui profil',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
-    
-
 }

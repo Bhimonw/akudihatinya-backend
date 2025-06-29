@@ -325,11 +325,14 @@ GET /api/admin/yearly-targets?puskesmas_id=1&disease_type=ht&year=2024
   "username": "user_puskesmas",
   "name": "User Puskesmas Baru",
   "password": "password123",
-  "role": "puskesmas",
-  "puskesmas_name": "Puskesmas Martapura Barat",
   "profile_picture": "file (optional)"
 }
 ```
+
+**Note:** 
+- Role otomatis diset sebagai `puskesmas` untuk semua user yang dibuat
+- Nama user akan digunakan sebagai nama puskesmas yang dibuat otomatis
+- Puskesmas akan dibuat secara otomatis dan di-link ke user
 
 **Response (Success):**
 ```json

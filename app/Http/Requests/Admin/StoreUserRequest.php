@@ -25,7 +25,7 @@ class StoreUserRequest extends FormRequest
             'username' => 'required|string|max:255|unique:users,username',
             'password' => 'required|string|min:8',
             'name' => 'required|string|max:255', // Name will be used as puskesmas name
-            'role' => 'required|in:puskesmas', // Hanya bisa membuat user puskesmas
+            // Role tidak perlu divalidasi karena otomatis diset sebagai 'puskesmas'
             'profile_picture' => [
                 'nullable',
                 'image',
@@ -47,25 +47,26 @@ class StoreUserRequest extends FormRequest
             'password.required' => 'Password wajib diisi',
             'password.min' => 'Password minimal 8 karakter',
             'name.required' => 'Nama wajib diisi',
-            'role.required' => 'Role wajib diisi',
-            'role.in' => 'Role harus puskesmas',
+            // Role messages dihapus karena role otomatis diset sebagai 'puskesmas'
             'profile_picture.image' => 'File harus berupa gambar',
             'profile_picture.mimes' => 'File harus berformat jpeg, png, jpg, gif, atau webp',
             'profile_picture.max' => 'Ukuran file maksimal 2MB',
             'profile_picture.dimensions' => 'Dimensi gambar minimal 100x100 pixel dan maksimal 2000x2000 pixel',
         ];
     }
-    
+
     /**
      * Prepare the data for validation.
      */
     protected function prepareForValidation(): void
     {
         // Jika profile_picture adalah string dan bukan file
-        if ($this->has('profile_picture') && 
-            is_string($this->profile_picture) && 
-            !$this->hasFile('profile_picture')) {
-            
+        if (
+            $this->has('profile_picture') &&
+            is_string($this->profile_picture) &&
+            !$this->hasFile('profile_picture')
+        ) {
+
             // Jika kosong, set null
             if (empty(trim($this->profile_picture))) {
                 $this->merge([
