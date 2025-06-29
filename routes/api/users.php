@@ -8,6 +8,8 @@ Route::middleware('auth:sanctum')->prefix('users')->group(function () {
     // Current user profile
     Route::get('/me', [UserController::class, 'me']);
     Route::put('/me', [UserController::class, 'updateMe']);
+    // Support POST with _method=PUT for multipart form data
+    Route::post('/me', [UserController::class, 'updateMe']);
 });
 
 // Admin user management routes

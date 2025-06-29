@@ -21,7 +21,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:5173')],
+    'allowed_origins' => [
+        env('FRONTEND_URL', 'http://localhost:5173'),
+        'http://localhost:5174', // Alternative Vite dev server port
+        'http://127.0.0.1:5500', // For Live Server testing
+        'http://localhost:5500', // Alternative Live Server port
+    ],
 
     'allowed_origins_patterns' => [],
 

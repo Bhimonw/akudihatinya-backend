@@ -15,6 +15,7 @@ Route::middleware(['auth:sanctum', AdminOrPuskesmas::class])->group(function () 
     Route::middleware(\App\Http\Middleware\IsPuskesmas::class)->prefix('puskesmas')->group(function () {
         Route::get('/dashboard', [StatisticsController::class, 'dashboardStatistics']);
     });
+    
     Route::middleware(['auth:sanctum', AdminOrPuskesmas::class])->prefix('statistics')->group(function () {
         // General dashboard statistics (for both admin and puskesmas)
     Route::get('/dashboard-statistics', [StatisticsController::class, 'dashboardStatistics']);

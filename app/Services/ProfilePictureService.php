@@ -8,170 +8,242 @@ use Exception;
 
 class ProfilePictureService
 {
-    /**
-     * Upload and process profile picture
-     *
-     * @param UploadedFile $file
-     * @param string|null $oldPicturePath
-     * @param int $userId
-     * @return string|null
-     * @throws Exception
-     */
-    public function uploadProfilePicture(UploadedFile $file, ?string $oldPicturePath, int $userId): ?string
+    public function uploadProfilePicture($file, $oldPicturePath = null, $userId = null)
     {
         try {
-            // Delete old image if exists
+            Log::info('Starting profile picture upload', [
+                'user_id' => $userId,
+                'file_name' => $file->getClientOriginalName(),
+                'file_size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
+                'old_picture' => $oldPicturePath
+            ]);
+
+            // Validate file
+            if (!$file->isValid()) {
+                throw new \Exception('File upload tidak valid');
+            }
+
+            // Check file size (2MB limit)
+            if ($file->getSize() > 2048 * 1024) {
+                throw new \Exception('Ukuran file terlalu besar. Maksimal 2MB.');
+            }
+
+            // Check mime type
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
+            if (!in_array($file->getMimeType(), $allowedMimes)) {
+                throw new \Exception('Format file tidak didukung. Gunakan: jpeg, png, jpg, gif, atau webp.');
+            }
+
+            // Delete old profile picture if exists
             if ($oldPicturePath) {
-                $this->deleteOldPicture($oldPicturePath);
+                $oldPath = public_path('img/' . $oldPicturePath);
+                if (file_exists($oldPath)) {
+                    if (!unlink($oldPath)) {
+                        Log::warning('Failed to delete old profile picture', ['path' => $oldPath]);
+                    } else {
+                        Log::info('Old profile picture deleted', ['path' => $oldPath]);
+                    }
+                }
+            }
+
+            // Ensure directory exists and is writable
+            $destinationPath = public_path('img');
+            if (!is_dir($destinationPath)) {
+                if (!mkdir($destinationPath, 0755, true)) {
+                    throw new \Exception('Gagal membuat direktori upload');
+                }
+                Log::info('Created upload directory', ['path' => $destinationPath]);
+            }
+            
+            // Check if directory is writable
+            if (!is_writable($destinationPath)) {
+                throw new \Exception('Direktori upload tidak dapat ditulis. Periksa permission folder.');
             }
 
             // Generate unique filename
-            $fileName = $this->generateFileName($file);
-            $destinationPath = resource_path('img');
+            $extension = $file->getClientOriginalExtension();
+            $filename = time() . '_' . ($userId ?? 'temp') . '_' . uniqid() . '.' . $extension;
+            
+            Log::info('Generated filename', ['filename' => $filename]);
 
-            // Create directory if it doesn't exist
-            $this->ensureDirectoryExists($destinationPath);
-
-            // Move file
-            $moved = $file->move($destinationPath, $fileName);
-            if (!$moved) {
-                throw new Exception('Failed to move uploaded file');
+            // Move file to public/img directory
+            $fullPath = $destinationPath . DIRECTORY_SEPARATOR . $filename;
+            
+            Log::info('Attempting to move file', [
+                'from' => $file->getPathname(),
+                'to' => $fullPath,
+                'temp_file_exists' => file_exists($file->getPathname()),
+                'destination_writable' => is_writable($destinationPath)
+            ]);
+            
+            try {
+                $moved = $file->move($destinationPath, $filename);
+                if (!$moved) {
+                    throw new \Exception('File move operation returned false');
+                }
+            } catch (\Exception $moveError) {
+                Log::error('File move failed', [
+                    'error' => $moveError->getMessage(),
+                    'file_error' => $file->getError(),
+                    'file_size' => $file->getSize(),
+                    'destination' => $destinationPath,
+                    'filename' => $filename
+                ]);
+                throw new \Exception('Gagal memindahkan file: ' . $moveError->getMessage());
             }
-
-            // Resize image
-            $fullImagePath = $destinationPath . DIRECTORY_SEPARATOR . $fileName;
-            $this->resizeImage($fullImagePath, 200, 200);
-
-            $relativePath = 'img/' . $fileName;
-
-            Log::info('Profile picture uploaded successfully', [
-                'user_id' => $userId,
-                'path' => $relativePath,
-                'file_exists' => file_exists($fullImagePath)
+            
+            // Verify file was actually moved
+            if (!file_exists($fullPath)) {
+                throw new \Exception('File tidak ditemukan setelah dipindahkan');
+            }
+            
+            Log::info('File moved successfully', [
+                'destination' => $fullPath,
+                'file_size' => filesize($fullPath)
             ]);
 
-            return $relativePath;
-        } catch (Exception $e) {
-            Log::error('Failed to upload profile picture', [
+            // Optimize image if GD extension is available
+            try {
+                if (extension_loaded('gd')) {
+                    $this->optimizeImage($fullPath);
+                    Log::info('Image optimized successfully');
+                } else {
+                    Log::warning('GD extension not available, skipping image optimization');
+                }
+            } catch (\Exception $optimizeError) {
+                Log::warning('Image optimization failed', [
+                    'error' => $optimizeError->getMessage()
+                ]);
+                // Continue execution even if optimization fails
+            }
+
+            return $filename;
+            
+        } catch (\Exception $e) {
+            Log::error('Profile picture upload failed', [
                 'user_id' => $userId,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            throw $e;
+            throw new \Exception('Gagal mengunggah gambar profil: ' . $e->getMessage());
         }
     }
 
     /**
-     * Delete old profile picture
-     *
-     * @param string $picturePath
-     * @return void
-     */
-    private function deleteOldPicture(string $picturePath): void
-    {
-        $oldImagePath = resource_path($picturePath);
-        if (file_exists($oldImagePath)) {
-            unlink($oldImagePath);
-            Log::info('Deleted old profile picture', ['path' => $picturePath]);
-        }
-    }
-
-    /**
-     * Generate unique filename
-     *
-     * @param UploadedFile $file
-     * @return string
-     */
-    private function generateFileName(UploadedFile $file): string
-    {
-        $originalName = $file->getClientOriginalName();
-        $extension = $file->getClientOriginalExtension();
-        $sanitizedName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($originalName, PATHINFO_FILENAME));
-        
-        return time() . '_' . $sanitizedName . '.' . $extension;
-    }
-
-    /**
-     * Ensure directory exists
-     *
-     * @param string $path
-     * @return void
-     */
-    private function ensureDirectoryExists(string $path): void
-    {
-        if (!file_exists($path)) {
-            mkdir($path, 0755, true);
-        }
-    }
-
-    /**
-     * Resize image to specified dimensions
+     * Optimize image by resizing and compressing
      *
      * @param string $imagePath
-     * @param int $width
-     * @param int $height
      * @return void
+     * @throws \Exception
      */
-    private function resizeImage(string $imagePath, int $width, int $height): void
+    private function optimizeImage(string $imagePath): void
     {
-        // Get image info
-        $imageInfo = getimagesize($imagePath);
-        if (!$imageInfo) {
-            return;
+        try {
+            // Get image info
+            $imageInfo = getimagesize($imagePath);
+            if (!$imageInfo) {
+                throw new \Exception('Tidak dapat membaca informasi gambar');
+            }
+
+            $originalWidth = $imageInfo[0];
+            $originalHeight = $imageInfo[1];
+            $imageType = $imageInfo[2];
+
+            // Skip optimization if image is already small enough
+            if ($originalWidth <= 400 && $originalHeight <= 400) {
+                Log::info('Image already optimized, skipping resize', [
+                    'width' => $originalWidth,
+                    'height' => $originalHeight
+                ]);
+                return;
+            }
+
+            // Calculate new dimensions (max 400x400 while maintaining aspect ratio)
+            $maxSize = 400;
+            if ($originalWidth > $originalHeight) {
+                $newWidth = $maxSize;
+                $newHeight = intval(($originalHeight * $maxSize) / $originalWidth);
+            } else {
+                $newHeight = $maxSize;
+                $newWidth = intval(($originalWidth * $maxSize) / $originalHeight);
+            }
+
+            // Create image resource based on type
+            switch ($imageType) {
+                case IMAGETYPE_JPEG:
+                    $sourceImage = imagecreatefromjpeg($imagePath);
+                    break;
+                case IMAGETYPE_PNG:
+                    $sourceImage = imagecreatefrompng($imagePath);
+                    break;
+                case IMAGETYPE_GIF:
+                    $sourceImage = imagecreatefromgif($imagePath);
+                    break;
+                case IMAGETYPE_WEBP:
+                    $sourceImage = imagecreatefromwebp($imagePath);
+                    break;
+                default:
+                    throw new \Exception('Format gambar tidak didukung untuk optimasi');
+            }
+
+            if (!$sourceImage) {
+                throw new \Exception('Gagal membuat resource gambar');
+            }
+
+            // Create new image
+            $newImage = imagecreatetruecolor($newWidth, $newHeight);
+            
+            // Preserve transparency for PNG and GIF
+            if ($imageType == IMAGETYPE_PNG || $imageType == IMAGETYPE_GIF) {
+                imagealphablending($newImage, false);
+                imagesavealpha($newImage, true);
+                $transparent = imagecolorallocatealpha($newImage, 255, 255, 255, 127);
+                imagefill($newImage, 0, 0, $transparent);
+            }
+
+            // Resize image
+            if (!imagecopyresampled($newImage, $sourceImage, 0, 0, 0, 0, $newWidth, $newHeight, $originalWidth, $originalHeight)) {
+                throw new \Exception('Gagal mengubah ukuran gambar');
+            }
+
+            // Save optimized image
+            $saved = false;
+            switch ($imageType) {
+                case IMAGETYPE_JPEG:
+                    $saved = imagejpeg($newImage, $imagePath, 85); // Slightly lower quality for smaller file size
+                    break;
+                case IMAGETYPE_PNG:
+                    $saved = imagepng($newImage, $imagePath, 8); // Good compression
+                    break;
+                case IMAGETYPE_GIF:
+                    $saved = imagegif($newImage, $imagePath);
+                    break;
+                case IMAGETYPE_WEBP:
+                    $saved = imagewebp($newImage, $imagePath, 85);
+                    break;
+            }
+
+            if (!$saved) {
+                throw new \Exception('Gagal menyimpan gambar yang dioptimasi');
+            }
+
+            // Clean up memory
+            imagedestroy($sourceImage);
+            imagedestroy($newImage);
+
+            Log::info('Image optimized successfully', [
+                'original_size' => $originalWidth . 'x' . $originalHeight,
+                'new_size' => $newWidth . 'x' . $newHeight,
+                'file_path' => $imagePath
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Image optimization failed', [
+                'path' => $imagePath,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
         }
-
-        $originalWidth = $imageInfo[0];
-        $originalHeight = $imageInfo[1];
-        $imageType = $imageInfo[2];
-
-        // Create image resource based on type
-        switch ($imageType) {
-            case IMAGETYPE_JPEG:
-                $sourceImage = imagecreatefromjpeg($imagePath);
-                break;
-            case IMAGETYPE_PNG:
-                $sourceImage = imagecreatefrompng($imagePath);
-                break;
-            case IMAGETYPE_GIF:
-                $sourceImage = imagecreatefromgif($imagePath);
-                break;
-            default:
-                return; // Unsupported image type
-        }
-
-        if (!$sourceImage) {
-            return;
-        }
-
-        // Create new image
-        $newImage = imagecreatetruecolor($width, $height);
-        
-        // Preserve transparency for PNG and GIF
-        if ($imageType == IMAGETYPE_PNG || $imageType == IMAGETYPE_GIF) {
-            imagealphablending($newImage, false);
-            imagesavealpha($newImage, true);
-            $transparent = imagecolorallocatealpha($newImage, 255, 255, 255, 127);
-            imagefill($newImage, 0, 0, $transparent);
-        }
-
-        // Resize image
-        imagecopyresampled($newImage, $sourceImage, 0, 0, 0, 0, $width, $height, $originalWidth, $originalHeight);
-
-        // Save resized image
-        switch ($imageType) {
-            case IMAGETYPE_JPEG:
-                imagejpeg($newImage, $imagePath, 90);
-                break;
-            case IMAGETYPE_PNG:
-                imagepng($newImage, $imagePath, 9);
-                break;
-            case IMAGETYPE_GIF:
-                imagegif($newImage, $imagePath);
-                break;
-        }
-
-        // Clean up memory
-        imagedestroy($sourceImage);
-        imagedestroy($newImage);
     }
 }
