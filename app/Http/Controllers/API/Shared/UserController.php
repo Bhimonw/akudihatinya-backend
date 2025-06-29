@@ -238,6 +238,8 @@ class UserController extends Controller
 
             $user->load('puskesmas'); // Load relationship
 
+            DB::commit(); // Commit the transaction
+
             Log::info('User updated successfully', [
                 'user_id' => $user->id,
                 'username' => $user->username,
@@ -249,11 +251,13 @@ class UserController extends Controller
                 'user' => new UserResource($user)
             ]);
         } catch (ValidationException $e) {
+            DB::rollback(); // Rollback on validation error
             return response()->json([
                 'message' => 'Data tidak valid',
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
+            DB::rollback(); // Rollback on any other error
             Log::error('Failed to update user', [
                 'user_id' => $user->id,
                 'error' => $e->getMessage(),
