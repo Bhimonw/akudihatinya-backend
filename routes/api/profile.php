@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\API\Puskesmas\ProfileController;
+use App\Http\Controllers\API\Shared\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 // Profile management routes
