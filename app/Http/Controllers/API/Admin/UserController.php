@@ -1,12 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\API\Shared;
+namespace App\Http\Controllers\API\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
-use App\Http\Requests\UpdateMeRequest;
-use App\Services\ProfilePictureService;
+// Profile-related imports removed - now handled by ProfileController
 use App\Http\Resources\UserResource;
 use App\Models\Puskesmas;
 use App\Models\User;
@@ -21,12 +20,7 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    protected ProfilePictureService $profilePictureService;
-
-    public function __construct(ProfilePictureService $profilePictureService)
-    {
-        $this->profilePictureService = $profilePictureService;
-    }
+    // ProfilePictureService dependency removed - now handled by ProfileController
     /**
      * Display a listing of users (Admin only)
      * GET /api/admin/users
@@ -381,147 +375,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Update current authenticated user profile
-     * PUT /api/me
-     */
-    public function updateMe(UpdateMeRequest $request): JsonResponse
-    {
-        try {
-            $user = $request->user();
-            
-            // Handle method spoofing for multipart forms
-            if ($request->has('_method') && $request->input('_method') === 'PUT') {
-                $request->setMethod('PUT');
-            }
-            
-            // Enhanced logging for debugging
-            Log::info('UpdateMe request received', [
-                'user_id' => $user->id,
-                'method' => $request->method(),
-                'has_file' => $request->hasFile('profile_picture'),
-                'content_type' => $request->header('Content-Type'),
-                'is_multipart' => str_contains($request->header('Content-Type', ''), 'multipart'),
-                'content_length' => $request->header('Content-Length'),
-                'file_keys' => array_keys($request->allFiles()),
-                'input_keys' => array_keys($request->all()),
-                'profile_picture_in_db' => $user->profile_picture,
-                'has_method_spoofing' => $request->has('_method'),
-                'spoofed_method' => $request->input('_method'),
-                'all_files' => $request->allFiles(),
-                'request_size' => strlen(serialize($request->all()))
-            ]);
-            
-            if ($request->hasFile('profile_picture')) {
-                $file = $request->file('profile_picture');
-                Log::info('File details', [
-                    'original_name' => $file->getClientOriginalName(),
-                    'mime_type' => $file->getMimeType(),
-                    'size' => $file->getSize(),
-                    'is_valid' => $file->isValid(),
-                    'error' => $file->getError(),
-                ]);
-            }
-            
-            $validatedData = $request->validated();
-            
-            // Remove _method from validated data if present
-            unset($validatedData['_method']);
-            
-            // Handle profile picture upload with better error handling
-            if ($request->hasFile('profile_picture')) {
-                try {
-                    $validatedData['profile_picture'] = $this->profilePictureService->uploadProfilePicture(
-                        $request->file('profile_picture'),
-                        $user->profile_picture, // old picture path
-                        $user->id // user ID
-                    );
-                    Log::info('Profile picture uploaded successfully', [
-                        'user_id' => $user->id,
-                        'new_path' => $validatedData['profile_picture']
-                    ]);
-                } catch (\Exception $uploadError) {
-                    Log::error('Profile picture upload failed', [
-                        'user_id' => $user->id,
-                        'error' => $uploadError->getMessage()
-                    ]);
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Gagal mengunggah foto profil: ' . $uploadError->getMessage(),
-                        'errors' => ['profile_picture' => ['Gagal mengunggah foto profil']]
-                    ], 422);
-                }
-            }
-            
-            // Handle password hashing
-            if (isset($validatedData['password'])) {
-                $validatedData['password'] = Hash::make($validatedData['password']);
-            }
-            
-            // Update user data
-            $user->update($validatedData);
-            
-            // Handle puskesmas name update for puskesmas role - use name as puskesmas name
-            if ($user->role === 'puskesmas' && isset($validatedData['name']) && $user->puskesmas) {
-                try {
-                    $oldPuskesmasName = $user->puskesmas->name;
-                    $user->puskesmas->update(['name' => $validatedData['name']]);
-
-                    Log::info('Puskesmas name updated using user name via updateMe', [
-                        'user_id' => $user->id,
-                        'puskesmas_id' => $user->puskesmas->id,
-                        'old_name' => $oldPuskesmasName,
-                        'new_name' => $validatedData['name']
-                    ]);
-                } catch (\Exception $puskesmasError) {
-                    Log::warning('Failed to update puskesmas name', [
-                        'user_id' => $user->id,
-                        'error' => $puskesmasError->getMessage()
-                    ]);
-                    // Continue execution even if puskesmas update fails
-                }
-            }
-            
-            Log::info('Profile updated successfully', [
-                'user_id' => $user->id,
-                'updated_fields' => array_keys($validatedData)
-            ]);
-            
-            // Reload user with fresh data and relationships
-            $user->refresh();
-            $user->load('puskesmas');
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Profil berhasil diperbarui',
-                'user' => new UserResource($user),
-                'data' => new UserResource($user) // For backward compatibility
-            ]);
-            
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('Validation failed for profile update', [
-                'user_id' => $request->user()->id,
-                'errors' => $e->errors()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Data tidak valid',
-                'errors' => $e->errors()
-            ], 422);
-            
-        } catch (\Exception $e) {
-            Log::error('Failed to update user profile', [
-                'user_id' => $request->user()->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memperbarui profil. Silakan coba lagi.',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
-            ], 500);
-        }
-    }
+    // Profile update functionality moved to ProfileController
+    // UserController now focuses only on user management (admin functions)
 }

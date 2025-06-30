@@ -233,7 +233,6 @@ class StatisticsController extends Controller
                 foreach ($htData['monthly_data'] as $month => $monthData) {
                     if (!isset($htMonthlyData[$month])) {
                         $htMonthlyData[$month] = [
-                            'target' => 0,
                             'male' => 0,
                             'female' => 0,
                             'total' => 0,
@@ -242,7 +241,6 @@ class StatisticsController extends Controller
                             'percentage' => 0
                         ];
                     }
-                    $htMonthlyData[$month]['target'] += $monthData['target'] ?? 0;
                     $htMonthlyData[$month]['male'] += $monthData['male'] ?? 0;
                     $htMonthlyData[$month]['female'] += $monthData['female'] ?? 0;
                     $htMonthlyData[$month]['total'] += $monthData['total'] ?? 0;
@@ -278,7 +276,6 @@ class StatisticsController extends Controller
                 foreach ($dmData['monthly_data'] as $month => $monthData) {
                     if (!isset($dmMonthlyData[$month])) {
                         $dmMonthlyData[$month] = [
-                            'target' => 0,
                             'male' => 0,
                             'female' => 0,
                             'total' => 0,
@@ -287,7 +284,6 @@ class StatisticsController extends Controller
                             'percentage' => 0
                         ];
                     }
-                    $dmMonthlyData[$month]['target'] += $monthData['target'] ?? 0;
                     $dmMonthlyData[$month]['male'] += $monthData['male'] ?? 0;
                     $dmMonthlyData[$month]['female'] += $monthData['female'] ?? 0;
                     $dmMonthlyData[$month]['total'] += $monthData['total'] ?? 0;
@@ -304,9 +300,8 @@ class StatisticsController extends Controller
         
         // Calculate monthly percentages for summary
         foreach ($htMonthlyData as $month => &$monthData) {
-            $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+            $monthData['percentage'] = $htTotalTarget > 0 ? round(($monthData['standard'] / $htTotalTarget) * 100, 2) : 0;
             // Convert all values to strings for consistency
-            $monthData['target'] = (string)$monthData['target'];
             $monthData['male'] = (string)$monthData['male'];
             $monthData['female'] = (string)$monthData['female'];
             $monthData['total'] = (string)$monthData['total'];
@@ -314,9 +309,8 @@ class StatisticsController extends Controller
             $monthData['non_standard'] = (string)$monthData['non_standard'];
         }
         foreach ($dmMonthlyData as $month => &$monthData) {
-            $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+            $monthData['percentage'] = $dmTotalTarget > 0 ? round(($monthData['standard'] / $dmTotalTarget) * 100, 2) : 0;
             // Convert all values to strings for consistency
-            $monthData['target'] = (string)$monthData['target'];
             $monthData['male'] = (string)$monthData['male'];
             $monthData['female'] = (string)$monthData['female'];
             $monthData['total'] = (string)$monthData['total'];
@@ -395,7 +389,6 @@ class StatisticsController extends Controller
             ];
             
             $formatted[$monthStr] = [
-                'target' => (string)$target,
                 'male' => (string)$monthData['male'],
                 'female' => (string)$monthData['female'],
                 'total' => (string)$monthData['total'],
@@ -413,7 +406,6 @@ class StatisticsController extends Controller
     private function formatMonthlyDataForPuskesmas($monthlyData, $yearlyTarget): array
     {
         $formatted = [];
-        $monthlyTarget = $yearlyTarget > 0 ? round($yearlyTarget / 12) : 0;
         
         for ($month = 1; $month <= 12; $month++) {
             $monthStr = (string)$month;
@@ -426,13 +418,12 @@ class StatisticsController extends Controller
             ];
             
             $formatted[$monthStr] = [
-                'target' => (string)$monthlyTarget,
                 'male' => (string)$monthData['male'],
                 'female' => (string)$monthData['female'],
                 'total' => (string)$monthData['total'],
                 'standard' => (string)$monthData['standard'],
                 'non_standard' => (string)$monthData['non_standard'],
-                'percentage' => $monthlyTarget > 0 ? round(((int)$monthData['standard'] / $monthlyTarget) * 100, 2) : 0
+                'percentage' => $yearlyTarget > 0 ? round(((int)$monthData['standard'] / $yearlyTarget) * 100, 2) : 0
             ];
         }
         return $formatted;

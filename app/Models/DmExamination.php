@@ -91,7 +91,8 @@ class DmExamination extends Model
     }
     
     /**
-     * Calculate if patient is standard
+     * Calculate if patient is standard for this specific month
+     * Logic: Patient is standard if they visit this month AND have no gaps from their first visit of the year
      */
     private function calculateIfStandardPatient(): bool
     {
@@ -107,7 +108,13 @@ class DmExamination extends Model
         
         $firstMonth = $firstVisit->month;
         
+        // If this is the first month of the year for this patient, they are standard
+        if ($this->month == $firstMonth) {
+            return true;
+        }
+        
         // Check if patient has visits for every month from first visit until current month
+        // If there's any gap, patient becomes non-standard for this month
         for ($month = $firstMonth; $month <= $this->month; $month++) {
             $hasVisit = self::where('patient_id', $this->patient_id)
                 ->where('year', $this->year)

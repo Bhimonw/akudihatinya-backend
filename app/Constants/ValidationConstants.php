@@ -21,13 +21,19 @@ class ValidationConstants
     public const PASSWORD_MIN_LENGTH = 8;
     public const PASSWORD_MAX_LENGTH = 255;
     
-    // File upload constraints
+    // Profile Picture Validation
     public const PROFILE_PICTURE_MAX_SIZE = 2048; // 2MB in KB
     public const PROFILE_PICTURE_MIMES = ['jpeg', 'png', 'jpg', 'gif', 'webp'];
-    public const PROFILE_PICTURE_MIN_WIDTH = 50;
-    public const PROFILE_PICTURE_MIN_HEIGHT = 50;
+    public const PROFILE_PICTURE_MIN_WIDTH = 100;
+    public const PROFILE_PICTURE_MIN_HEIGHT = 100;
     public const PROFILE_PICTURE_MAX_WIDTH = 2000;
     public const PROFILE_PICTURE_MAX_HEIGHT = 2000;
+    
+    // Profile Picture Error Messages
+    public const PROFILE_PICTURE_IMAGE_ERROR = 'File harus berupa gambar.';
+    public const PROFILE_PICTURE_MIMES_ERROR = 'Format gambar harus jpeg, png, jpg, gif, atau webp.';
+    public const PROFILE_PICTURE_MAX_SIZE_ERROR = 'Ukuran gambar maksimal 2MB.';
+    public const PROFILE_PICTURE_DIMENSIONS_ERROR = 'Dimensi gambar harus minimal 100x100 piksel dan maksimal 2000x2000 piksel.';
     
     // Error messages
     public const ERROR_MESSAGES = [

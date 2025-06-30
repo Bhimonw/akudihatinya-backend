@@ -162,7 +162,8 @@ class StatisticsCacheService
     }
 
     /**
-     * Check if patient is standard
+     * Check if patient is standard for specific month
+     * Logic: Patient is standard if they visit this month AND have no gaps from their first visit of the year
      */
     private function checkIfPatientIsStandard($patientId, $year, $currentMonth, $diseaseType): bool
     {
@@ -175,7 +176,13 @@ class StatisticsCacheService
 
         $firstMonth = Carbon::parse($firstVisit->examination_date)->month;
 
+        // If this is the first month of the year for this patient, they are standard
+        if ($currentMonth == $firstMonth) {
+            return true;
+        }
+
         // Patient is standard if they have visits for every month from first visit until current month
+        // If there's any gap, patient becomes non-standard for this month
         for ($month = $firstMonth; $month <= $currentMonth; $month++) {
             if (!$this->hasVisitInMonth($patientId, $year, $month, $diseaseType)) {
                 return false;

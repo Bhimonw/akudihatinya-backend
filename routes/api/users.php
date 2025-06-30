@@ -1,15 +1,16 @@
 <?php
 
-use App\Http\Controllers\API\Shared\UserController;
+use App\Http\Controllers\API\Admin\UserController;
+use App\Http\Controllers\API\Shared\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 // User profile routes (protected)
 Route::middleware('auth:sanctum')->prefix('users')->group(function () {
-    // Current user profile
+    // Current user profile - GET handled by UserController, PUT/POST by ProfileController
     Route::get('/me', [UserController::class, 'me']);
-    Route::put('/me', [UserController::class, 'updateMe']);
+    Route::put('/me', [ProfileController::class, 'updateMe']);
     // Support POST with _method=PUT for multipart form data
-    Route::post('/me', [UserController::class, 'updateMe']);
+    Route::post('/me', [ProfileController::class, 'updateMe']);
 });
 
 // Admin user management routes

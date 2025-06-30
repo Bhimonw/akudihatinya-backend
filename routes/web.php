@@ -3,9 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Response;
 
-// Route untuk mengakses gambar dari resources/img
+// Route untuk mengakses gambar dari public/img
 Route::get('img/{filename}', function ($filename) {
-    $path = resource_path('img/' . $filename);
+    $path = public_path('img' . DIRECTORY_SEPARATOR . $filename);
     
     if (!file_exists($path)) {
         abort(404);
