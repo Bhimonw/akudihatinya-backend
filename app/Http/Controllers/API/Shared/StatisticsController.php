@@ -302,9 +302,9 @@ class StatisticsController extends Controller
         // Calculate ranking based on achievement percentage
         $data = $this->calculateRanking($data, $diseaseType);
         
-        // Calculate monthly percentages for summary
+        // Calculate monthly percentages for summary - use yearly target instead of monthly target
         foreach ($htMonthlyData as $month => &$monthData) {
-            $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+            $monthData['percentage'] = $htTotalTarget > 0 ? round(($monthData['standard'] / $htTotalTarget) * 100, 2) : 0;
             // Convert all values to strings for consistency
             $monthData['target'] = (string)$monthData['target'];
             $monthData['male'] = (string)$monthData['male'];
@@ -314,7 +314,7 @@ class StatisticsController extends Controller
             $monthData['non_standard'] = (string)$monthData['non_standard'];
         }
         foreach ($dmMonthlyData as $month => &$monthData) {
-            $monthData['percentage'] = $monthData['target'] > 0 ? round(($monthData['standard'] / $monthData['target']) * 100, 2) : 0;
+            $monthData['percentage'] = $dmTotalTarget > 0 ? round(($monthData['standard'] / $dmTotalTarget) * 100, 2) : 0;
             // Convert all values to strings for consistency
             $monthData['target'] = (string)$monthData['target'];
             $monthData['male'] = (string)$monthData['male'];
@@ -381,9 +381,11 @@ class StatisticsController extends Controller
     /**
      * Format monthly data to match the required structure
      */
-    private function formatMonthlyData($monthlyData, $target): array
+    private function formatMonthlyData($monthlyData, $yearlyTarget): array
     {
         $formatted = [];
+        $monthlyTarget = $yearlyTarget > 0 ? round($yearlyTarget / 12) : 0;
+        
         for ($month = 1; $month <= 12; $month++) {
             $monthStr = (string)$month;
             $monthData = $monthlyData[$monthStr] ?? [
@@ -395,13 +397,13 @@ class StatisticsController extends Controller
             ];
             
             $formatted[$monthStr] = [
-                'target' => (string)$target,
+                'target' => (string)$monthlyTarget,
                 'male' => (string)$monthData['male'],
                 'female' => (string)$monthData['female'],
                 'total' => (string)$monthData['total'],
                 'standard' => (string)$monthData['standard'],
                 'non_standard' => (string)$monthData['non_standard'],
-                'percentage' => $target > 0 ? round(((int)$monthData['standard'] / $target) * 100, 2) : 0
+                'percentage' => $yearlyTarget > 0 ? round(((int)$monthData['standard'] / $yearlyTarget) * 100, 2) : 0
             ];
         }
         return $formatted;
@@ -432,7 +434,7 @@ class StatisticsController extends Controller
                 'total' => (string)$monthData['total'],
                 'standard' => (string)$monthData['standard'],
                 'non_standard' => (string)$monthData['non_standard'],
-                'percentage' => $monthlyTarget > 0 ? round(((int)$monthData['standard'] / $monthlyTarget) * 100, 2) : 0
+                'percentage' => $yearlyTarget > 0 ? round(((int)$monthData['standard'] / $yearlyTarget) * 100, 2) : 0
             ];
         }
         return $formatted;
