@@ -42,6 +42,5 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\RebuildStatisticsCache::class,
         \App\Console\Commands\SetupNewYear::class,
         \App\Console\Commands\CreateYearlyTargets::class,
-        \App\Console\Commands\CleanupOldFiles::class,
     ];
 }

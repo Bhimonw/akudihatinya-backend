@@ -18,8 +18,6 @@ require __DIR__ . '/api/statistics.php';
 // Export and reporting routes
 require __DIR__ . '/api/exports.php';
 
-
-
 // Patient management routes
 require __DIR__ . '/api/patients.php';
 
