@@ -122,7 +122,7 @@
   <text x="660" y="70" class="label" font-weight="bold">Business Rules:</text>
   <text x="660" y="90" class="small-label">• Archive annually only</text>
   <text x="660" y="105" class="small-label">• Previous year data only</text>
-  <text x="660" y="120" class="small-label">• Both HT & DM together</text>
+  <text x="660" y="120" class="small-label">• Both HT &amp; DM together</text>
   <text x="660" y="135" class="small-label">• Maintain data integrity</text>
   <text x="660" y="150" class="small-label">• Update statistics cache</text>
   <text x="660" y="165" class="small-label">• Generate audit log</text>

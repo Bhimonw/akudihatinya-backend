@@ -136,7 +136,7 @@
     <tspan x="560" dy="12">• Nama Lengkap</tspan>
     <tspan x="560" dy="12">• Alamat</tspan>
     <tspan x="560" dy="12">• Jenis Kelamin</tspan>
-    <tspan x="560" dy="12">• Tanggal Lahir & Umur</tspan>
+    <tspan x="560" dy="12">• Tanggal Lahir &amp; Umur</tspan>
     <tspan x="560" dy="12">• Status HT/DM</tspan>
     <tspan x="560" dy="12">• Tahun Pemeriksaan HT/DM</tspan>
   </text>

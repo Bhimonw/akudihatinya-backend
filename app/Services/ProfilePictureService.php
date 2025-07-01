@@ -24,15 +24,19 @@ class ProfilePictureService
                 throw new \Exception('File upload tidak valid');
             }
 
-            // Check file size (2MB limit)
-            if ($file->getSize() > 2048 * 1024) {
-                throw new \Exception('Ukuran file terlalu besar. Maksimal 2MB.');
+            // Optional file size check (increased limit to 10MB)
+            if ($file->getSize() > 10240 * 1024) {
+                Log::warning('Large file uploaded', ['size' => $file->getSize()]);
             }
 
-            // Check mime type
-            $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
+            // Log mime type but don't restrict
+            Log::info('File mime type', ['mime_type' => $file->getMimeType()]);
+            
+            // Accept any file type - let users upload what they want
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/svg+xml'];
             if (!in_array($file->getMimeType(), $allowedMimes)) {
-                throw new \Exception('Format file tidak didukung. Gunakan: jpeg, png, jpg, gif, atau webp.');
+                Log::info('Non-standard image format uploaded', ['mime_type' => $file->getMimeType()]);
+                // Don't throw exception, just log it
             }
 
             // Delete old profile picture if exists
@@ -183,8 +187,12 @@ class ProfilePictureService
                 case IMAGETYPE_WEBP:
                     $sourceImage = imagecreatefromwebp($imagePath);
                     break;
+                case IMAGETYPE_BMP:
+                    $sourceImage = imagecreatefrombmp($imagePath);
+                    break;
                 default:
-                    throw new \Exception('Format gambar tidak didukung untuk optimasi');
+                    Log::info('Image format not supported for optimization, skipping', ['type' => $imageType]);
+                    return; // Skip optimization for unsupported formats
             }
 
             if (!$sourceImage) {
@@ -221,6 +229,9 @@ class ProfilePictureService
                     break;
                 case IMAGETYPE_WEBP:
                     $saved = imagewebp($newImage, $imagePath, 85);
+                    break;
+                case IMAGETYPE_BMP:
+                    $saved = imagebmp($newImage, $imagePath);
                     break;
             }
 

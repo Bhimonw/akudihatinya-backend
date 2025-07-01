@@ -157,7 +157,7 @@
   <rect x="50" y="50" width="300" height="200" fill="#e8f6f3" stroke="#27ae60" stroke-width="1"/>
   <text x="60" y="70" class="label" font-weight="bold">Performance Optimization:</text>
   <text x="60" y="90" class="small-label">• Cache statistik bulanan</text>
-  <text x="60" y="105" class="small-label">• Parallel processing HT & DM</text>
+  <text x="60" y="105" class="small-label">• Parallel processing HT &amp; DM</text>
   <text x="60" y="120" class="small-label">• Database indexing optimized</text>
   <text x="60" y="135" class="small-label">• Real-time calculation fallback</text>
   <text x="60" y="150" class="small-label">• Export format: PDF, Excel</text>

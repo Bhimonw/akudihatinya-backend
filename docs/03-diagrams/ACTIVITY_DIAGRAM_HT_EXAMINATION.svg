@@ -125,7 +125,7 @@
   <text x="60" y="135" class="small-label">• Auto-calculate year/month</text>
   <text x="60" y="150" class="small-label">• Update statistik real-time</text>
   <text x="60" y="165" class="small-label">• Validasi input: angka positif</text>
-  <text x="60" y="180" class="small-label">• Sistolik > Diastolik</text>
+  <text x="60" y="180" class="small-label">• Sistolik &gt; Diastolik</text>
   
   <!-- Legend -->
   <rect x="50" y="520" width="200" height="150" fill="none" stroke="#bdc3c7" stroke-width="1"/>

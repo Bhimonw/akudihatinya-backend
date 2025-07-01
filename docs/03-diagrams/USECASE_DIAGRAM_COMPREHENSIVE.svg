@@ -1,0 +1,283 @@
+<svg width="1400" height="1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .actor { fill: #e3f2fd; stroke: #1976d2; stroke-width: 2; }
+      .actor-text { fill: #1976d2; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; text-anchor: middle; }
+      .usecase { fill: #f3e5f5; stroke: #7b1fa2; stroke-width: 2; }
+      .usecase-text { fill: #4a148c; font-family: Arial, sans-serif; font-size: 10px; text-anchor: middle; }
+      .module-box { fill: #fff3e0; stroke: #f57c00; stroke-width: 2; stroke-dasharray: 5,5; }
+      .module-title { fill: #e65100; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; }
+      .relationship { stroke: #424242; stroke-width: 2; fill: none; }
+      .system-boundary { fill: none; stroke: #2e7d32; stroke-width: 3; stroke-dasharray: 10,5; }
+      .title { fill: #1a237e; font-family: Arial, sans-serif; font-size: 18px; font-weight: bold; text-anchor: middle; }
+    </style>
+  </defs>
+  
+  <!-- Title -->
+  <text x="700" y="30" class="title">Use Case Diagram - Akudihatinya System</text>
+  
+  <!-- System Boundary -->
+  <rect x="200" y="60" width="1000" height="880" class="system-boundary"/>
+  <text x="700" y="85" text-anchor="middle" style="fill: #2e7d32; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold;">Akudihatinya System</text>
+  
+  <!-- Actors -->
+  
+  <!-- Admin Actor -->
+  <ellipse cx="100" cy="200" rx="60" ry="30" class="actor"/>
+  <text x="100" y="205" class="actor-text">Admin</text>
+  <text x="100" y="220" style="fill: #1976d2; font-family: Arial, sans-serif; font-size: 10px; text-anchor: middle;">(Dinas Kesehatan)</text>
+  
+  <!-- Puskesmas Actor -->
+  <ellipse cx="100" cy="700" rx="60" ry="30" class="actor"/>
+  <text x="100" y="705" class="actor-text">Petugas</text>
+  <text x="100" y="720" style="fill: #1976d2; font-family: Arial, sans-serif; font-size: 10px; text-anchor: middle;">Puskesmas</text>
+  
+  <!-- Authentication Module -->
+  <rect x="220" y="100" width="280" height="120" class="module-box"/>
+  <text x="360" y="120" class="module-title">Authentication &amp; Authorization</text>
+  
+  <!-- Auth Use Cases -->
+  <ellipse cx="280" cy="150" rx="50" ry="20" class="usecase"/>
+  <text x="280" y="155" class="usecase-text">Login</text>
+  
+  <ellipse cx="360" cy="150" rx="50" ry="20" class="usecase"/>
+  <text x="360" y="155" class="usecase-text">Logout</text>
+  
+  <ellipse cx="280" cy="190" rx="50" ry="20" class="usecase"/>
+  <text x="280" y="195" class="usecase-text">Refresh Token</text>
+  
+  <ellipse cx="360" cy="190" rx="50" ry="20" class="usecase"/>
+  <text x="360" y="195" class="usecase-text">Change Password</text>
+  
+  <!-- User Management Module (Admin Only) -->
+  <rect x="520" y="100" width="280" height="160" class="module-box"/>
+  <text x="660" y="120" class="module-title">User Management (Admin Only)</text>
+  
+  <!-- User Management Use Cases -->
+  <ellipse cx="580" cy="150" rx="50" ry="20" class="usecase"/>
+  <text x="580" y="155" class="usecase-text">Create User</text>
+  
+  <ellipse cx="700" cy="150" rx="50" ry="20" class="usecase"/>
+  <text x="700" y="155" class="usecase-text">View Users</text>
+  
+  <ellipse cx="580" cy="190" rx="50" ry="20" class="usecase"/>
+  <text x="580" y="195" class="usecase-text">Update User</text>
+  
+  <ellipse cx="700" cy="190" rx="50" ry="20" class="usecase"/>
+  <text x="700" y="195" class="usecase-text">Delete User</text>
+  
+  <ellipse cx="640" cy="230" rx="50" ry="20" class="usecase"/>
+  <text x="640" y="235" class="usecase-text">Reset Password</text>
+  
+  <!-- Yearly Targets Module (Admin Only) -->
+  <rect x="820" y="100" width="280" height="160" class="module-box"/>
+  <text x="960" y="120" class="module-title">Yearly Targets (Admin Only)</text>
+  
+  <!-- Yearly Targets Use Cases -->
+  <ellipse cx="880" cy="150" rx="50" ry="20" class="usecase"/>
+  <text x="880" y="155" class="usecase-text">Set Target</text>
+  
+  <ellipse cx="1000" cy="150" rx="50" ry="20" class="usecase"/>
+  <text x="1000" y="155" class="usecase-text">View Targets</text>
+  
+  <ellipse cx="880" cy="190" rx="50" ry="20" class="usecase"/>
+  <text x="880" y="195" class="usecase-text">Update Target</text>
+  
+  <ellipse cx="1000" cy="190" rx="50" ry="20" class="usecase"/>
+  <text x="1000" y="195" class="usecase-text">Delete Target</text>
+  
+  <ellipse cx="940" cy="230" rx="60" ry="20" class="usecase"/>
+  <text x="940" y="235" class="usecase-text">Monitor Achievement</text>
+  
+  <!-- Patient Management Module -->
+  <rect x="220" y="300" width="280" height="200" class="module-box"/>
+  <text x="360" y="320" class="module-title">Patient Management</text>
+  
+  <!-- Patient Management Use Cases -->
+  <ellipse cx="280" cy="350" rx="50" ry="20" class="usecase"/>
+  <text x="280" y="355" class="usecase-text">Register Patient</text>
+  
+  <ellipse cx="400" cy="350" rx="50" ry="20" class="usecase"/>
+  <text x="400" y="355" class="usecase-text">View Patients</text>
+  
+  <ellipse cx="280" cy="390" rx="50" ry="20" class="usecase"/>
+  <text x="280" y="395" class="usecase-text">Update Patient</text>
+  
+  <ellipse cx="400" cy="390" rx="50" ry="20" class="usecase"/>
+  <text x="400" y="395" class="usecase-text">Delete Patient</text>
+  
+  <ellipse cx="280" cy="430" rx="60" ry="20" class="usecase"/>
+  <text x="280" y="435" class="usecase-text">Add Exam Year</text>
+  
+  <ellipse cx="400" cy="430" rx="60" ry="20" class="usecase"/>
+  <text x="400" y="435" class="usecase-text">Remove Exam Year</text>
+  
+  <ellipse cx="340" cy="470" rx="60" ry="20" class="usecase"/>
+  <text x="340" y="475" class="usecase-text">Export Patient Data</text>
+  
+  <!-- HT Examinations Module -->
+  <rect x="520" y="300" width="280" height="160" class="module-box"/>
+  <text x="660" y="320" class="module-title">HT Examinations</text>
+  
+  <!-- HT Examination Use Cases -->
+  <ellipse cx="580" cy="350" rx="60" ry="20" class="usecase"/>
+  <text x="580" y="355" class="usecase-text">Record HT Exam</text>
+  
+  <ellipse cx="720" cy="350" rx="60" ry="20" class="usecase"/>
+  <text x="720" y="355" class="usecase-text">View HT Exams</text>
+  
+  <ellipse cx="580" cy="390" rx="60" ry="20" class="usecase"/>
+  <text x="580" y="395" class="usecase-text">Update HT Exam</text>
+  
+  <ellipse cx="720" cy="390" rx="60" ry="20" class="usecase"/>
+  <text x="720" y="395" class="usecase-text">Delete HT Exam</text>
+  
+  <ellipse cx="650" cy="430" rx="70" ry="20" class="usecase"/>
+  <text x="650" y="435" class="usecase-text">Calculate BP Control</text>
+  
+  <!-- DM Examinations Module -->
+  <rect x="820" y="300" width="280" height="160" class="module-box"/>
+  <text x="960" y="320" class="module-title">DM Examinations</text>
+  
+  <!-- DM Examination Use Cases -->
+  <ellipse cx="880" cy="350" rx="60" ry="20" class="usecase"/>
+  <text x="880" y="355" class="usecase-text">Record DM Exam</text>
+  
+  <ellipse cx="1020" cy="350" rx="60" ry="20" class="usecase"/>
+  <text x="1020" y="355" class="usecase-text">View DM Exams</text>
+  
+  <ellipse cx="880" cy="390" rx="60" ry="20" class="usecase"/>
+  <text x="880" y="395" class="usecase-text">Update DM Exam</text>
+  
+  <ellipse cx="1020" cy="390" rx="60" ry="20" class="usecase"/>
+  <text x="1020" y="395" class="usecase-text">Delete DM Exam</text>
+  
+  <ellipse cx="950" cy="430" rx="80" ry="20" class="usecase"/>
+  <text x="950" y="435" class="usecase-text">Calculate DM Control</text>
+  
+  <!-- Dashboard & Statistics Module -->
+  <rect x="220" y="520" width="380" height="200" class="module-box"/>
+  <text x="410" y="540" class="module-title">Dashboard &amp; Statistics</text>
+  
+  <!-- Dashboard Use Cases -->
+  <ellipse cx="300" cy="570" rx="60" ry="20" class="usecase"/>
+  <text x="300" y="575" class="usecase-text">Admin Dashboard</text>
+  
+  <ellipse cx="450" cy="570" rx="70" ry="20" class="usecase"/>
+  <text x="450" y="575" class="usecase-text">Puskesmas Dashboard</text>
+  
+  <ellipse cx="300" cy="610" rx="60" ry="20" class="usecase"/>
+  <text x="300" y="615" class="usecase-text">View Statistics</text>
+  
+  <ellipse cx="450" cy="610" rx="60" ry="20" class="usecase"/>
+  <text x="450" y="615" class="usecase-text">Real-time Data</text>
+  
+  <ellipse cx="300" cy="650" rx="60" ry="20" class="usecase"/>
+  <text x="300" y="655" class="usecase-text">Generate Reports</text>
+  
+  <ellipse cx="450" cy="650" rx="60" ry="20" class="usecase"/>
+  <text x="450" y="655" class="usecase-text">Export Data</text>
+  
+  <ellipse cx="375" cy="690" rx="80" ry="20" class="usecase"/>
+  <text x="375" y="695" class="usecase-text">Performance Monitoring</text>
+  
+  <!-- Export & Reporting Module -->
+  <rect x="620" y="520" width="380" height="200" class="module-box"/>
+  <text x="810" y="540" class="module-title">Export &amp; Reporting</text>
+  
+  <!-- Export Use Cases -->
+  <ellipse cx="700" cy="570" rx="60" ry="20" class="usecase"/>
+  <text x="700" y="575" class="usecase-text">Export PDF</text>
+  
+  <ellipse cx="850" cy="570" rx="60" ry="20" class="usecase"/>
+  <text x="850" y="575" class="usecase-text">Export Excel</text>
+  
+  <ellipse cx="700" cy="610" rx="70" ry="20" class="usecase"/>
+  <text x="700" y="615" class="usecase-text">Monthly Report</text>
+  
+  <ellipse cx="850" cy="610" rx="70" ry="20" class="usecase"/>
+  <text x="850" y="615" class="usecase-text">Quarterly Report</text>
+  
+  <ellipse cx="700" cy="650" rx="60" ry="20" class="usecase"/>
+  <text x="700" y="655" class="usecase-text">Annual Report</text>
+  
+  <ellipse cx="850" cy="650" rx="80" ry="20" class="usecase"/>
+  <text x="850" y="655" class="usecase-text">Custom Report</text>
+  
+  <ellipse cx="775" cy="690" rx="80" ry="20" class="usecase"/>
+  <text x="775" y="695" class="usecase-text">Archive Management</text>
+  
+  <!-- Profile Management Module -->
+  <rect x="1020" y="520" width="160" height="120" class="module-box"/>
+  <text x="1100" y="540" class="module-title">Profile Management</text>
+  
+  <!-- Profile Use Cases -->
+  <ellipse cx="1100" cy="570" rx="60" ry="20" class="usecase"/>
+  <text x="1100" y="575" class="usecase-text">Update Profile</text>
+  
+  <ellipse cx="1100" cy="610" rx="70" ry="20" class="usecase"/>
+  <text x="1100" y="615" class="usecase-text">Upload Photo</text>
+  
+  <!-- Relationships -->
+  
+  <!-- Admin to Authentication -->
+  <line x1="160" y1="200" x2="230" y2="170" class="relationship"/>
+  
+  <!-- Admin to User Management -->
+  <line x1="160" y1="200" x2="520" y2="170" class="relationship"/>
+  
+  <!-- Admin to Yearly Targets -->
+  <line x1="160" y1="200" x2="820" y2="170" class="relationship"/>
+  
+  <!-- Admin to Dashboard -->
+  <line x1="160" y1="200" x2="240" y2="570" class="relationship"/>
+  
+  <!-- Admin to Export -->
+  <line x1="160" y1="200" x2="620" y2="570" class="relationship"/>
+  
+  <!-- Admin to Profile -->
+  <line x1="160" y1="200" x2="1020" y2="570" class="relationship"/>
+  
+  <!-- Puskesmas to Authentication -->
+  <line x1="160" y1="700" x2="230" y2="190" class="relationship"/>
+  
+  <!-- Puskesmas to Patient Management -->
+  <line x1="160" y1="700" x2="220" y2="400" class="relationship"/>
+  
+  <!-- Puskesmas to HT Examinations -->
+  <line x1="160" y1="700" x2="520" y2="380" class="relationship"/>
+  
+  <!-- Puskesmas to DM Examinations -->
+  <line x1="160" y1="700" x2="820" y2="380" class="relationship"/>
+  
+  <!-- Puskesmas to Dashboard -->
+  <line x1="160" y1="700" x2="380" y2="650" class="relationship"/>
+  
+  <!-- Puskesmas to Export -->
+  <line x1="160" y1="700" x2="620" y2="650" class="relationship"/>
+  
+  <!-- Puskesmas to Profile -->
+  <line x1="160" y1="700" x2="1020" y2="590" class="relationship"/>
+  
+  <!-- Legend -->
+  <rect x="220" y="760" width="400" height="160" fill="#f5f5f5" stroke="#424242" stroke-width="1"/>
+  <text x="420" y="780" text-anchor="middle" style="fill: #424242; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">Legend</text>
+  
+  <ellipse cx="260" cy="800" rx="30" ry="15" class="actor"/>
+  <text x="300" y="805" style="fill: #424242; font-family: Arial, sans-serif; font-size: 11px;">Actor (User Role)</text>
+  
+  <ellipse cx="260" cy="830" rx="40" ry="15" class="usecase"/>
+  <text x="320" y="835" style="fill: #424242; font-family: Arial, sans-serif; font-size: 11px;">Use Case (System Function)</text>
+  
+  <rect x="230" y="850" width="60" height="20" class="module-box"/>
+  <text x="300" y="865" style="fill: #424242; font-family: Arial, sans-serif; font-size: 11px;">Module Boundary</text>
+  
+  <line x1="230" y1="885" x2="280" y2="885" class="relationship"/>
+  <text x="290" y="890" style="fill: #424242; font-family: Arial, sans-serif; font-size: 11px;">Actor-Use Case Relationship</text>
+  
+  <text x="420" y="910" text-anchor="middle" style="fill: #424242; font-family: Arial, sans-serif; font-size: 10px;">Total Use Cases: 35 | Actors: 2 | Modules: 7</text>
+  
+  <!-- System Info -->
+  <text x="700" y="960" text-anchor="middle" style="fill: #1a237e; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold;">Akudihatinya - Health Data Management System</text>
+  <text x="700" y="980" text-anchor="middle" style="fill: #424242; font-family: Arial, sans-serif; font-size: 10px;">Framework: Laravel 11 | Authentication: Sanctum | Database: MySQL | Architecture: MVC + Service Layer</text>
+</svg>

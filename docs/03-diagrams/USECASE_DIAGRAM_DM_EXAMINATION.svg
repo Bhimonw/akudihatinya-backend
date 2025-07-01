@@ -118,7 +118,7 @@
   
   <!-- Test Types and Control Criteria -->
   <rect x="50" y="450" width="160" height="100" fill="#e8f5e8" stroke="#4caf50" stroke-width="1" rx="5"/>
-  <text x="130" y="465" class="usecase" font-weight="bold" font-size="9">Jenis Tes & Kriteria:</text>
+  <text x="130" y="465" class="usecase" font-weight="bold" font-size="9">Jenis Tes &amp; Kriteria:</text>
   <text x="60" y="480" class="usecase" font-size="8">
     <tspan x="60" dy="0">HbA1c:</tspan>
     <tspan x="60" dy="12">• Terkontrol: &lt; 7%</tspan>
@@ -137,7 +137,7 @@
     <tspan x="560" dy="12">• Jenis Tes (HbA1c/GDP)</tspan>
     <tspan x="560" dy="12">• Hasil Pemeriksaan</tspan>
     <tspan x="560" dy="12">• Status Terkontrol (auto)</tspan>
-    <tspan x="560" dy="12">• Tahun & Bulan</tspan>
+    <tspan x="560" dy="12">• Tahun &amp; Bulan</tspan>
     <tspan x="560" dy="12">• Status Arsip</tspan>
     <tspan x="560" dy="12">• Kunjungan Pertama</tspan>
   </text>
