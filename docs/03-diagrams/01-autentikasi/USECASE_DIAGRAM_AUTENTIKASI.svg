@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; text-anchor: middle; fill: #2c3e50; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 16px; text-anchor: middle; fill: #34495e; }
+      .actor { fill: #3498db; stroke: #2980b9; stroke-width: 2; }
+      .actor-text { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; fill: #2c3e50; font-weight: bold; }
+      .usecase { fill: #e8f4fd; stroke: #3498db; stroke-width: 2; }
+      .usecase-text { font-family: Arial, sans-serif; font-size: 11px; text-anchor: middle; fill: #2c3e50; }
+      .system-boundary { fill: none; stroke: #7f8c8d; stroke-width: 2; stroke-dasharray: 5,5; }
+      .system-label { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #7f8c8d; }
+      .connection { stroke: #34495e; stroke-width: 1.5; fill: none; }
+    </style>
+  </defs>
+  
+  <!-- Title -->
+  <text x="400" y="30" class="title">DIAGRAM USE CASE - DOMAIN AUTENTIKASI</text>
+  <text x="400" y="55" class="subtitle">Sistem Manajemen Data Kesehatan Akudihatinya</text>
+  
+  <!-- System Boundary -->
+  <rect x="200" y="100" width="500" height="450" class="system-boundary" rx="10"/>
+  <text x="210" y="120" class="system-label">Sistem Autentikasi Akudihatinya</text>
+  
+  <!-- Actors -->
+  <!-- Admin -->
+  <g id="admin">
+    <ellipse cx="100" cy="180" rx="15" ry="25" class="actor"/>
+    <line x1="100" y1="205" x2="100" y2="250" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="220" x2="80" y2="240" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="220" x2="120" y2="240" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="250" x2="85" y2="270" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="250" x2="115" y2="270" stroke="#3498db" stroke-width="3"/>
+    <text x="100" y="290" class="actor-text">Admin</text>
+    <text x="100" y="305" class="actor-text">(Dinas Kesehatan)</text>
+  </g>
+  
+  <!-- Petugas Puskesmas -->
+  <g id="petugas">
+    <ellipse cx="100" cy="380" rx="15" ry="25" class="actor"/>
+    <line x1="100" y1="405" x2="100" y2="450" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="420" x2="80" y2="440" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="420" x2="120" y2="440" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="450" x2="85" y2="470" stroke="#3498db" stroke-width="3"/>
+    <line x1="100" y1="450" x2="115" y2="470" stroke="#3498db" stroke-width="3"/>
+    <text x="100" y="490" class="actor-text">Petugas</text>
+    <text x="100" y="505" class="actor-text">Puskesmas</text>
+  </g>
+  
+  <!-- Use Cases -->
+  <!-- Login -->
+  <ellipse cx="350" cy="180" rx="80" ry="30" class="usecase"/>
+  <text x="350" y="185" class="usecase-text">Masuk ke Sistem</text>
+  
+  <!-- Logout -->
+  <ellipse cx="550" cy="180" rx="80" ry="30" class="usecase"/>
+  <text x="550" y="185" class="usecase-text">Keluar dari Sistem</text>
+  
+  <!-- Refresh Token -->
+  <ellipse cx="350" cy="280" rx="80" ry="30" class="usecase"/>
+  <text x="350" y="275" class="usecase-text">Perbarui Token</text>
+  <text x="350" y="290" class="usecase-text">Akses</text>
+  
+  <!-- Change Password -->
+  <ellipse cx="550" cy="280" rx="80" ry="30" class="usecase"/>
+  <text x="550" y="275" class="usecase-text">Ubah Kata</text>
+  <text x="550" y="290" class="usecase-text">Sandi</text>
+  
+  <!-- Update Profile -->
+  <ellipse cx="450" cy="380" rx="80" ry="30" class="usecase"/>
+  <text x="450" y="375" class="usecase-text">Perbarui</text>
+  <text x="450" y="390" class="usecase-text">Profil</text>
+  
+  <!-- Connections -->
+  <!-- Admin connections -->
+  <line x1="115" y1="180" x2="270" y2="180" class="connection"/>
+  <line x1="115" y1="180" x2="470" y2="180" class="connection"/>
+  <line x1="115" y1="200" x2="270" y2="280" class="connection"/>
+  <line x1="115" y1="200" x2="470" y2="280" class="connection"/>
+  <line x1="115" y1="250" x2="370" y2="380" class="connection"/>
+  
+  <!-- Petugas connections -->
+  <line x1="115" y1="380" x2="270" y2="180" class="connection"/>
+  <line x1="115" y1="380" x2="470" y2="180" class="connection"/>
+  <line x1="115" y1="380" x2="270" y2="280" class="connection"/>
+  <line x1="115" y1="380" x2="470" y2="280" class="connection"/>
+  <line x1="115" y1="380" x2="370" y2="380" class="connection"/>
+  
+</svg>
