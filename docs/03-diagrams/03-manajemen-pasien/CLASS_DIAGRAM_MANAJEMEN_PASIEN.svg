@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; text-anchor: middle; fill: #2c3e50; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 16px; text-anchor: middle; fill: #34495e; }
+      .class-box { fill: #ecf0f1; stroke: #34495e; stroke-width: 2; }
+      .class-header { fill: #27ae60; stroke: #229954; stroke-width: 1; }
+      .class-name { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; text-anchor: middle; fill: white; }
+      .attribute { font-family: Arial, sans-serif; font-size: 10px; fill: #2c3e50; }
+      .method { font-family: Arial, sans-serif; font-size: 10px; fill: #2c3e50; }
+      .relationship { stroke: #34495e; stroke-width: 1.5; fill: none; }
+      .composition { stroke: #e74c3c; stroke-width: 2; fill: none; }
+      .inheritance { stroke: #9b59b6; stroke-width: 2; fill: none; }
+      .dependency { stroke: #f39c12; stroke-width: 1.5; fill: none; stroke-dasharray: 5,5; }
+    </style>
+  </defs>
+  
+  <!-- Title -->
+  <text x="600" y="30" class="title">DIAGRAM CLASS - DOMAIN MANAJEMEN PASIEN</text>
+  <text x="600" y="55" class="subtitle">Sistem Manajemen Data Kesehatan Akudihatinya</text>
+  
+  <!-- Patient Class -->
+  <g id="patient-class">
+    <rect x="50" y="100" width="250" height="280" class="class-box"/>
+    <rect x="50" y="100" width="250" height="30" class="class-header"/>
+    <text x="175" y="120" class="class-name">Patient</text>
+    
+    <!-- Attributes -->
+    <text x="60" y="140" class="attribute">- id: int</text>
+    <text x="60" y="155" class="attribute">- puskesmas_id: int</text>
+    <text x="60" y="170" class="attribute">- nik: string (16 chars, unique)</text>
+    <text x="60" y="185" class="attribute">- bpjs_number: string (20 chars)</text>
+    <text x="60" y="200" class="attribute">- medical_record_number: string</text>
+    <text x="60" y="215" class="attribute">- name: string</text>
+    <text x="60" y="230" class="attribute">- address: text</text>
+    <text x="60" y="245" class="attribute">- phone_number: string</text>
+    <text x="60" y="260" class="attribute">- gender: enum (male/female)</text>
+    <text x="60" y="275" class="attribute">- birth_date: date</text>
+    <text x="60" y="290" class="attribute">- age: int (calculated)</text>
+    <text x="60" y="305" class="attribute">- has_ht: boolean (calculated)</text>
+    <text x="60" y="320" class="attribute">- has_dm: boolean (calculated)</text>
+    <text x="60" y="335" class="attribute">- ht_years: json array</text>
+    <text x="60" y="350" class="attribute">- dm_years: json array</text>
+    
+    <!-- Methods -->
+    <line x1="50" y1="360" x2="300" y2="360" stroke="#34495e" stroke-width="1"/>
+    <text x="60" y="375" class="method">+ calculateAge(): int</text>
+  </g>
+  
+  <!-- PatientController Class -->
+  <g id="patient-controller-class">
+    <rect x="400" y="100" width="300" height="250" class="class-box"/>
+    <rect x="400" y="100" width="300" height="30" class="class-header"/>
+    <text x="550" y="120" class="class-name">PatientController</text>
+    
+    <!-- Methods -->
+    <text x="410" y="145" class="method">+ index(request): JsonResponse</text>
+    <text x="410" y="160" class="method">+ store(request): JsonResponse</text>
+    <text x="410" y="175" class="method">+ show(id): JsonResponse</text>
+    <text x="410" y="190" class="method">+ update(request, id): JsonResponse</text>
+    <text x="410" y="205" class="method">+ destroy(id): JsonResponse</text>
+    <text x="410" y="220" class="method">+ search(request): JsonResponse</text>
+    <text x="410" y="235" class="method">+ export(request): Response</text>
+    <text x="410" y="250" class="method">+ addExaminationYear(request, id): JsonResponse</text>
+    <text x="410" y="265" class="method">+ removeExaminationYear(request, id): JsonResponse</text>
+    <text x="410" y="280" class="method">- validatePatientData(data): array</text>
+    <text x="410" y="295" class="method">- checkNikUniqueness(nik, id): boolean</text>
+    <text x="410" y="310" class="method">- updatePatientFlags(patient): void</text>
+    <text x="410" y="325" class="method">- generateMedicalRecordNumber(): string</text>
+    <text x="410" y="340" class="method">- formatPatientResponse(patient): array</text>
+  </g>
+  
+  <!-- PatientRequest Class -->
+  <g id="patient-request-class">
+    <rect x="800" y="100" width="250" height="180" class="class-box"/>
+    <rect x="800" y="100" width="250" height="30" class="class-header"/>
+    <text x="925" y="120" class="class-name">PatientRequest</text>
+    
+    <!-- Methods -->
+    <text x="810" y="145" class="method">+ authorize(): boolean</text>
+    <text x="810" y="160" class="method">+ rules(): array</text>
+    <text x="810" y="175" class="method">+ messages(): array</text>
+    <text x="810" y="190" class="method">- nikValidationRules(): array</text>
+    <text x="810" y="205" class="method">- bpjsValidationRules(): array</text>
+    <text x="810" y="220" class="method">- phoneValidationRules(): array</text>
+    <text x="810" y="235" class="method">- genderValidationRules(): array</text>
+    <text x="810" y="250" class="method">- birthDateValidationRules(): array</text>
+    <text x="810" y="265" class="method">- customValidationMessages(): array</text>
+  </g>
+  
+  <!-- PatientResource Class -->
+  <g id="patient-resource-class">
+    <rect x="400" y="400" width="250" height="150" class="class-box"/>
+    <rect x="400" y="400" width="250" height="30" class="class-header"/>
+    <text x="525" y="420" class="class-name">PatientResource</text>
+    
+    <!-- Methods -->
+    <text x="410" y="445" class="method">+ toArray(request): array</text>
+    <text x="410" y="460" class="method">- formatBasicInfo(): array</text>
+    <text x="410" y="475" class="method">- formatMedicalInfo(): array</text>
+    <text x="410" y="490" class="method">- formatExaminationYears(): array</text>
+    <text x="410" y="505" class="method">- formatPuskesmasInfo(): array</text>
+    <text x="410" y="520" class="method">- calculateDerivedFields(): array</text>
+    <text x="410" y="535" class="method">- hidePrivateFields(): array</text>
+  </g>
+  
+  <!-- Puskesmas Class -->
+  <g id="puskesmas-class">
+    <rect x="50" y="450" width="200" height="120" class="class-box"/>
+    <rect x="50" y="450" width="200" height="30" class="class-header"/>
+    <text x="150" y="470" class="class-name">Puskesmas</text>
+    
+    <!-- Attributes -->
+    <text x="60" y="490" class="attribute">- id: int</text>
+    <text x="60" y="505" class="attribute">- name: string</text>
+    
+    <!-- Methods -->
+    <line x1="50" y1="515" x2="250" y2="515" stroke="#34495e" stroke-width="1"/>
+    <text x="60" y="530" class="method">+ patients(): HasMany</text>
+    <text x="60" y="545" class="method">+ getName(): string</text>
+    <text x="60" y="560" class="method">+ getPatientCount(): int</text>
+  </g>
+  
+  <!-- PatientExportService Class -->
+  <g id="patient-export-service-class">
+    <rect x="800" y="350" width="250" height="180" class="class-box"/>
+    <rect x="800" y="350" width="250" height="30" class="class-header"/>
+    <text x="925" y="370" class="class-name">PatientExportService</text>
+    
+    <!-- Methods -->
+    <text x="810" y="395" class="method">+ exportToExcel(patients): Response</text>
+    <text x="810" y="410" class="method">+ exportToPdf(patients): Response</text>
+    <text x="810" y="425" class="method">+ exportToCsv(patients): Response</text>
+    <text x="810" y="440" class="method">- formatExcelData(patients): array</text>
+    <text x="810" y="455" class="method">- formatPdfData(patients): array</text>
+    <text x="810" y="470" class="method">- formatCsvData(patients): array</text>
+    <text x="810" y="485" class="method">- generateFileName(format): string</text>
+    <text x="810" y="500" class="method">- setHeaders(format): array</text>
+    <text x="810" y="515" class="method">- validateExportData(data): boolean</text>
+  </g>
+  
+  <!-- ValidationConstants Class -->
+  <g id="validation-constants-class">
+    <rect x="800" y="580" width="250" height="150" class="class-box"/>
+    <rect x="800" y="580" width="250" height="30" class="class-header"/>
+    <text x="925" y="600" class="class-name">ValidationConstants</text>
+    
+    <!-- Constants -->
+    <text x="810" y="620" class="attribute">+ NIK_LENGTH: int = 16</text>
+    <text x="810" y="635" class="attribute">+ BPJS_MAX_LENGTH: int = 20</text>
+    <text x="810" y="650" class="attribute">+ PHONE_PATTERN: string</text>
+    <text x="810" y="665" class="attribute">+ GENDER_OPTIONS: array</text>
+    <text x="810" y="680" class="attribute">+ MIN_AGE: int = 0</text>
+    <text x="810" y="695" class="attribute">+ MAX_AGE: int = 150</text>
+    <text x="810" y="710" class="attribute">+ NAME_MAX_LENGTH: int = 255</text>
+  </g>
+  
+  <!-- Relationships -->
+  <!-- Patient to Puskesmas (many:1) -->
+  <line x1="150" y1="380" x2="150" y2="450" class="relationship"/>
+  <text x="130" y="400" class="attribute">*</text>
+  <text x="130" y="440" class="attribute">1</text>
+  
+  <!-- PatientController uses Patient (dependency) -->
+  <line x1="400" y1="200" x2="300" y2="200" class="dependency"/>
+  
+  <!-- PatientController uses PatientRequest (dependency) -->
+  <line x1="700" y1="180" x2="800" y2="180" class="dependency"/>
+  
+  <!-- PatientController uses PatientResource (dependency) -->
+  <line x1="550" y1="350" x2="550" y2="400" class="dependency"/>
+  
+  <!-- PatientController uses PatientExportService (dependency) -->
+  <line x1="700" y1="250" x2="800" y2="400" class="dependency"/>
+  
+  <!-- PatientRequest uses ValidationConstants (dependency) -->
+  <line x1="925" y1="280" x2="925" y2="580" class="dependency"/>
+  
+  <!-- Legend -->
+  <g id="legend">
+    <text x="50" y="620" class="class-name">Legenda:</text>
+    <line x1="50" y1="640" x2="100" y2="640" class="relationship"/>
+    <text x="110" y="645" class="attribute">Asosiasi</text>
+    <line x1="50" y1="660" x2="100" y2="660" class="dependency"/>
+    <text x="110" y="665" class="attribute">Dependensi</text>
+  </g>
+  
+</svg>

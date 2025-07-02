@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; text-anchor: middle; fill: #2c3e50; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 16px; text-anchor: middle; fill: #34495e; }
+      .actor-box { fill: #3498db; stroke: #2980b9; stroke-width: 2; rx: 5; ry: 5; }
+      .actor-text { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; fill: white; font-weight: bold; }
+      .lifeline { stroke: #bdc3c7; stroke-width: 2; stroke-dasharray: 5,5; }
+      .activation { fill: #ecf0f1; stroke: #bdc3c7; stroke-width: 1; }
+      .message { stroke: #2c3e50; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .return-message { stroke: #27ae60; stroke-width: 2; fill: none; marker-end: url(#arrowhead); stroke-dasharray: 5,5; }
+      .message-text { font-family: Arial, sans-serif; font-size: 11px; fill: #2c3e50; font-weight: bold; }
+      .note { fill: #f39c12; stroke: #e67e22; stroke-width: 1; rx: 5; ry: 5; }
+      .note-text { font-family: Arial, sans-serif; font-size: 10px; fill: white; font-weight: bold; }
+    </style>
+    <defs>
+      <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+        <polygon points="0 0, 10 3.5, 0 7" fill="#2c3e50"/>
+      </marker>
+    </defs>
+  </defs>
+  
+  <!-- Title -->
+  <text x="600" y="30" class="title">DIAGRAM SEQUENCE - PROSES PEMERIKSAAN HIPERTENSI</text>
+  <text x="600" y="55" class="subtitle">Sistem Manajemen Data Kesehatan Akudihatinya</text>
+  
+  <!-- Actors -->
+  <rect x="80" y="80" width="120" height="40" class="actor-box"/>
+  <text x="140" y="105" class="actor-text">Petugas Puskesmas</text>
+  
+  <rect x="280" y="80" width="120" height="40" class="actor-box"/>
+  <text x="340" y="105" class="actor-text">HTController</text>
+  
+  <rect x="480" y="80" width="120" height="40" class="actor-box"/>
+  <text x="540" y="105" class="actor-text">HTAnalysisService</text>
+  
+  <rect x="680" y="80" width="120" height="40" class="actor-box"/>
+  <text x="740" y="105" class="actor-text">Database</text>
+  
+  <rect x="880" y="80" width="120" height="40" class="actor-box"/>
+  <text x="940" y="105" class="actor-text">HTResource</text>
+  
+  <!-- Lifelines -->
+  <line x1="140" y1="120" x2="140" y2="750" class="lifeline"/>
+  <line x1="340" y1="120" x2="340" y2="750" class="lifeline"/>
+  <line x1="540" y1="120" x2="540" y2="750" class="lifeline"/>
+  <line x1="740" y1="120" x2="740" y2="750" class="lifeline"/>
+  <line x1="940" y1="120" x2="940" y2="750" class="lifeline"/>
+  
+  <!-- Activations -->
+  <rect x="335" y="160" width="10" height="500" class="activation"/>
+  <rect x="535" y="240" width="10" height="200" class="activation"/>
+  <rect x="735" y="200" width="10" height="320" class="activation"/>
+  <rect x="935" y="560" width="10" height="80" class="activation"/>
+  
+  <!-- Messages -->
+  <!-- 1. Create HT Examination -->
+  <line x1="140" y1="160" x2="335" y2="160" class="message"/>
+  <text x="220" y="155" class="message-text">1: POST /ht-examinations</text>
+  <text x="220" y="175" class="message-text">{patientId, bloodPressure}</text>
+  
+  <!-- 2. Validate Patient -->
+  <line x1="340" y1="200" x2="735" y2="200" class="message"/>
+  <text x="520" y="195" class="message-text">2: findPatientById(patientId)</text>
+  
+  <!-- 3. Patient Data -->
+  <line x1="735" y1="240" x2="345" y2="240" class="return-message"/>
+  <text x="520" y="235" class="message-text">3: patient data</text>
+  
+  <!-- 4. Analyze Blood Pressure -->
+  <line x1="340" y1="280" x2="535" y2="280" class="message"/>
+  <text x="420" y="275" class="message-text">4: analyzeBloodPressure()</text>
+  
+  <!-- 5. Calculate Systolic Status -->
+  <rect x="530" y="300" width="20" height="20" class="activation"/>
+  <text x="560" y="315" class="message-text">5: calculateSystolicStatus()</text>
+  
+  <!-- 6. Calculate Diastolic Status -->
+  <text x="560" y="335" class="message-text">6: calculateDiastolicStatus()</text>
+  
+  <!-- 7. Determine Overall Status -->
+  <text x="560" y="355" class="message-text">7: determineHTStatus()</text>
+  
+  <!-- 8. Generate Recommendations -->
+  <text x="560" y="375" class="message-text">8: generateRecommendations()</text>
+  
+  <!-- 9. Analysis Result -->
+  <line x1="535" y1="400" x2="345" y2="400" class="return-message"/>
+  <text x="420" y="395" class="message-text">9: {status, recommendations}</text>
+  
+  <!-- 10. Save Examination -->
+  <line x1="340" y1="440" x2="735" y2="440" class="message"/>
+  <text x="520" y="435" class="message-text">10: saveHTExamination(data)</text>
+  
+  <!-- 11. Insert Record -->
+  <rect x="730" y="460" width="20" height="20" class="activation"/>
+  <text x="760" y="475" class="message-text">11: insert examination</text>
+  
+  <!-- 12. Update Patient Status -->
+  <text x="760" y="495" class="message-text">12: updatePatientHTStatus()</text>
+  
+  <!-- 13. Examination Saved -->
+  <line x1="735" y1="520" x2="345" y2="520" class="return-message"/>
+  <text x="520" y="515" class="message-text">13: examination saved</text>
+  
+  <!-- 14. Format Response -->
+  <line x1="340" y1="560" x2="935" y2="560" class="message"/>
+  <text x="620" y="555" class="message-text">14: formatHTResource()</text>
+  
+  <!-- 15. Formatted Data -->
+  <line x1="935" y1="600" x2="345" y2="600" class="return-message"/>
+  <text x="620" y="595" class="message-text">15: formatted examination</text>
+  
+  <!-- 16. Success Response -->
+  <line x1="335" y1="640" x2="140" y2="640" class="return-message"/>
+  <text x="220" y="635" class="message-text">16: 201 Created</text>
+  <text x="220" y="655" class="message-text">{examination, status}</text>
+  
+  <!-- Notes -->
+  <rect x="50" y="680" width="200" height="60" class="note"/>
+  <text x="150" y="700" class="note-text">Status Hipertensi:</text>
+  <text x="150" y="715" class="note-text">- Normal: <120/80</text>
+  <text x="150" y="730" class="note-text">- Stage 1: 130-139/80-89</text>
+  
+  <rect x="300" y="680" width="200" height="60" class="note"/>
+  <text x="400" y="700" class="note-text">Rekomendasi:</text>
+  <text x="400" y="715" class="note-text">- Otomatis berdasarkan status</text>
+  <text x="400" y="730" class="note-text">- Lifestyle &amp; medication</text>
+  
+</svg>
