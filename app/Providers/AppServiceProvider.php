@@ -13,6 +13,7 @@ use App\Formatters\AdminMonthlyFormatter;
 use App\Formatters\AdminQuarterlyFormatter;
 use App\Services\StatisticsService;
 use App\Formatters\AdminAllFormatter;
+use App\Formatters\PuskesmasFormatter;
 use App\Services\DiseaseStatisticsService;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
@@ -77,6 +78,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(AdminQuarterlyFormatter::class, function ($app) {
             return new AdminQuarterlyFormatter($app->make(StatisticsService::class));
+        });
+
+        $this->app->singleton(PuskesmasFormatter::class, function ($app) {
+            return new PuskesmasFormatter($app->make(StatisticsService::class));
         });
     }
 

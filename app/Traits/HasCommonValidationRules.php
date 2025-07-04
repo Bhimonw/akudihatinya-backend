@@ -151,6 +151,34 @@ trait HasCommonValidationRules
     }
     
     /**
+     * Aturan validasi alternatif untuk profile picture dengan maksimal 800x800
+     */
+    protected function getProfilePictureAlternativeRules(bool $required = false, bool $nullable = true): array
+    {
+        $rules = [];
+        
+        if ($required) {
+            $rules[] = 'required';
+        } else {
+            $rules[] = 'sometimes';
+        }
+        
+        if ($nullable) {
+            $rules[] = 'nullable';
+        }
+        
+        return array_merge($rules, [
+            'image',
+            'mimes:' . implode(',', ValidationConstants::PROFILE_PICTURE_MIMES),
+            'max:' . ValidationConstants::PROFILE_PICTURE_MAX_SIZE,
+            'dimensions:min_width=' . ValidationConstants::PROFILE_PICTURE_MIN_WIDTH . 
+            ',min_height=' . ValidationConstants::PROFILE_PICTURE_MIN_HEIGHT . 
+            ',max_width=' . ValidationConstants::PROFILE_PICTURE_ALT_MAX_WIDTH . 
+            ',max_height=' . ValidationConstants::PROFILE_PICTURE_ALT_MAX_HEIGHT
+        ]);
+    }
+    
+    /**
      * Mendapatkan pesan error kustom
      */
     protected function getCommonErrorMessages(): array

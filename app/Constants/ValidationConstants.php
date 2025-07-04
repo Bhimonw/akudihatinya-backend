@@ -29,11 +29,16 @@ class ValidationConstants
     public const PROFILE_PICTURE_MAX_WIDTH = 2000;
     public const PROFILE_PICTURE_MAX_HEIGHT = 2000;
     
+    // Alternative validation for 800x800 support
+    public const PROFILE_PICTURE_ALT_MAX_WIDTH = 800;
+    public const PROFILE_PICTURE_ALT_MAX_HEIGHT = 800;
+    
     // Profile Picture Error Messages
     public const PROFILE_PICTURE_IMAGE_ERROR = 'File harus berupa gambar.';
     public const PROFILE_PICTURE_MIMES_ERROR = 'Format gambar harus jpeg, png, jpg, gif, atau webp.';
     public const PROFILE_PICTURE_MAX_SIZE_ERROR = 'Ukuran gambar maksimal 2MB.';
     public const PROFILE_PICTURE_DIMENSIONS_ERROR = 'Dimensi gambar harus minimal 100x100 piksel dan maksimal 2000x2000 piksel.';
+    public const PROFILE_PICTURE_ALT_DIMENSIONS_ERROR = 'Dimensi gambar harus minimal 100x100 piksel dan maksimal 800x800 piksel.';
     
     // Error messages
     public const ERROR_MESSAGES = [

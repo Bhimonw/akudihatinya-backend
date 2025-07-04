@@ -11,6 +11,10 @@ Route::middleware('auth:sanctum')->prefix('users')->group(function () {
     Route::put('/me', [ProfileController::class, 'updateMe']);
     // Support POST with _method=PUT for multipart form data
     Route::post('/me', [ProfileController::class, 'updateMe']);
+    
+    // Alternative profile update with 800x800 validation
+    Route::put('/me/alt', [ProfileController::class, 'updateMeAlternative']);
+    Route::post('/me/alt', [ProfileController::class, 'updateMeAlternative']);
 });
 
 // Admin user management routes

@@ -2,335 +2,339 @@
 
 namespace App\Formatters;
 
-use App\Services\StatisticsService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
-use App\Helpers\QuarterHelper;
+use App\Services\StatisticsService;
+use Illuminate\Support\Facades\Log;
 
-class AdminQuarterlyFormatter extends BaseAdminFormatter
+/**
+ * Formatter untuk export quarterly.xlsx - Laporan Triwulan
+ * Ringkasan capaian per triwulan untuk masing-masing puskesmas
+ */
+class AdminQuarterlyFormatter extends ExcelExportFormatter
 {
-    protected $statisticsService;
-    protected $sheet;
-    protected $currentRow = 8; // Start from row 8
-
     public function __construct(StatisticsService $statisticsService)
     {
-        $this->statisticsService = $statisticsService;
+        parent::__construct($statisticsService);
     }
 
-    public function format($spreadsheet, $diseaseType, $year, $puskesmasId = null)
+    /**
+     * Format data untuk export quarterly.xlsx
+     * 
+     * @param string $diseaseType Jenis penyakit (ht/dm)
+     * @param int $year Tahun laporan
+     * @param array $additionalData Data tambahan jika diperlukan
+     * @return Spreadsheet
+     */
+    public function format(string $diseaseType = 'ht', int $year = null, array $additionalData = []): Spreadsheet
     {
-        $this->sheet = $spreadsheet->getActiveSheet();
-
-        // Replace placeholders
-        $this->replacePlaceholders($diseaseType, $year);
-
-        // Ambil data statistik seragam dari base class
-        $data = $this->getStatisticsData($diseaseType, $year, $puskesmasId);
-
-        // Format the data
-        $this->formatData($data);
-
-        // Apply styles
-        $this->applyStyles();
-
-        return $spreadsheet;
-    }
-
-    protected function replacePlaceholders($diseaseType, $year)
-    {
-        $labels = [
-            'dm' => 'Diabetes Melitus (DM)',
-            'ht' => 'Hipertensi (HT)',
-        ];
-        $diseaseTypeLabel = $labels[$diseaseType] ?? $diseaseType;
-        $highestRow = $this->sheet->getHighestRow();
-        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($this->sheet->getHighestColumn());
-
-        for ($row = 1; $row <= $highestRow; $row++) {
-            for ($col = 1; $col <= $highestColumnIndex; $col++) {
-                $cellCoordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . $row;
-                $cell = $this->sheet->getCell($cellCoordinate);
-                $value = $cell->getValue();
-
-                if (is_string($value)) {
-                    $newValue = str_replace(['<tipe_penyakit>', '<tahun>'], [$diseaseTypeLabel, $year], $value);
-                    if ($newValue !== $value) {
-                        $cell->setValue($newValue);
-                    }
-                    if (strpos($newValue, '<mulai>') !== false) {
-                        $cell->setValue(str_replace('<mulai>', '', $newValue));
-                    }
-                }
-            }
+        try {
+            $year = $year ?? date('Y');
+            
+            // Validasi input
+            $this->validateInput($diseaseType, $year);
+            
+            // Buat spreadsheet baru
+            $spreadsheet = new Spreadsheet();
+            
+            // Ambil data puskesmas dari StatisticsService
+            $puskesmasData = $this->getPuskesmasDataForQuarterly($diseaseType, $year);
+            
+            // Format menggunakan parent method
+            $this->formatQuarterlyExcel($spreadsheet, $diseaseType, $year, $puskesmasData);
+            
+            Log::info('AdminQuarterlyFormatter: Successfully formatted quarterly.xlsx', [
+                'disease_type' => $diseaseType,
+                'year' => $year,
+                'puskesmas_count' => count($puskesmasData)
+            ]);
+            
+            return $spreadsheet;
+            
+        } catch (\Exception $e) {
+            Log::error('AdminQuarterlyFormatter: Error formatting quarterly.xlsx', [
+                'error' => $e->getMessage(),
+                'disease_type' => $diseaseType,
+                'year' => $year
+            ]);
+            throw $e;
         }
     }
 
-    protected function formatData($data)
+    /**
+     * Ambil data puskesmas untuk laporan quarterly.xlsx
+     * Rekap bulanan yang dijumlahkan per triwulan
+     */
+    protected function getPuskesmasDataForQuarterly(string $diseaseType, int $year): array
     {
-        // Gunakan data summary yang sudah dihitung dari BaseAdminFormatter
+        try {
+            // Ambil semua puskesmas
+            $puskesmasList = $this->statisticsService->getAllPuskesmas();
+            $formattedData = [];
+            
+            foreach ($puskesmasList as $puskesmas) {
+                $puskesmasId = $puskesmas['id'];
+                $monthlyData = [];
+                $quarterlyData = [];
+                
+                // Ambil data bulanan terlebih dahulu
+                for ($month = 1; $month <= 12; $month++) {
+                    $monthlyStats = $this->statisticsService->getDetailedMonthlyStatistics(
+                        $puskesmasId, 
+                        $year, 
+                        $month, 
+                        $diseaseType
+                    );
+                    
+                    $monthlyData[$month] = [
+                        'male' => $monthlyStats['male_count'] ?? 0,
+                        'female' => $monthlyStats['female_count'] ?? 0,
+                        'standard' => $monthlyStats['standard_service_count'] ?? 0,
+                        'non_standard' => $monthlyStats['non_standard_service_count'] ?? 0,
+                        'total' => ($monthlyStats['male_count'] ?? 0) + ($monthlyStats['female_count'] ?? 0)
+                    ];
+                }
+                
+                // Hitung data per triwulan
+                for ($quarter = 1; $quarter <= 4; $quarter++) {
+                    $quarterlyData[$quarter] = $this->calculateQuarterDataFromMonthly($monthlyData, $quarter);
+                }
+                
+                // Ambil sasaran tahunan
+                $yearlyTarget = $this->statisticsService->getYearlyTarget($puskesmasId, $year, $diseaseType);
+                
+                // Hitung total tahunan dan persentase capaian
+                $yearlyTotal = $this->calculateYearlyTotalFromQuarterly($quarterlyData);
+                $achievementPercentage = $yearlyTarget['target'] > 0 ? 
+                    round(($yearlyTotal['total'] / $yearlyTarget['target']) * 100, 2) : 0;
+                
+                $formattedData[] = [
+                    'id' => $puskesmasId,
+                    'nama_puskesmas' => $puskesmas['name'],
+                    'sasaran' => $yearlyTarget['target'] ?? 0,
+                    'monthly_data' => $monthlyData, // Tetap simpan untuk perhitungan
+                    'quarterly_data' => $quarterlyData,
+                    'yearly_total' => $yearlyTotal,
+                    'achievement_percentage' => $achievementPercentage
+                ];
+            }
+            
+            return $formattedData;
+            
+        } catch (\Exception $e) {
+            Log::error('AdminQuarterlyFormatter: Error getting puskesmas data', [
+                'error' => $e->getMessage(),
+                'disease_type' => $diseaseType,
+                'year' => $year
+            ]);
+            
+            // Return empty data jika error
+            return [];
+        }
+    }
+
+    /**
+     * Hitung data triwulan dari data bulanan
+     */
+    protected function calculateQuarterDataFromMonthly(array $monthlyData, int $quarter): array
+    {
+        $quarterMonths = [
+            1 => [1, 2, 3],   // Q1: Jan, Feb, Mar
+            2 => [4, 5, 6],   // Q2: Apr, May, Jun
+            3 => [7, 8, 9],   // Q3: Jul, Aug, Sep
+            4 => [10, 11, 12] // Q4: Oct, Nov, Dec
+        ];
+        
+        $months = $quarterMonths[$quarter] ?? [];
+        $quarterData = [
+            'male' => 0,
+            'female' => 0,
+            'standard' => 0,
+            'non_standard' => 0,
+            'total' => 0
+        ];
+        
+        foreach ($months as $month) {
+            if (isset($monthlyData[$month])) {
+                $quarterData['male'] += $monthlyData[$month]['male'] ?? 0;
+                $quarterData['female'] += $monthlyData[$month]['female'] ?? 0;
+                $quarterData['standard'] += $monthlyData[$month]['standard'] ?? 0;
+                $quarterData['non_standard'] += $monthlyData[$month]['non_standard'] ?? 0;
+                $quarterData['total'] += $monthlyData[$month]['total'] ?? 0;
+            }
+        }
+        
+        // Hitung persentase standar untuk triwulan
+        $quarterData['standard_percentage'] = $quarterData['total'] > 0 ? 
+            round(($quarterData['standard'] / $quarterData['total']) * 100, 2) : 0;
+        
+        return $quarterData;
+    }
+
+    /**
+     * Hitung total tahunan dari data triwulan
+     */
+    protected function calculateYearlyTotalFromQuarterly(array $quarterlyData): array
+    {
         $totals = [
-            'target' => $data['summary']['target'],
-            'quarterly_data' => array_fill(1, 4, [
-                'male' => 0,
-                'female' => 0,
-                'standard' => 0,
-                'non_standard' => 0,
-                'total' => 0,
-                'percentage' => 0
-            ])
-        ];
-
-        // Hitung total summary triwulan dari data summary yang sudah ada
-        $quarterTotals = \App\Helpers\QuarterHelper::getQuarterTotals([$data['summary']['monthly_data']], $totals['target']);
-
-        // Isi data per puskesmas
-        $startRow = $this->currentRow;
-        foreach ($data['data'] as $index => $puskesmasData) {
-            $this->sheet->setCellValue('A' . $this->currentRow, $index + 1);
-            $this->sheet->setCellValue('B' . $this->currentRow, $puskesmasData['puskesmas_name']);
-            $diseaseData = $puskesmasData[$data['type']] ?? [];
-            $this->sheet->setCellValue('C' . $this->currentRow, $diseaseData['target'] ?? 0);
-            $this->formatQuarterlyData($diseaseData['monthly_data'] ?? []);
-            $this->formatYearlyAchievement($diseaseData);
-            $this->currentRow++;
-        }
-
-        // Dinamis baris total
-        $userCount = count($data['data']);
-        $defaultRows = 25;
-        $totalRow = $startRow + $userCount;
-        if ($userCount < $defaultRows) {
-            $this->sheet->removeRow($totalRow, $defaultRows - $userCount);
-        } elseif ($userCount > $defaultRows) {
-            $this->sheet->insertNewRowBefore($startRow + $defaultRows, $userCount - $defaultRows);
-            $totalRow = $startRow + $userCount;
-        }
-        $this->currentRow = $totalRow;
-        $this->sheet->setCellValue('A' . $this->currentRow, 'Total');
-        $this->sheet->setCellValue('B' . $this->currentRow, '');
-        $this->sheet->setCellValue('C' . $this->currentRow, $totals['target']);
-
-        // Kolom per triwulan: S L, S P, S Total, TS, %S
-        $quarterColumns = [
-            1 => ['D', 'E', 'F', 'G', 'H'],
-            2 => ['I', 'J', 'K', 'L', 'M'],
-            3 => ['N', 'O', 'P', 'Q', 'R'],
-            4 => ['S', 'T', 'U', 'V', 'W']
-        ];
-        for ($quarter = 1; $quarter <= 4; $quarter++) {
-            $q = $quarterTotals[$quarter];
-            $cols = $quarterColumns[$quarter];
-            $this->sheet->setCellValue($cols[0] . $this->currentRow, $q['male']);
-            $this->sheet->setCellValue($cols[1] . $this->currentRow, $q['female']);
-            $this->sheet->setCellValue($cols[2] . $this->currentRow, $q['standard']);
-            $this->sheet->setCellValue($cols[3] . $this->currentRow, $q['non_standard']);
-            $percent = $totals['target'] > 0 ? round(($q['standard'] / $totals['target']) * 100, 2) : 0;
-            $this->sheet->setCellValue($cols[4] . $this->currentRow, $percent);
-        }
-
-        // Kolom capaian tahunan (misal: X, Y, Z, AA, AB, AC)
-        $decSummary = [
             'male' => 0,
             'female' => 0,
             'standard' => 0,
             'non_standard' => 0,
             'total' => 0
         ];
-        foreach ($allMonthlyData as $monthlyData) {
-            // Get last available month data (flexible, not hardcoded to December)
-            $lastMonthData = null;
-            for ($month = 12; $month >= 1; $month--) {
-                if (isset($monthlyData[$month]) && ($monthlyData[$month]['total'] ?? 0) > 0) {
-                    $lastMonthData = $monthlyData[$month];
-                    break;
+        
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            if (isset($quarterlyData[$quarter])) {
+                $totals['male'] += $quarterlyData[$quarter]['male'] ?? 0;
+                $totals['female'] += $quarterlyData[$quarter]['female'] ?? 0;
+                $totals['standard'] += $quarterlyData[$quarter]['standard'] ?? 0;
+                $totals['non_standard'] += $quarterlyData[$quarter]['non_standard'] ?? 0;
+                $totals['total'] += $quarterlyData[$quarter]['total'] ?? 0;
+            }
+        }
+        
+        // Hitung persentase standar tahunan
+        $totals['standard_percentage'] = $totals['total'] > 0 ? 
+            round(($totals['standard'] / $totals['total']) * 100, 2) : 0;
+        
+        return $totals;
+    }
+
+    /**
+     * Override method untuk menambahkan kolom khusus quarterly
+     */
+    protected function setupQuarterlyHeaders()
+    {
+        parent::setupQuarterlyHeaders();
+        
+        // Tambahkan header khusus untuk laporan triwulan
+        $this->sheet->setCellValue('A2', 'LAPORAN TRIWULAN PELAYANAN KESEHATAN');
+        $this->sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        $this->sheet->getStyle('A2')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        // Merge cells untuk sub-header
+        $this->sheet->mergeCells('A2:' . $this->sheet->getHighestColumn() . '2');
+        
+        // Tambahkan keterangan periode triwulan
+        $this->sheet->setCellValue('A5', 'Keterangan: TW I (Jan-Mar), TW II (Apr-Jun), TW III (Jul-Sep), TW IV (Okt-Des)');
+        $this->sheet->getStyle('A5')->getFont()->setItalic(true)->setSize(9);
+    }
+
+    /**
+     * Override untuk menambahkan informasi tambahan pada quarterly report
+     */
+    protected function fillQuarterlyData(int $row, array $data, int $year, string $diseaseType)
+    {
+        // Gunakan data quarterly yang sudah dihitung
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $quarterData = $data['quarterly_data'][$quarter] ?? [];
+            $this->fillQuarterDataToColumns($row, $quarter, $quarterData);
+        }
+        
+        // Total tahunan
+        $totalData = $data['yearly_total'] ?? [];
+        $this->fillTotalDataToColumns($row, $totalData);
+        
+        // Tambahkan kolom persentase capaian di akhir
+        $lastColumn = $this->incrementColumn($this->totalColumns[4], 1);
+        $this->sheet->setCellValue($lastColumn . '6', '% CAPAIAN');
+        $this->sheet->setCellValue($lastColumn . $row, $data['achievement_percentage'] . '%');
+    }
+
+    /**
+     * Validasi parameter input
+     */
+    protected function validateInput(string $diseaseType, int $year): bool
+    {
+        $validDiseaseTypes = ['ht', 'dm', 'both'];
+        
+        if (!in_array($diseaseType, $validDiseaseTypes)) {
+            throw new \InvalidArgumentException("Invalid disease type: {$diseaseType}");
+        }
+        
+        $currentYear = date('Y');
+        if ($year < 2020 || $year > $currentYear + 1) {
+            throw new \InvalidArgumentException("Invalid year: {$year}");
+        }
+        
+        return true;
+    }
+
+    /**
+     * Get filename untuk export
+     */
+    public function getFilename(string $diseaseType, int $year): string
+    {
+        $diseaseLabel = $diseaseType === 'ht' ? 'Hipertensi' : 
+                       ($diseaseType === 'dm' ? 'Diabetes' : 'HT-DM');
+        
+        return "Laporan_Triwulan_{$diseaseLabel}_{$year}.xlsx";
+    }
+
+    /**
+     * Get summary statistics untuk quarterly report
+     */
+    public function getSummaryStatistics(array $puskesmasData): array
+    {
+        $summary = [
+            'total_puskesmas' => count($puskesmasData),
+            'total_sasaran' => 0,
+            'total_capaian' => 0,
+            'rata_rata_capaian' => 0,
+            'quarterly_performance' => []
+        ];
+        
+        // Inisialisasi data per triwulan
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $summary['quarterly_performance'][$quarter] = [
+                'total' => 0,
+                'standard' => 0,
+                'percentage' => 0
+            ];
+        }
+        
+        foreach ($puskesmasData as $data) {
+            $summary['total_sasaran'] += $data['sasaran'] ?? 0;
+            $summary['total_capaian'] += $data['yearly_total']['total'] ?? 0;
+            
+            // Akumulasi data per triwulan
+            for ($quarter = 1; $quarter <= 4; $quarter++) {
+                if (isset($data['quarterly_data'][$quarter])) {
+                    $summary['quarterly_performance'][$quarter]['total'] += 
+                        $data['quarterly_data'][$quarter]['total'] ?? 0;
+                    $summary['quarterly_performance'][$quarter]['standard'] += 
+                        $data['quarterly_data'][$quarter]['standard'] ?? 0;
                 }
             }
-            
-            if ($lastMonthData) {
-                $decSummary['male'] += $lastMonthData['male'] ?? 0;
-                $decSummary['female'] += $lastMonthData['female'] ?? 0;
-                $decSummary['standard'] += $lastMonthData['standard'] ?? 0;
-                $decSummary['non_standard'] += $lastMonthData['non_standard'] ?? 0;
-                $decSummary['total'] += $lastMonthData['total'] ?? 0;
-            }
         }
-        $yearlyCols = ['X', 'Y', 'Z', 'AA', 'AB', 'AC'];
-        $this->sheet->setCellValue($yearlyCols[0] . $this->currentRow, $decSummary['male']);
-        $this->sheet->setCellValue($yearlyCols[1] . $this->currentRow, $decSummary['female']);
-        $this->sheet->setCellValue($yearlyCols[2] . $this->currentRow, $decSummary['standard']);
-        $this->sheet->setCellValue($yearlyCols[3] . $this->currentRow, $decSummary['non_standard']);
-        $this->sheet->setCellValue($yearlyCols[4] . $this->currentRow, $decSummary['total']);
-        $yearlySummary = $this->getYearlySummary($allMonthlyData, $totals['target']);
-        $this->sheet->setCellValue($yearlyCols[5] . $this->currentRow, $yearlySummary['percentage']);
-        $this->sheet->getStyle('A' . $this->currentRow . ':' . $this->sheet->getHighestColumn() . $this->currentRow)
-            ->getFont()
-            ->setBold(true);
-    }
-
-    protected function formatQuarterlyData($monthlyData)
-    {
-        // Column mappings for quarterly data
-        $quarterColumns = [
-            1 => ['D', 'E', 'F', 'G', 'H'],     // Triwulan I: L, P, Total, TS, %S
-            2 => ['I', 'J', 'K', 'L', 'M'],     // Triwulan II: L, P, Total, TS, %S
-            3 => ['N', 'O', 'P', 'Q', 'R'],     // Triwulan III: L, P, Total, TS, %S
-            4 => ['S', 'T', 'U', 'V', 'W']      // Triwulan IV: L, P, Total, TS, %S
-        ];
-
-        // Hitung data kumulatif perbulan (akumulasi dari Januari hingga bulan tersebut)
-        $cumulativeData = [];
-        $cumulative = [
-            'male' => 0,
-            'female' => 0,
-            'standard' => 0,
-            'non_standard' => 0,
-            'total' => 0
-        ];
-
-        // Dapatkan target untuk perhitungan persentase kumulatif
-        $target = 0;
-        if (isset($this->data['data']) && is_array($this->data['data'])) {
-            foreach ($this->data['data'] as $puskesmasData) {
-                $diseaseData = $puskesmasData[$this->data['type']] ?? [];
-                $target += $diseaseData['target'] ?? 0;
-            }
-        }
-
-        for ($month = 1; $month <= 12; $month++) {
-            $monthData = $monthlyData[$month] ?? [
-                'male' => 0,
-                'female' => 0,
-                'total' => 0,
-                'standard' => 0,
-                'non_standard' => 0,
-                'percentage' => 0
-            ];
-
-            // Akumulasi data dari Januari hingga bulan ini
-            $cumulative['male'] += $monthData['male'];
-            $cumulative['female'] += $monthData['female'];
-            $cumulative['standard'] += $monthData['standard'];
-            $cumulative['non_standard'] += $monthData['non_standard'];
-            $cumulative['total'] += $monthData['total'];
-
-            // Hitung persentase kumulatif: akumulasi standar / target total
-            $cumulativePercentage = $target > 0
-                ? round(($cumulative['standard'] / $target) * 100, 2)
-                : 0;
-
-            // Simpan data kumulatif untuk bulan ini
-            $cumulativeData[$month] = [
-                'male' => $cumulative['male'],
-                'female' => $cumulative['female'],
-                'standard' => $cumulative['standard'],
-                'non_standard' => $cumulative['non_standard'],
-                'total' => $cumulative['total'],
-                'percentage' => $cumulativePercentage // Gunakan persentase kumulatif
-            ];
-        }
-
-        // Process quarterly data menggunakan data kumulatif bulan terakhir di setiap quarter
+        
+        // Hitung rata-rata capaian
+        $summary['rata_rata_capaian'] = $summary['total_sasaran'] > 0 ? 
+            round(($summary['total_capaian'] / $summary['total_sasaran']) * 100, 2) : 0;
+        
+        // Hitung persentase per triwulan
         for ($quarter = 1; $quarter <= 4; $quarter++) {
-            $endMonth = $quarter * 3; // Bulan terakhir di quarter (3, 6, 9, 12)
-            $quarterData = $cumulativeData[$endMonth]; // Gunakan data kumulatif bulan terakhir
-            $columns = $quarterColumns[$quarter];
-            
-            $this->sheet->setCellValue($columns[0] . $this->currentRow, $quarterData['male']);      // L (Laki-laki Standar Kumulatif)
-            $this->sheet->setCellValue($columns[1] . $this->currentRow, $quarterData['female']);    // P (Perempuan Standar Kumulatif)
-            $this->sheet->setCellValue($columns[2] . $this->currentRow, $quarterData['standard']);  // Total (Total Standar Kumulatif)
-            $this->sheet->setCellValue($columns[3] . $this->currentRow, $quarterData['non_standard']); // TS (Tidak Standar Kumulatif)
-            $this->sheet->setCellValue($columns[4] . $this->currentRow, $quarterData['percentage']); // %S (tanpa %)
-        }
-    }
-
-    protected function formatYearlyAchievement($diseaseData)
-    {
-        $yearlyColumns = [
-            'X', // L (Laki-laki Standar)
-            'Y', // P (Perempuan Standar)
-            'Z', // Total (Total Standar)
-            'AA', // TS (Tidak Standar)
-            'AB', // Total Pasien
-            'AC'  // Persentase Tahunan
-        ];
-
-        // Get data from last available quarter - data terakhir triwulan yang tersedia
-        $lastQuarterData = null;
-        
-        // Check quarters from Q4 to Q1 (months 12,9,6,3)
-        $quarterEndMonths = [12, 9, 6, 3];
-        foreach ($quarterEndMonths as $month) {
-            if (isset($diseaseData['monthly_data'][$month]) && ($diseaseData['monthly_data'][$month]['total'] ?? 0) > 0) {
-                $lastQuarterData = $diseaseData['monthly_data'][$month];
-                break;
-            }
+            $total = $summary['quarterly_performance'][$quarter]['total'];
+            $standard = $summary['quarterly_performance'][$quarter]['standard'];
+            $summary['quarterly_performance'][$quarter]['percentage'] = $total > 0 ? 
+                round(($standard / $total) * 100, 2) : 0;
         }
         
-        // Fallback to empty data if no quarter has data
-        if (!$lastQuarterData) {
-            $lastQuarterData = [
-                'male' => 0,
-                'female' => 0,
-                'standard' => 0,     // S Total
-                'non_standard' => 0, // TS
-                'total' => 0,
-                'percentage' => 0
-            ];
-        }
-
-        $this->sheet->setCellValue($yearlyColumns[0] . $this->currentRow, $lastQuarterData['male']);      // L (Laki-laki Standar)
-        $this->sheet->setCellValue($yearlyColumns[1] . $this->currentRow, $lastQuarterData['female']);    // P (Perempuan Standar)
-        $this->sheet->setCellValue($yearlyColumns[2] . $this->currentRow, $lastQuarterData['standard']);  // Total (Total Standar)
-        $this->sheet->setCellValue($yearlyColumns[3] . $this->currentRow, $lastQuarterData['non_standard']); // TS (Tidak Standar)
-        $this->sheet->setCellValue($yearlyColumns[4] . $this->currentRow, $lastQuarterData['total']);     // Total Pasien
-        $this->sheet->setCellValue($yearlyColumns[5] . $this->currentRow, $lastQuarterData['percentage']); // Persentase Tahunan (tanpa %)
+        return $summary;
     }
 
-    protected function applyStyles()
+    /**
+     * Get quarter name in Indonesian
+     */
+    public function getQuarterName(int $quarter): string
     {
-        // Apply number format to all numeric cells
-        $numericRange = 'D8:AC' . $this->currentRow;
-        $this->sheet->getStyle($numericRange)->getNumberFormat()->setFormatCode('#,##0');
-
-        // Apply percentage format to percentage columns
-        $percentageColumns = [
-            'H',
-            'M',
-            'R',
-            'W', // Quarterly percentages
-            'AC' // Persentase Tahunan
+        $quarterNames = [
+            1 => 'Triwulan I (Januari - Maret)',
+            2 => 'Triwulan II (April - Juni)',
+            3 => 'Triwulan III (Juli - September)',
+            4 => 'Triwulan IV (Oktober - Desember)'
         ];
-
-        foreach ($percentageColumns as $col) {
-            $this->sheet->getStyle($col . '8:' . $col . $this->currentRow)
-                ->getNumberFormat()
-                ->setFormatCode('0.00"%"');
-        }
-
-        // Apply borders
-        $this->sheet->getStyle('A8:AC' . $this->currentRow)
-            ->getBorders()
-            ->getAllBorders()
-            ->setBorderStyle(Border::BORDER_THIN);
-
-        // Center align all cells
-        $this->sheet->getStyle('A8:AC' . $this->currentRow)
-            ->getAlignment()
-            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
-            ->setVertical(Alignment::VERTICAL_CENTER);
-
-        // Clear any data after column AC
-        $highestColumn = $this->sheet->getHighestColumn();
-        if ($highestColumn > 'AC') {
-            $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
-            $acColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('AC');
-            $columnsToRemove = $highestColumnIndex - $acColumnIndex;
-
-            if ($columnsToRemove > 0) {
-                $this->sheet->removeColumn('AD', $columnsToRemove);
-            }
-        }
+        
+        return $quarterNames[$quarter] ?? 'Triwulan Tidak Valid';
     }
 }

@@ -19,3 +19,9 @@ Route::get('img/{filename}', function ($filename) {
         'Content-Disposition' => 'inline; filename="' . $filename . '"'
     ]);
 })->name('img');
+
+// Route untuk Vue.js SPA - harus di bagian paling akhir
+// Menangkap semua route yang tidak ditangani oleh route lain
+Route::get('/{any}', function () {
+    return view('app');
+})->where('any', '.*')->name('spa');

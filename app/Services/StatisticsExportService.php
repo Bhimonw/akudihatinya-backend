@@ -252,18 +252,46 @@ class StatisticsExportService
             return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $puskesmasId);
         }
 
-        // Load template Excel untuk admin
-        $spreadsheet = IOFactory::load($templatePath);
+        // Validasi keberadaan template Excel
+        if (!file_exists($templatePath)) {
+            Log::error('Template Excel tidak ditemukan', [
+                'template_path' => $templatePath,
+                'disease_type' => $diseaseType,
+                'month' => $month
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Template Excel tidak ditemukan: ' . basename($templatePath)
+            ], 500);
+        }
 
-        // Format spreadsheet menggunakan formatter admin
-        $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year);
+        try {
+            // Load template Excel untuk admin
+            $spreadsheet = IOFactory::load($templatePath);
 
-        // Save file
-        $writer = new Xlsx($spreadsheet);
-        $tempFile = tempnam(sys_get_temp_dir(), 'statistics_') . '.xlsx';
-        $writer->save($tempFile);
+            // Format spreadsheet menggunakan formatter admin
+            $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year);
 
-        return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+            // Save file
+            $writer = new Xlsx($spreadsheet);
+            $tempFile = tempnam(sys_get_temp_dir(), 'statistics_') . '.xlsx';
+            $writer->save($tempFile);
+
+            return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+            
+        } catch (\Exception $e) {
+            Log::error('Error saat export Excel', [
+                'error' => $e->getMessage(),
+                'template_path' => $templatePath,
+                'disease_type' => $diseaseType
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat membuat file Excel: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
