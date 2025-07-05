@@ -18,14 +18,15 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
     }
 
     /**
-     * Format data untuk export monthly.xlsx
+     * Format data untuk export monthly.xlsx menggunakan template yang sudah dimuat
      * 
+     * @param Spreadsheet $spreadsheet Template yang sudah dimuat dari IOFactory::load
      * @param string $diseaseType Jenis penyakit (ht/dm)
      * @param int $year Tahun laporan
      * @param array $additionalData Data tambahan jika diperlukan
      * @return Spreadsheet
      */
-    public function format(string $diseaseType = 'ht', int $year = null, array $additionalData = []): Spreadsheet
+    public function format(Spreadsheet $spreadsheet, string $diseaseType = 'ht', int $year = null, array $additionalData = []): Spreadsheet
     {
         try {
             $year = $year ?? date('Y');
@@ -33,16 +34,16 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
             // Validasi input
             $this->validateInput($diseaseType, $year);
             
-            // Buat spreadsheet baru
-            $spreadsheet = new Spreadsheet();
+            // Set active sheet dari template
+            $this->sheet = $spreadsheet->getActiveSheet();
             
             // Ambil data puskesmas dari StatisticsService
             $puskesmasData = $this->getPuskesmasDataForMonthly($diseaseType, $year);
             
-            // Format menggunakan parent method
-            $this->formatMonthlyExcel($spreadsheet, $diseaseType, $year, $puskesmasData);
+            // Isi data ke template yang sudah ada
+            $this->fillMonthlyTemplateWithData($puskesmasData, $year, $diseaseType);
             
-            Log::info('AdminMonthlyFormatter: Successfully formatted monthly.xlsx', [
+            Log::info('AdminMonthlyFormatter: Successfully formatted monthly.xlsx using template', [
                 'disease_type' => $diseaseType,
                 'year' => $year,
                 'puskesmas_count' => count($puskesmasData)
@@ -58,6 +59,146 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
             ]);
             throw $e;
         }
+    }
+    
+    /**
+     * Isi template monthly.xlsx dengan data puskesmas
+     * Metode ini hanya mengisi data ke template yang sudah ada tanpa mengubah struktur
+     */
+    protected function fillMonthlyTemplateWithData($puskesmasData, int $year, string $diseaseType)
+    {
+        if (!$this->sheet) {
+            throw new \Exception('Sheet template tidak tersedia');
+        }
+        
+        // Isi informasi header
+        $this->findAndFillCell('TAHUN', $year);
+        $this->findAndFillCell('JENIS PENYAKIT', $diseaseType === 'ht' ? 'HIPERTENSI' : 'DIABETES MELITUS');
+        
+        // Cari baris awal data puskesmas
+        $dataStartRow = $this->findMonthlyDataStartRow();
+        
+        if ($dataStartRow && !empty($puskesmasData)) {
+            $currentRow = $dataStartRow;
+            
+            foreach ($puskesmasData as $index => $puskesmas) {
+                $this->fillPuskesmasRowInMonthlyTemplate($currentRow, $index + 1, $puskesmas);
+                $currentRow++;
+            }
+            
+            // Tambahkan total keseluruhan
+            $this->addMonthlyTemplateSummary($currentRow, $puskesmasData);
+        }
+    }
+    
+    /**
+     * Cari cell yang mengandung teks tertentu dan isi dengan nilai baru
+     */
+    protected function findAndFillCell($searchText, $value)
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        $highestColumn = $this->sheet->getHighestColumn();
+        
+        for ($row = 1; $row <= $highestRow; $row++) {
+            for ($col = 'A'; $col <= $highestColumn; $col++) {
+                $cellValue = $this->sheet->getCell($col . $row)->getValue();
+                if (is_string($cellValue) && stripos($cellValue, $searchText) !== false) {
+                    // Jika cell berisi teks pencarian, isi cell sebelahnya atau yang sama
+                    if (stripos($cellValue, ':') !== false) {
+                        // Format "Label: [value]" - isi di cell yang sama
+                        $this->sheet->setCellValue($col . $row, str_ireplace($searchText, $searchText . ': ' . $value, $cellValue));
+                    } else {
+                        // Isi di cell sebelahnya (kolom berikutnya)
+                        $nextCol = chr(ord($col) + 1);
+                        $this->sheet->setCellValue($nextCol . $row, $value);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+    
+    /**
+     * Cari baris awal untuk data puskesmas di template monthly.xlsx
+     */
+    protected function findMonthlyDataStartRow()
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        
+        for ($row = 1; $row <= $highestRow; $row++) {
+            $cellValue = $this->sheet->getCell('A' . $row)->getValue();
+            if (is_string($cellValue) && (stripos($cellValue, 'NO') !== false || stripos($cellValue, 'NAMA PUSKESMAS') !== false)) {
+                // Cek jika ini adalah header row
+                $nextCellValue = $this->sheet->getCell('B' . $row)->getValue();
+                if (is_string($nextCellValue) && stripos($nextCellValue, 'PUSKESMAS') !== false) {
+                    return $row + 1; // Baris setelah header
+                }
+            }
+        }
+        
+        return 5; // Default jika tidak ditemukan
+    }
+    
+    /**
+     * Isi satu baris data puskesmas di template monthly.xlsx
+     */
+    protected function fillPuskesmasRowInMonthlyTemplate($row, $no, $puskesmasData)
+    {
+        // Isi data berdasarkan struktur template
+        $this->sheet->setCellValue('A' . $row, $no); // No
+        $this->sheet->setCellValue('B' . $row, $puskesmasData['nama_puskesmas']); // Nama Puskesmas
+        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['sasaran'])); // Sasaran
+        
+        // Isi data bulanan (kolom D sampai O untuk 12 bulan)
+        $startCol = 'D';
+        for ($month = 1; $month <= 12; $month++) {
+            $monthData = $puskesmasData['monthly_data'][$month] ?? ['total' => 0];
+            $col = chr(ord($startCol) + $month - 1);
+            $this->sheet->setCellValue($col . $row, $monthData['total']);
+        }
+        
+        // Total tahunan dan persentase capaian
+        $this->sheet->setCellValue('P' . $row, number_format($puskesmasData['yearly_total']['total'])); // Total
+        $this->sheet->setCellValue('Q' . $row, $puskesmasData['achievement_percentage'] . '%'); // % Capaian
+    }
+    
+    /**
+     * Tambahkan summary total di akhir template monthly
+     */
+    protected function addMonthlyTemplateSummary($startRow, $puskesmasData)
+    {
+        $grandTotal = ['sasaran' => 0, 'capaian' => 0, 'monthly' => array_fill(1, 12, 0)];
+        
+        foreach ($puskesmasData as $puskesmas) {
+            $grandTotal['sasaran'] += $puskesmas['sasaran'];
+            $grandTotal['capaian'] += $puskesmas['yearly_total']['total'];
+            
+            // Total bulanan
+            for ($month = 1; $month <= 12; $month++) {
+                $grandTotal['monthly'][$month] += $puskesmas['monthly_data'][$month]['total'] ?? 0;
+            }
+        }
+        
+        // Isi baris total
+        $this->sheet->setCellValue('A' . $startRow, '');
+        $this->sheet->setCellValue('B' . $startRow, 'TOTAL KESELURUHAN');
+        $this->sheet->setCellValue('C' . $startRow, number_format($grandTotal['sasaran']));
+        
+        // Total bulanan
+        $startCol = 'D';
+        for ($month = 1; $month <= 12; $month++) {
+            $col = chr(ord($startCol) + $month - 1);
+            $this->sheet->setCellValue($col . $startRow, number_format($grandTotal['monthly'][$month]));
+        }
+        
+        $this->sheet->setCellValue('P' . $startRow, number_format($grandTotal['capaian']));
+        
+        $overallPercentage = $grandTotal['sasaran'] > 0 ? 
+            round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
+        $this->sheet->setCellValue('Q' . $startRow, $overallPercentage . '%');
+        
+        // Style bold untuk baris total
+        $this->sheet->getStyle('A' . $startRow . ':Q' . $startRow)->getFont()->setBold(true);
     }
 
     /**
@@ -77,24 +218,24 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
                 
                 // Ambil data untuk setiap bulan dengan detail klasifikasi
                 for ($month = 1; $month <= 12; $month++) {
-                    $monthlyStats = $this->statisticsService->getDetailedMonthlyStatistics(
+                    $monthlyStats = $this->statisticsService->getMonthlyStatistics(
                         $puskesmasId, 
                         $year, 
-                        $month, 
-                        $diseaseType
+                        $diseaseType,
+                        $month
                     );
                     
                     // Hitung persentase standar
-                    $totalPatients = ($monthlyStats['male_count'] ?? 0) + ($monthlyStats['female_count'] ?? 0);
-                    $standardCount = $monthlyStats['standard_service_count'] ?? 0;
-                    $nonStandardCount = $monthlyStats['non_standard_service_count'] ?? 0;
+                    $totalPatients = $monthlyStats['total_patients'] ?? 0;
+                    $standardCount = $monthlyStats['standard_patients'] ?? 0;
+                    $nonStandardCount = $monthlyStats['non_standard_patients'] ?? 0;
                     
                     $standardPercentage = $totalPatients > 0 ? 
                         round(($standardCount / $totalPatients) * 100, 2) : 0;
                     
                     $monthlyData[$month] = [
-                        'male' => $monthlyStats['male_count'] ?? 0,
-                        'female' => $monthlyStats['female_count'] ?? 0,
+                        'male' => $monthlyStats['male_patients'] ?? 0,
+                        'female' => $monthlyStats['female_patients'] ?? 0,
                         'standard' => $standardCount,
                         'non_standard' => $nonStandardCount,
                         'total' => $totalPatients,

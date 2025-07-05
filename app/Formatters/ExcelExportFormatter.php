@@ -58,17 +58,50 @@ class ExcelExportFormatter
      */
     public function formatAllExcel(Spreadsheet $spreadsheet, string $diseaseType, int $year, array $puskesmasData = [])
     {
-        $this->sheet = $spreadsheet->getActiveSheet();
-        $this->sheet->setTitle('Laporan');
-        
-        // Setup header struktur
-        $this->setupHeaders($diseaseType, $year, 'all');
-        
-        // Isi data puskesmas
-        $this->fillPuskesmasData($puskesmasData, $year, $diseaseType, 'all');
-        
-        // Apply styling
-        $this->applyExcelStyling();
+        try {
+            $this->sheet = $spreadsheet->getActiveSheet();
+            $this->sheet->setTitle('Laporan');
+            
+            // Clear any existing content
+            $this->sheet->removeRow(1, $this->sheet->getHighestRow());
+            $this->sheet->removeColumn('A', $this->sheet->getHighestColumn());
+            
+            // Reset current row
+            $this->currentRow = 7;
+            
+            // Setup header struktur
+            $this->setupHeaders($diseaseType, $year, 'all');
+            
+            // Isi data puskesmas
+            $this->fillPuskesmasData($puskesmasData, $year, $diseaseType, 'all');
+            
+            // Apply styling
+            $this->applyExcelStyling();
+            
+            // Set document properties
+            $spreadsheet->getProperties()
+                ->setCreator('Sistem Akudihatinya')
+                ->setLastModifiedBy('Sistem Akudihatinya')
+                ->setTitle('Laporan Statistik Kesehatan')
+                ->setSubject('Laporan ' . ($diseaseType === 'ht' ? 'Hipertensi' : 'Diabetes Melitus'))
+                ->setDescription('Laporan statistik kesehatan tahun ' . $year)
+                ->setKeywords('laporan,statistik,kesehatan')
+                ->setCategory('Laporan');
+            
+            Log::info('Excel formatting completed successfully', [
+                'disease_type' => $diseaseType,
+                'year' => $year,
+                'data_rows' => count($puskesmasData)
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error formatting Excel spreadsheet', [
+                'error' => $e->getMessage(),
+                'disease_type' => $diseaseType,
+                'year' => $year
+            ]);
+            throw $e;
+        }
         
         return $spreadsheet;
     }
@@ -566,7 +599,11 @@ class ExcelExportFormatter
             ->getStartColor()->setRGB('E6E6FA');
         
         // Auto-size columns
-        foreach (range('A', $this->sheet->getHighestColumn()) as $col) {
+        $highestColumn = $this->sheet->getHighestColumn();
+        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+        
+        for ($i = 1; $i <= $highestColumnIndex; $i++) {
+            $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
             $this->sheet->getColumnDimension($col)->setAutoSize(true);
         }
         

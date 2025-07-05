@@ -414,4 +414,35 @@ class StatisticsService
         }
         return $chartData;
     }
+
+    public function getMonthlyStatistics($puskesmasId, $year, $diseaseType, $month)
+    {
+        return $this->diseaseStatisticsService->getMonthlyStatistics($puskesmasId, $year, $diseaseType, $month);
+    }
+
+    public function getAllPuskesmas()
+    {
+        return $this->puskesmasRepository->getAll();
+    }
+
+    public function getYearlyTarget($puskesmasId, $year, $diseaseType)
+    {
+        return $this->yearlyTargetRepository->getTarget($puskesmasId, $year, $diseaseType);
+    }
+
+    public function getPuskesmasById(int $puskesmasId): ?array
+    {
+        $puskesmas = $this->puskesmasRepository->findById($puskesmasId);
+        
+        if (!$puskesmas) {
+            return null;
+        }
+        
+        return [
+            'id' => $puskesmas->id,
+            'name' => $puskesmas->name,
+            'address' => $puskesmas->address ?? '',
+            'code' => $puskesmas->code ?? ''
+        ];
+    }
 }

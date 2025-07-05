@@ -18,14 +18,15 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
     }
 
     /**
-     * Format data untuk export quarterly.xlsx
+     * Format data untuk export quarterly.xlsx menggunakan template yang sudah dimuat
      * 
+     * @param Spreadsheet $spreadsheet Template yang sudah dimuat dari IOFactory::load
      * @param string $diseaseType Jenis penyakit (ht/dm)
      * @param int $year Tahun laporan
      * @param array $additionalData Data tambahan jika diperlukan
      * @return Spreadsheet
      */
-    public function format(string $diseaseType = 'ht', int $year = null, array $additionalData = []): Spreadsheet
+    public function format(Spreadsheet $spreadsheet, string $diseaseType = 'ht', int $year = null, array $additionalData = []): Spreadsheet
     {
         try {
             $year = $year ?? date('Y');
@@ -33,16 +34,16 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
             // Validasi input
             $this->validateInput($diseaseType, $year);
             
-            // Buat spreadsheet baru
-            $spreadsheet = new Spreadsheet();
+            // Set active sheet dari template
+            $this->sheet = $spreadsheet->getActiveSheet();
             
             // Ambil data puskesmas dari StatisticsService
             $puskesmasData = $this->getPuskesmasDataForQuarterly($diseaseType, $year);
             
-            // Format menggunakan parent method
-            $this->formatQuarterlyExcel($spreadsheet, $diseaseType, $year, $puskesmasData);
+            // Isi data ke template yang sudah ada
+            $this->fillQuarterlyTemplateWithData($puskesmasData, $year, $diseaseType);
             
-            Log::info('AdminQuarterlyFormatter: Successfully formatted quarterly.xlsx', [
+            Log::info('AdminQuarterlyFormatter: Successfully formatted quarterly.xlsx using template', [
                 'disease_type' => $diseaseType,
                 'year' => $year,
                 'puskesmas_count' => count($puskesmasData)
@@ -58,6 +59,146 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
             ]);
             throw $e;
         }
+    }
+    
+    /**
+     * Isi template quarterly.xlsx dengan data puskesmas
+     * Metode ini hanya mengisi data ke template yang sudah ada tanpa mengubah struktur
+     */
+    protected function fillQuarterlyTemplateWithData($puskesmasData, int $year, string $diseaseType)
+    {
+        if (!$this->sheet) {
+            throw new \Exception('Sheet template tidak tersedia');
+        }
+        
+        // Isi informasi header
+        $this->findAndFillCell('TAHUN', $year);
+        $this->findAndFillCell('JENIS PENYAKIT', $diseaseType === 'ht' ? 'HIPERTENSI' : 'DIABETES MELITUS');
+        
+        // Cari baris awal data puskesmas
+        $dataStartRow = $this->findQuarterlyDataStartRow();
+        
+        if ($dataStartRow && !empty($puskesmasData)) {
+            $currentRow = $dataStartRow;
+            
+            foreach ($puskesmasData as $index => $puskesmas) {
+                $this->fillPuskesmasRowInQuarterlyTemplate($currentRow, $index + 1, $puskesmas);
+                $currentRow++;
+            }
+            
+            // Tambahkan total keseluruhan
+            $this->addQuarterlyTemplateSummary($currentRow, $puskesmasData);
+        }
+    }
+    
+    /**
+     * Cari cell yang mengandung teks tertentu dan isi dengan nilai baru
+     */
+    protected function findAndFillCell($searchText, $value)
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        $highestColumn = $this->sheet->getHighestColumn();
+        
+        for ($row = 1; $row <= $highestRow; $row++) {
+            for ($col = 'A'; $col <= $highestColumn; $col++) {
+                $cellValue = $this->sheet->getCell($col . $row)->getValue();
+                if (is_string($cellValue) && stripos($cellValue, $searchText) !== false) {
+                    // Jika cell berisi teks pencarian, isi cell sebelahnya atau yang sama
+                    if (stripos($cellValue, ':') !== false) {
+                        // Format "Label: [value]" - isi di cell yang sama
+                        $this->sheet->setCellValue($col . $row, str_ireplace($searchText, $searchText . ': ' . $value, $cellValue));
+                    } else {
+                        // Isi di cell sebelahnya (kolom berikutnya)
+                        $nextCol = chr(ord($col) + 1);
+                        $this->sheet->setCellValue($nextCol . $row, $value);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+    
+    /**
+     * Cari baris awal untuk data puskesmas di template quarterly.xlsx
+     */
+    protected function findQuarterlyDataStartRow()
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        
+        for ($row = 1; $row <= $highestRow; $row++) {
+            $cellValue = $this->sheet->getCell('A' . $row)->getValue();
+            if (is_string($cellValue) && (stripos($cellValue, 'NO') !== false || stripos($cellValue, 'NAMA PUSKESMAS') !== false)) {
+                // Cek jika ini adalah header row
+                $nextCellValue = $this->sheet->getCell('B' . $row)->getValue();
+                if (is_string($nextCellValue) && stripos($nextCellValue, 'PUSKESMAS') !== false) {
+                    return $row + 1; // Baris setelah header
+                }
+            }
+        }
+        
+        return 5; // Default jika tidak ditemukan
+    }
+    
+    /**
+     * Isi satu baris data puskesmas di template quarterly.xlsx
+     */
+    protected function fillPuskesmasRowInQuarterlyTemplate($row, $no, $puskesmasData)
+    {
+        // Isi data berdasarkan struktur template
+        $this->sheet->setCellValue('A' . $row, $no); // No
+        $this->sheet->setCellValue('B' . $row, $puskesmasData['nama_puskesmas']); // Nama Puskesmas
+        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['sasaran'])); // Sasaran
+        
+        // Isi data triwulan (kolom D sampai G untuk 4 triwulan)
+        $startCol = 'D';
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $quarterData = $puskesmasData['quarterly_data'][$quarter] ?? ['total' => 0];
+            $col = chr(ord($startCol) + $quarter - 1);
+            $this->sheet->setCellValue($col . $row, $quarterData['total']);
+        }
+        
+        // Total tahunan dan persentase capaian
+        $this->sheet->setCellValue('H' . $row, number_format($puskesmasData['yearly_total']['total'])); // Total
+        $this->sheet->setCellValue('I' . $row, $puskesmasData['achievement_percentage'] . '%'); // % Capaian
+    }
+    
+    /**
+     * Tambahkan summary total di akhir template quarterly
+     */
+    protected function addQuarterlyTemplateSummary($startRow, $puskesmasData)
+    {
+        $grandTotal = ['sasaran' => 0, 'capaian' => 0, 'quarterly' => array_fill(1, 4, 0)];
+        
+        foreach ($puskesmasData as $puskesmas) {
+            $grandTotal['sasaran'] += $puskesmas['sasaran'];
+            $grandTotal['capaian'] += $puskesmas['yearly_total']['total'];
+            
+            // Total triwulan
+            for ($quarter = 1; $quarter <= 4; $quarter++) {
+                $grandTotal['quarterly'][$quarter] += $puskesmas['quarterly_data'][$quarter]['total'] ?? 0;
+            }
+        }
+        
+        // Isi baris total
+        $this->sheet->setCellValue('A' . $startRow, '');
+        $this->sheet->setCellValue('B' . $startRow, 'TOTAL KESELURUHAN');
+        $this->sheet->setCellValue('C' . $startRow, number_format($grandTotal['sasaran']));
+        
+        // Total triwulan
+        $startCol = 'D';
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $col = chr(ord($startCol) + $quarter - 1);
+            $this->sheet->setCellValue($col . $startRow, number_format($grandTotal['quarterly'][$quarter]));
+        }
+        
+        $this->sheet->setCellValue('H' . $startRow, number_format($grandTotal['capaian']));
+        
+        $overallPercentage = $grandTotal['sasaran'] > 0 ? 
+            round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
+        $this->sheet->setCellValue('I' . $startRow, $overallPercentage . '%');
+        
+        // Style bold untuk baris total
+        $this->sheet->getStyle('A' . $startRow . ':I' . $startRow)->getFont()->setBold(true);
     }
 
     /**

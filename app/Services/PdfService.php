@@ -4,33 +4,23 @@ namespace App\Services;
 
 use App\Services\StatisticsAdminService;
 use App\Formatters\PdfFormatter;
-use App\Formatters\PdfTemplateFormatter;
-use App\Formatters\PuskesmasPdfFormatter;
-use App\Formatters\AllQuartersRecapPdfFormatter;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class PdfService
 {
     protected $statisticsAdminService;
     protected $pdfFormatter;
-    protected $pdfTemplateFormatter;
-    protected $puskesmasPdfFormatter;
-    protected $allQuartersRecapPdfFormatter;
 
     public function __construct(
         StatisticsAdminService $statisticsAdminService,
-        PdfFormatter $pdfFormatter,
-        PdfTemplateFormatter $pdfTemplateFormatter,
-        PuskesmasPdfFormatter $puskesmasPdfFormatter,
-        AllQuartersRecapPdfFormatter $allQuartersRecapPdfFormatter
+        PdfFormatter $pdfFormatter
     ) {
         $this->statisticsAdminService = $statisticsAdminService;
         $this->pdfFormatter = $pdfFormatter;
-        $this->pdfTemplateFormatter = $pdfTemplateFormatter;
-        $this->puskesmasPdfFormatter = $puskesmasPdfFormatter;
-        $this->allQuartersRecapPdfFormatter = $allQuartersRecapPdfFormatter;
     }
 
     /**
@@ -70,13 +60,13 @@ class PdfService
             }
 
             // Format data for PDF
-            $formattedData = $this->pdfFormatter->formatForPdf($statisticsData, $diseaseType, $year, $reportType);
+            $formattedData = $this->formatDataForPdf($statisticsData, $diseaseType, $year, $reportType);
 
             Log::info('PDF generation data prepared', [
                 'disease_type' => $diseaseType,
                 'year' => $year,
                 'report_type' => $reportType,
-                'data_count' => count($formattedData['puskesmas_data'])
+                'data_count' => isset($formattedData['puskesmas_data']) ? count($formattedData['puskesmas_data']) : 0
             ]);
 
             // Generate PDF
@@ -136,7 +126,7 @@ class PdfService
                 throw new \Exception($statisticsData['message']);
             }
 
-            $formattedData = $this->pdfFormatter->formatSummaryForPdf($statisticsData, $diseaseType, $year);
+            $formattedData = $this->formatDataForPdf($statisticsData, $diseaseType, $year, 'summary');
 
             $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
             $pdf->setPaper('A4', 'portrait');
@@ -160,44 +150,31 @@ class PdfService
     /**
      * Generate quarterly recap PDF using resources/pdf template
      */
-    public function generateQuarterlyRecapPdf($puskesmasAll, $year, $diseaseType, $filename)
+    public function generateQuarterlyRecapPdf($year, $diseaseType, $filename)
     {
         try {
-            // Set memory and time limits
-            ini_set('memory_limit', '512M');
-            set_time_limit(300);
-
-            // Format data using AllQuartersRecapPdfFormatter
-            $formattedData = $this->allQuartersRecapPdfFormatter->formatAllQuartersRecapData($year, $diseaseType);
-
-            Log::info('Quarterly recap PDF generation data prepared', [
-                'disease_type' => $diseaseType,
-                'year' => $year,
-                'quarters_count' => count($formattedData['quarters_data'])
-            ]);
-
-            // Load template from resources/pdf
-            $templatePath = resource_path('pdf/all_quarters_recap_pdf.blade.php');
-
-            if (!file_exists($templatePath)) {
-                throw new \Exception('PDF template not found: ' . $templatePath);
-            }
-
-            // Generate PDF using the template from resources/pdf
-            $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
+            // Format data menggunakan PdfFormatter
+            $data = $this->pdfFormatter->formatAllQuartersRecap($year, $diseaseType);
+            
+            // Generate PDF menggunakan template all_quarters_recap_pdf
+            $pdf = Pdf::loadView('pdf.all_quarters_recap_pdf', $data);
             $pdf->setPaper('A4', 'landscape');
-
-            return $pdf->download($filename);
-        } catch (\Exception $e) {
-            Log::error('Quarterly recap PDF generation failed', [
-                'error' => $e->getMessage(),
+            
+            Log::info('PdfService: Successfully generated quarterly recap PDF', [
+                'year' => $year,
                 'disease_type' => $diseaseType,
-                'year' => $year
+                'quarters_count' => count($data['quarter_data'] ?? [])
             ]);
-
-            return response()->json([
-                'error' => 'Quarterly recap PDF generation failed: ' . $e->getMessage()
-            ], 500);
+            
+            return $pdf->download($filename);
+            
+        } catch (\Exception $e) {
+            Log::error('PdfService: Error generating quarterly recap PDF', [
+                'error' => $e->getMessage(),
+                'year' => $year,
+                'disease_type' => $diseaseType
+            ]);
+            throw $e;
         }
     }
 
@@ -221,15 +198,15 @@ class PdfService
                 return $this->generatePuskesmasPdf($puskesmasId, $diseaseType, $year);
             }
 
-            // For admin reports, use AllQuartersRecapPdfFormatter
-            $formattedData = $this->allQuartersRecapPdfFormatter->formatAllQuartersRecapData($year, $diseaseType);
+            // For admin reports, format data for quarterly recap
+            $formattedData = $this->formatQuarterlyRecapData($year, $diseaseType);
 
             Log::info('Statistics PDF generation data prepared', [
                 'disease_type' => $diseaseType,
                 'year' => $year,
                 'month' => $month,
                 'report_type' => $reportType,
-                'quarters_count' => count($formattedData['quarters_data'])
+                'quarters_count' => isset($formattedData['quarters_data']) ? count($formattedData['quarters_data']) : 0
             ]);
 
             // Use all_quarters_recap_pdf template for admin reports
@@ -269,44 +246,36 @@ class PdfService
      * @param int $year
      * @return \Illuminate\Http\Response
      */
-    public function generatePuskesmasPdf($puskesmasId, $diseaseType = 'dm', $year = null)
+    public function generatePuskesmasPdf($puskesmasId, $diseaseType, $year)
     {
         try {
-            // Set memory and time limits
-            ini_set('memory_limit', '512M');
-            set_time_limit(300);
-
-            $year = $year ?? date('Y');
-
-            // Format data using PuskesmasPdfFormatter
-            $formattedData = $this->puskesmasPdfFormatter->formatPuskesmasData($puskesmasId, $diseaseType, $year);
-
-            Log::info('Puskesmas PDF generation data prepared', [
-                'puskesmas_id' => $puskesmasId,
-                'disease_type' => $diseaseType,
-                'year' => $year,
-                'puskesmas_name' => $formattedData['puskesmas_name']
-            ]);
-
-            // Generate PDF using puskesmas template
-            $pdf = Pdf::loadView('puskesmas_statistics_pdf', $formattedData);
+            // Format data menggunakan PdfFormatter
+            $data = $this->pdfFormatter->formatPuskesmasStatistics($puskesmasId, $year, $diseaseType);
+            
+            // Generate filename
+            $filename = $this->pdfFormatter->generatePuskesmasFilename($diseaseType, $year, $data);
+            
+            // Generate PDF menggunakan template puskesmas_statistics_pdf
+            $pdf = Pdf::loadView('pdf.puskesmas_statistics_pdf', $data);
             $pdf->setPaper('A4', 'portrait');
-
-            // Create filename
-            $filename = $this->generatePuskesmasFilename($formattedData['puskesmas_name'], $diseaseType, $year);
-
+            
+            Log::info('PdfService: Successfully generated puskesmas PDF', [
+                'puskesmas_id' => $puskesmasId,
+                'year' => $year,
+                'disease_type' => $diseaseType,
+                'puskesmas_name' => isset($data['puskesmas_name']) ? $data['puskesmas_name'] : 'unknown'
+            ]);
+            
             return $pdf->download($filename);
+            
         } catch (\Exception $e) {
-            Log::error('Puskesmas PDF generation failed', [
+            Log::error('PdfService: Error generating puskesmas PDF', [
                 'error' => $e->getMessage(),
                 'puskesmas_id' => $puskesmasId,
-                'disease_type' => $diseaseType,
-                'year' => $year
+                'year' => $year,
+                'disease_type' => $diseaseType
             ]);
-
-            return response()->json([
-                'error' => 'Puskesmas PDF generation failed: ' . $e->getMessage()
-            ], 500);
+            throw $e;
         }
     }
 
@@ -314,40 +283,31 @@ class PdfService
      * Generate quarterly puskesmas PDF report
      *
      * @param int $puskesmasId
-     * @param string $diseaseType
      * @param int $year
-     * @param int $quarter
+     * @param string $diseaseType
+     * @param string $filename
      * @return \Illuminate\Http\Response
      */
-    public function generatePuskesmasQuarterlyPdf($puskesmasId, $diseaseType, $year, $quarter)
+    public function generatePuskesmasQuarterlyPdf($puskesmasId, $year, $diseaseType, $filename)
     {
         try {
             // Set memory and time limits
             ini_set('memory_limit', '512M');
             set_time_limit(300);
 
-            // Format quarterly data
-            $formattedData = $this->puskesmasPdfFormatter->formatQuarterlyData($puskesmasId, $diseaseType, $year, $quarter);
+            // Format quarterly data for puskesmas using PdfFormatter
+            $data = $this->pdfFormatter->formatAllQuartersRecap($year, $diseaseType, $puskesmasId);
 
             Log::info('Puskesmas quarterly PDF generation data prepared', [
                 'puskesmas_id' => $puskesmasId,
                 'disease_type' => $diseaseType,
                 'year' => $year,
-                'quarter' => $quarter,
-                'puskesmas_name' => $formattedData['puskesmas_name']
+                'puskesmas_name' => isset($data['puskesmas_name']) ? $data['puskesmas_name'] : 'Unknown'
             ]);
 
-            // Generate PDF using puskesmas template
-            $pdf = Pdf::loadView('puskesmas_statistics_pdf', $formattedData);
-            $pdf->setPaper('A4', 'portrait');
-
-            // Create filename
-            $filename = $this->generatePuskesmasQuarterlyFilename(
-                $formattedData['puskesmas_name'],
-                $diseaseType,
-                $year,
-                $quarter
-            );
+            // Generate PDF using all_quarters_recap_pdf template
+            $pdf = Pdf::loadView('pdf.all_quarters_recap_pdf', $data);
+            $pdf->setPaper('A4', 'landscape');
 
             return $pdf->download($filename);
         } catch (\Exception $e) {
@@ -355,8 +315,7 @@ class PdfService
                 'error' => $e->getMessage(),
                 'puskesmas_id' => $puskesmasId,
                 'disease_type' => $diseaseType,
-                'year' => $year,
-                'quarter' => $quarter
+                'year' => $year
             ]);
 
             return response()->json([
@@ -427,4 +386,6 @@ class PdfService
             ], 500);
         }
     }
+
+
 }

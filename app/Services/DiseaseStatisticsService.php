@@ -243,4 +243,9 @@ class DiseaseStatisticsService
             'monthly_data' => $monthlyBreakdown,
         ];
     }
+
+    public function getMonthlyStatistics($puskesmasId, $year, $diseaseType, $month)
+    {
+        return $this->getStatisticsWithMonthlyBreakdown($puskesmasId, $year, $diseaseType, $month);
+    }
 }

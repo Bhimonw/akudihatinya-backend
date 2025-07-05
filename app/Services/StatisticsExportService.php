@@ -10,6 +10,7 @@ use App\Formatters\AdminMonthlyFormatter;
 use App\Formatters\AdminQuarterlyFormatter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Carbon\Carbon;
@@ -50,7 +51,7 @@ class StatisticsExportService
     {
         $year = $request->year;
         $month = $request->month;
-        $diseaseType = $request->disease_type ?? 'all';
+        $diseaseType = $request->disease_type ?? $request->type ?? 'all';
         $tableType = $request->table_type ?? 'all';
         $format = $request->format ?? 'pdf';
 
@@ -222,7 +223,7 @@ class StatisticsExportService
     }
 
     /**
-     * Export ke Excel menggunakan formatter yang sudah ada
+     * Export ke Excel menggunakan template dari resources/excel
      * Membedakan antara admin dan puskesmas dengan formatter yang berbeda
      */
     private function exportToExcel($statistics, $year, $month, $diseaseType, $filename)
@@ -233,21 +234,21 @@ class StatisticsExportService
         if ($user && $user->isAdmin()) {
             // Admin menggunakan AdminFormatter berdasarkan jenis laporan dan disease type
             if ($diseaseType === 'all') {
-                // All disease types - gunakan AdminAllFormatter
+                // All disease types - gunakan template all.xlsx
                 $templatePath = resource_path('excel/all.xlsx');
                 $formatter = $this->adminAllFormatter;
             } elseif ($month) {
-                // Monthly report untuk admin
+                // Monthly report untuk admin - gunakan template monthly.xlsx
                 $templatePath = resource_path('excel/monthly.xlsx');
                 $formatter = $this->adminMonthlyFormatter;
             } else {
-                // Quarterly or yearly report untuk admin
+                // Quarterly or yearly report untuk admin - gunakan template quarterly.xlsx
                 $templatePath = resource_path('excel/quarterly.xlsx');
                 $formatter = $this->adminQuarterlyFormatter;
             }
         } else {
-            // Puskesmas menggunakan PuskesmasFormatter melalui PuskesmasExportService
-            // Redirect ke PuskesmasExportService untuk konsistensi
+            // Puskesmas menggunakan template puskesmas.xlsx
+            $templatePath = resource_path('excel/puskesmas.xlsx');
             $puskesmasId = $user ? $user->puskesmas_id : null;
             return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $puskesmasId);
         }
@@ -267,17 +268,22 @@ class StatisticsExportService
         }
 
         try {
-            // Load template Excel untuk admin
+            // Load template Excel dari resources/excel
             $spreadsheet = IOFactory::load($templatePath);
 
-            // Format spreadsheet menggunakan formatter admin
-            $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year);
+            // Format spreadsheet menggunakan formatter admin yang sesuai
+            $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $statistics);
 
             // Save file
             $writer = new Xlsx($spreadsheet);
             $tempFile = tempnam(sys_get_temp_dir(), 'statistics_') . '.xlsx';
             $writer->save($tempFile);
 
+            // Save file to storage for later access if needed
+            $storagePath = 'exports/excel/' . date('Y/m') . '/' . $filename;
+            Storage::put($storagePath, file_get_contents($tempFile));
+            
+            // Return download response
             return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
             
         } catch (\Exception $e) {
@@ -390,7 +396,7 @@ class StatisticsExportService
 
             // Use the correct method from PdfService
             return $this->pdfService->generatePuskesmasQuarterlyPdf(
-                $puskesmasId,
+                $puskesmas->id,
                 $year,
                 $diseaseType,
                 $filename

@@ -132,9 +132,11 @@ This Laravel application follows a standard structure with additional custom dir
 - `PdfService` - Logic untuk generate PDF
 
 #### Formatters
-- `PdfFormatter` - Base formatter untuk PDF
-- `PuskesmasPdfFormatter` - Formatter khusus PDF puskesmas
-- `AdminAllFormatter` - Formatter untuk data admin
+- `AdminAllFormatter` - Formatter untuk laporan tahunan Excel
+- `AdminMonthlyFormatter` - Formatter untuk laporan bulanan Excel
+- `AdminQuarterlyFormatter` - Formatter untuk laporan triwulan Excel
+- `PuskesmasFormatter` - Formatter untuk template puskesmas Excel
+- `ExcelExportFormatter` - Base formatter untuk ekspor Excel
 
 #### Repositories
 - `PuskesmasRepository` - Repository untuk data puskesmas

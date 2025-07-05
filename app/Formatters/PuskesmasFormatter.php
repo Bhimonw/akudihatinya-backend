@@ -18,32 +18,32 @@ class PuskesmasFormatter extends ExcelExportFormatter
     }
 
     /**
-     * Format data untuk export puskesmas.xlsx
+     * Format data untuk export puskesmas.xlsx menggunakan template yang sudah dimuat
      * 
+     * @param Spreadsheet $spreadsheet Template yang sudah dimuat dari IOFactory::load
      * @param string $diseaseType Jenis penyakit (ht/dm)
      * @param int $year Tahun laporan
-     * @param array $additionalData Data tambahan termasuk puskesmas_id
+     * @param int $puskesmasId ID puskesmas
      * @return Spreadsheet
      */
-    public function format(string $diseaseType = 'ht', int $year = null, array $additionalData = []): Spreadsheet
+    public function format(Spreadsheet $spreadsheet, string $diseaseType = 'ht', int $year = null, int $puskesmasId = null): Spreadsheet
     {
         try {
             $year = $year ?? date('Y');
-            $puskesmasId = $additionalData['puskesmas_id'] ?? null;
             
             // Validasi input
             $this->validateInput($diseaseType, $year, $puskesmasId);
             
-            // Buat spreadsheet baru
-            $spreadsheet = new Spreadsheet();
+            // Set active sheet dari template
+            $this->sheet = $spreadsheet->getActiveSheet();
             
             // Ambil data puskesmas spesifik
             $puskesmasData = $this->getPuskesmasSpecificData($puskesmasId, $diseaseType, $year);
             
-            // Format menggunakan parent method
-            $this->formatPuskesmasExcel($spreadsheet, $diseaseType, $year, $puskesmasData);
+            // Isi data ke template yang sudah ada
+            $this->fillTemplateWithData($puskesmasData, $year, $diseaseType);
             
-            Log::info('PuskesmasFormatter: Successfully formatted puskesmas.xlsx', [
+            Log::info('PuskesmasFormatter: Successfully formatted puskesmas.xlsx using template', [
                 'puskesmas_id' => $puskesmasId,
                 'disease_type' => $diseaseType,
                 'year' => $year
@@ -63,33 +63,32 @@ class PuskesmasFormatter extends ExcelExportFormatter
     }
 
     /**
-     * Format template kosong untuk puskesmas (tanpa data spesifik)
+     * Isi template dengan data puskesmas
+     * Metode ini hanya mengisi data ke template yang sudah ada tanpa mengubah struktur
      */
-    public function formatTemplate(string $diseaseType = 'ht', int $year = null): Spreadsheet
+    protected function fillTemplateWithData($puskesmasData, int $year, string $diseaseType)
     {
-        try {
-            $year = $year ?? date('Y');
+        if (!$this->sheet) {
+            throw new \Exception('Sheet template tidak tersedia');
+        }
+        
+        // Isi informasi header berdasarkan posisi yang sudah ada di template
+        if ($puskesmasData) {
+            // Cari dan isi nama puskesmas (biasanya di cell tertentu)
+            $this->findAndFillCell('NAMA PUSKESMAS', $puskesmasData['nama_puskesmas']);
+            $this->findAndFillCell('SASARAN', number_format($puskesmasData['sasaran']));
+            $this->findAndFillCell('TAHUN', $year);
             
-            // Buat spreadsheet baru
-            $spreadsheet = new Spreadsheet();
+            // Isi data bulanan ke template
+            $this->fillMonthlyDataToTemplate($puskesmasData['monthly_data']);
             
-            // Format template kosong
-            $this->formatPuskesmasExcel($spreadsheet, $diseaseType, $year, null);
-            
-            Log::info('PuskesmasFormatter: Successfully formatted template puskesmas.xlsx', [
-                'disease_type' => $diseaseType,
-                'year' => $year
-            ]);
-            
-            return $spreadsheet;
-            
-        } catch (\Exception $e) {
-            Log::error('PuskesmasFormatter: Error formatting template puskesmas.xlsx', [
-                'error' => $e->getMessage(),
-                'disease_type' => $diseaseType,
-                'year' => $year
-            ]);
-            throw $e;
+            // Isi total dan persentase capaian
+            $this->fillSummaryDataToTemplate($puskesmasData);
+        } else {
+            // Template kosong - isi dengan placeholder
+            $this->findAndFillCell('NAMA PUSKESMAS', '[NAMA PUSKESMAS]');
+            $this->findAndFillCell('SASARAN', '[SASARAN TAHUNAN]');
+            $this->findAndFillCell('TAHUN', $year);
         }
     }
 
@@ -162,91 +161,94 @@ class PuskesmasFormatter extends ExcelExportFormatter
     }
 
     /**
-     * Override setup headers untuk template puskesmas
+     * Cari cell yang mengandung teks tertentu dan isi dengan nilai baru
      */
-    protected function setupPuskesmasHeaders()
+    protected function findAndFillCell($searchText, $value)
     {
-        // Baris 1: Judul utama
-        $this->sheet->setCellValue('A1', 'LAPORAN PELAYANAN KESEHATAN PUSKESMAS');
-        $this->sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $this->sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $highestRow = $this->sheet->getHighestRow();
+        $highestColumn = $this->sheet->getHighestColumn();
         
-        // Baris 2: Informasi puskesmas (akan diisi kemudian)
-        $this->sheet->setCellValue('A2', 'Nama Puskesmas:');
-        $this->sheet->setCellValue('A3', 'Sasaran Tahunan:');
-        $this->sheet->setCellValue('A4', 'Tahun Laporan:');
-        
-        // Header tabel data mulai dari baris 6
-        $this->sheet->setCellValue('A6', 'NO');
-        $this->sheet->setCellValue('B6', 'BULAN');
-        $this->sheet->setCellValue('C6', 'LAKI-LAKI');
-        $this->sheet->setCellValue('D6', 'PEREMPUAN');
-        $this->sheet->setCellValue('E6', 'TOTAL');
-        $this->sheet->setCellValue('F6', 'STANDAR');
-        $this->sheet->setCellValue('G6', 'TIDAK STANDAR');
-        $this->sheet->setCellValue('H6', '% STANDAR');
-        
-        // Style untuk header
-        $this->sheet->getStyle('A6:H6')->getFont()->setBold(true);
-        $this->sheet->getStyle('A6:H6')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-        
-        // Merge cells untuk judul
-        $this->sheet->mergeCells('A1:H1');
+        for ($row = 1; $row <= $highestRow; $row++) {
+            for ($col = 'A'; $col <= $highestColumn; $col++) {
+                $cellValue = $this->sheet->getCell($col . $row)->getValue();
+                if (is_string($cellValue) && stripos($cellValue, $searchText) !== false) {
+                    // Jika cell berisi teks pencarian, isi cell sebelahnya atau yang sama
+                    if (stripos($cellValue, ':') !== false) {
+                        // Format "Label: [value]" - isi di cell yang sama
+                        $this->sheet->setCellValue($col . $row, str_ireplace($searchText, $searchText . ': ' . $value, $cellValue));
+                    } else {
+                        // Isi di cell sebelahnya (kolom berikutnya)
+                        $nextCol = chr(ord($col) + 1);
+                        $this->sheet->setCellValue($nextCol . $row, $value);
+                    }
+                    return;
+                }
+            }
+        }
     }
 
     /**
-     * Override untuk mengisi data puskesmas spesifik
+     * Isi data bulanan ke template
      */
-    protected function fillSinglePuskesmasData($puskesmasData, int $year, string $diseaseType)
+    protected function fillMonthlyDataToTemplate($monthlyData)
     {
-        if (!$puskesmasData) {
-            // Isi template kosong
-            $this->sheet->setCellValue('B2', '[NAMA PUSKESMAS]');
-            $this->sheet->setCellValue('B3', '[SASARAN TAHUNAN]');
-            $this->sheet->setCellValue('B4', $year);
-            return;
-        }
-        
-        // Isi informasi puskesmas
-        $this->sheet->setCellValue('B2', $puskesmasData['nama_puskesmas']);
-        $this->sheet->setCellValue('B3', number_format($puskesmasData['sasaran']));
-        $this->sheet->setCellValue('B4', $year);
-        
-        // Isi data bulanan
         $months = [
             1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
             5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
             9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
         ];
         
-        $row = 7; // Mulai dari baris 7
+        // Cari baris awal data (biasanya setelah header)
+        $dataStartRow = $this->findDataStartRow();
         
-        foreach ($months as $monthNum => $monthName) {
-            $monthData = $puskesmasData['monthly_data'][$monthNum] ?? [];
-            
-            $this->sheet->setCellValue('A' . $row, $monthNum);
-            $this->sheet->setCellValue('B' . $row, $monthName);
-            $this->sheet->setCellValue('C' . $row, $monthData['male'] ?? 0);
-            $this->sheet->setCellValue('D' . $row, $monthData['female'] ?? 0);
-            $this->sheet->setCellValue('E' . $row, $monthData['total'] ?? 0);
-            $this->sheet->setCellValue('F' . $row, $monthData['standard'] ?? 0);
-            $this->sheet->setCellValue('G' . $row, $monthData['non_standard'] ?? 0);
-            
-            // Hitung persentase standar
-            $total = $monthData['total'] ?? 0;
-            $standard = $monthData['standard'] ?? 0;
-            $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
-            $this->sheet->setCellValue('H' . $row, $percentage . '%');
-            
-            $row++;
+        if ($dataStartRow) {
+            for ($month = 1; $month <= 12; $month++) {
+                $row = $dataStartRow + $month - 1;
+                $data = $monthlyData[$month] ?? ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+                
+                // Isi data berdasarkan struktur template
+                $this->sheet->setCellValue('A' . $row, $month); // No
+                $this->sheet->setCellValue('B' . $row, $months[$month]); // Bulan
+                $this->sheet->setCellValue('C' . $row, $data['male']); // Laki-laki
+                $this->sheet->setCellValue('D' . $row, $data['female']); // Perempuan
+                $this->sheet->setCellValue('E' . $row, $data['total']); // Total
+                $this->sheet->setCellValue('F' . $row, $data['standard']); // Standar
+                $this->sheet->setCellValue('G' . $row, $data['non_standard']); // Tidak Standar
+                
+                // Hitung persentase standar
+                $percentage = $data['total'] > 0 ? round(($data['standard'] / $data['total']) * 100, 2) : 0;
+                $this->sheet->setCellValue('H' . $row, $percentage . '%'); // % Standar
+            }
+        }
+    }
+    
+    /**
+     * Cari baris awal untuk data bulanan
+     */
+    protected function findDataStartRow()
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        
+        for ($row = 1; $row <= $highestRow; $row++) {
+            $cellValue = $this->sheet->getCell('B' . $row)->getValue();
+            if (is_string($cellValue) && (stripos($cellValue, 'BULAN') !== false || stripos($cellValue, 'MONTH') !== false)) {
+                return $row + 1; // Baris setelah header
+            }
         }
         
-        // Tambahkan baris total
-        $this->addPuskesmasTotalRow($row, $puskesmasData);
-        
-        // Tambahkan informasi tambahan
-        $this->addPuskesmasAdditionalInfo($row + 2, $puskesmasData, $year, $diseaseType);
+        return 7; // Default jika tidak ditemukan
     }
+    
+    /**
+      * Isi data summary/total ke template
+      */
+     protected function fillSummaryDataToTemplate($puskesmasData)
+     {
+         // Cari area summary dan isi total tahunan
+         $this->findAndFillCell('TOTAL TAHUNAN', number_format($puskesmasData['yearly_total']['total']));
+         $this->findAndFillCell('CAPAIAN', $puskesmasData['achievement_percentage'] . '%');
+         $this->findAndFillCell('STANDAR TAHUNAN', number_format($puskesmasData['yearly_total']['standard']));
+     }
 
     /**
      * Tambahkan baris total untuk puskesmas
