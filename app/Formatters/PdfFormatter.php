@@ -41,22 +41,22 @@ class PdfFormatter
             // Ambil data bulanan
             $monthlyData = [];
             for ($month = 1; $month <= 12; $month++) {
-                $stats = $this->statisticsService->getDetailedMonthlyStatistics(
+                $stats = $this->statisticsService->getMonthlyStatistics(
                     $puskesmasId, 
                     $year, 
-                    $month, 
-                    $diseaseType
+                    $diseaseType,
+                    $month
                 );
                 
-                $total = ($stats['male_count'] ?? 0) + ($stats['female_count'] ?? 0);
+                $total = $stats['total_patients'] ?? 0;
                 $standardPercentage = $total > 0 ? 
-                    round(($stats['standard_service_count'] / $total) * 100, 2) : 0;
+                    round(($stats['standard_patients'] / $total) * 100, 2) : 0;
                 
                 $monthlyData[$month] = [
-                    'male' => $stats['male_count'] ?? 0,
-                    'female' => $stats['female_count'] ?? 0,
-                    'standard' => $stats['standard_service_count'] ?? 0,
-                    'non_standard' => $stats['non_standard_service_count'] ?? 0,
+                    'male' => $stats['male_patients'] ?? 0,
+                    'female' => $stats['female_patients'] ?? 0,
+                    'standard' => $stats['standard_patients'] ?? 0,
+                    'non_standard' => $stats['non_standard_patients'] ?? 0,
                     'total' => $total,
                     'percentage' => $standardPercentage
                 ];
@@ -110,14 +110,50 @@ class PdfFormatter
             
             // Data untuk setiap triwulan
             for ($quarter = 1; $quarter <= 4; $quarter++) {
+                $quarterMonths = [
+                    1 => ['Januari', 'Februari', 'Maret'],
+                    2 => ['April', 'Mei', 'Juni'],
+                    3 => ['Juli', 'Agustus', 'September'],
+                    4 => ['Oktober', 'November', 'Desember']
+                ];
+                
                 $puskesmasData = [];
+                $grandTotal = [
+                    'target' => 0,
+                    'male' => 0,
+                    'female' => 0,
+                    'standard' => 0,
+                    'non_standard' => 0,
+                    'total' => 0
+                ];
                 
                 foreach ($allPuskesmas as $puskesmas) {
                     $puskesmasId = $puskesmas['id'];
-                    $quarterStats = $this->getQuarterStatistics($puskesmasId, $year, $quarter, $diseaseType);
                     
                     // Ambil target tahunan
                     $yearlyTarget = $this->statisticsService->getYearlyTarget($puskesmasId, $year, $diseaseType);
+                    
+                    // Ambil data bulanan untuk triwulan ini
+                    $monthlyData = [];
+                    $quarterStats = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+                    
+                    $quarterMonthNumbers = [
+                        1 => [1, 2, 3],
+                        2 => [4, 5, 6],
+                        3 => [7, 8, 9],
+                        4 => [10, 11, 12]
+                    ];
+                    
+                    foreach ($quarterMonthNumbers[$quarter] as $month) {
+                         $monthStats = $this->statisticsService->getMonthlyStatistics($puskesmasId, $year, $diseaseType, $month);
+                         $monthlyData[] = $monthStats;
+                        
+                        $quarterStats['male'] += $monthStats['male'] ?? 0;
+                        $quarterStats['female'] += $monthStats['female'] ?? 0;
+                        $quarterStats['standard'] += $monthStats['standard'] ?? 0;
+                        $quarterStats['non_standard'] += $monthStats['non_standard'] ?? 0;
+                        $quarterStats['total'] += $monthStats['total'] ?? 0;
+                    }
                     
                     $achievementPercentage = $yearlyTarget['target'] > 0 ? 
                         round(($quarterStats['standard'] / $yearlyTarget['target']) * 100, 2) : 0;
@@ -125,6 +161,7 @@ class PdfFormatter
                     $puskesmasData[] = [
                         'name' => $puskesmas['name'],
                         'target' => $yearlyTarget['target'],
+                        'monthly' => $monthlyData,
                         'male_patients' => $quarterStats['male'],
                         'female_patients' => $quarterStats['female'],
                         'standard_patients' => $quarterStats['standard'],
@@ -132,12 +169,22 @@ class PdfFormatter
                         'total_patients' => $quarterStats['total'],
                         'achievement_percentage' => $achievementPercentage
                     ];
+                    
+                    // Update grand total
+                    $grandTotal['target'] += $yearlyTarget['target'];
+                    $grandTotal['male'] += $quarterStats['male'];
+                    $grandTotal['female'] += $quarterStats['female'];
+                    $grandTotal['standard'] += $quarterStats['standard'];
+                    $grandTotal['non_standard'] += $quarterStats['non_standard'];
+                    $grandTotal['total'] += $quarterStats['total'];
                 }
                 
                 $quarterData[] = [
                     'quarter' => $quarter,
                     'quarter_label' => 'TRIWULAN ' . $this->getRomanNumeral($quarter),
-                    'puskesmas_data' => $puskesmasData
+                    'months' => $quarterMonths[$quarter],
+                    'puskesmas_data' => $puskesmasData,
+                    'grand_total' => $grandTotal
                 ];
             }
 
@@ -181,17 +228,17 @@ class PdfFormatter
         ];
         
         foreach ($months as $month) {
-            $monthlyStats = $this->statisticsService->getDetailedMonthlyStatistics(
+            $monthlyStats = $this->statisticsService->getMonthlyStatistics(
                 $puskesmasId, 
                 $year, 
-                $month, 
-                $diseaseType
+                $diseaseType,
+                $month
             );
             
-            $quarterStats['male'] += $monthlyStats['male_count'] ?? 0;
-            $quarterStats['female'] += $monthlyStats['female_count'] ?? 0;
-            $quarterStats['standard'] += $monthlyStats['standard_service_count'] ?? 0;
-            $quarterStats['non_standard'] += $monthlyStats['non_standard_service_count'] ?? 0;
+            $quarterStats['male'] += $monthlyStats['male_patients'] ?? 0;
+            $quarterStats['female'] += $monthlyStats['female_patients'] ?? 0;
+            $quarterStats['standard'] += $monthlyStats['standard_patients'] ?? 0;
+            $quarterStats['non_standard'] += $monthlyStats['non_standard_patients'] ?? 0;
         }
         
         $quarterStats['total'] = $quarterStats['male'] + $quarterStats['female'];

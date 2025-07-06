@@ -427,7 +427,13 @@ class StatisticsService
 
     public function getYearlyTarget($puskesmasId, $year, $diseaseType)
     {
-        return $this->yearlyTargetRepository->getTarget($puskesmasId, $year, $diseaseType);
+        $target = $this->yearlyTargetRepository->getByPuskesmasAndTypeAndYear($puskesmasId, $diseaseType, $year);
+        return [
+            'target' => $target ? $target->target_count : 0,
+            'puskesmas_id' => $puskesmasId,
+            'year' => $year,
+            'disease_type' => $diseaseType
+        ];
     }
 
     public function getPuskesmasById(int $puskesmasId): ?array

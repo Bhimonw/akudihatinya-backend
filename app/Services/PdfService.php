@@ -199,7 +199,7 @@ class PdfService
             }
 
             // For admin reports, format data for quarterly recap
-            $formattedData = $this->formatQuarterlyRecapData($year, $diseaseType);
+            $formattedData = $this->pdfFormatter->formatAllQuartersRecap($year, $diseaseType);
 
             Log::info('Statistics PDF generation data prepared', [
                 'disease_type' => $diseaseType,

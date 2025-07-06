@@ -213,7 +213,7 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
             $formattedData = [];
             
             foreach ($puskesmasList as $puskesmas) {
-                $puskesmasId = $puskesmas['id'];
+                $puskesmasId = $puskesmas->id;
                 $monthlyData = [];
                 
                 // Ambil data untuk setiap bulan dengan detail klasifikasi
@@ -253,7 +253,7 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,
-                    'nama_puskesmas' => $puskesmas['name'],
+                    'nama_puskesmas' => $puskesmas->name,
                     'sasaran' => $yearlyTarget['target'] ?? 0,
                     'monthly_data' => $monthlyData,
                     'yearly_total' => $yearlyTotal,

@@ -213,25 +213,25 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
             $formattedData = [];
             
             foreach ($puskesmasList as $puskesmas) {
-                $puskesmasId = $puskesmas['id'];
+                $puskesmasId = $puskesmas->id;
                 $monthlyData = [];
                 $quarterlyData = [];
                 
                 // Ambil data bulanan terlebih dahulu
                 for ($month = 1; $month <= 12; $month++) {
-                    $monthlyStats = $this->statisticsService->getDetailedMonthlyStatistics(
+                    $monthlyStats = $this->statisticsService->getMonthlyStatistics(
                         $puskesmasId, 
                         $year, 
-                        $month, 
-                        $diseaseType
+                        $diseaseType,
+                        $month
                     );
                     
                     $monthlyData[$month] = [
-                        'male' => $monthlyStats['male_count'] ?? 0,
-                        'female' => $monthlyStats['female_count'] ?? 0,
-                        'standard' => $monthlyStats['standard_service_count'] ?? 0,
-                        'non_standard' => $monthlyStats['non_standard_service_count'] ?? 0,
-                        'total' => ($monthlyStats['male_count'] ?? 0) + ($monthlyStats['female_count'] ?? 0)
+                        'male' => $monthlyStats['male_patients'] ?? 0,
+                        'female' => $monthlyStats['female_patients'] ?? 0,
+                        'standard' => $monthlyStats['standard_patients'] ?? 0,
+                        'non_standard' => $monthlyStats['non_standard_patients'] ?? 0,
+                        'total' => $monthlyStats['total_patients'] ?? 0
                     ];
                 }
                 
@@ -250,7 +250,7 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,
-                    'nama_puskesmas' => $puskesmas['name'],
+                    'nama_puskesmas' => $puskesmas->name,
                     'sasaran' => $yearlyTarget['target'] ?? 0,
                     'monthly_data' => $monthlyData, // Tetap simpan untuk perhitungan
                     'quarterly_data' => $quarterlyData,

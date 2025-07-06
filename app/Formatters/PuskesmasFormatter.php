@@ -115,19 +115,19 @@ class PuskesmasFormatter extends ExcelExportFormatter
             // Ambil data bulanan
             $monthlyData = [];
             for ($month = 1; $month <= 12; $month++) {
-                $monthlyStats = $this->statisticsService->getDetailedMonthlyStatistics(
+                $monthlyStats = $this->statisticsService->getMonthlyStatistics(
                     $puskesmasId, 
                     $year, 
-                    $month, 
-                    $diseaseType
+                    $diseaseType,
+                    $month
                 );
                 
                 $monthlyData[$month] = [
-                    'male' => $monthlyStats['male_count'] ?? 0,
-                    'female' => $monthlyStats['female_count'] ?? 0,
-                    'standard' => $monthlyStats['standard_service_count'] ?? 0,
-                    'non_standard' => $monthlyStats['non_standard_service_count'] ?? 0,
-                    'total' => ($monthlyStats['male_count'] ?? 0) + ($monthlyStats['female_count'] ?? 0)
+                    'male' => $monthlyStats['male_patients'] ?? 0,
+                    'female' => $monthlyStats['female_patients'] ?? 0,
+                    'standard' => $monthlyStats['standard_patients'] ?? 0,
+                    'non_standard' => $monthlyStats['non_standard_patients'] ?? 0,
+                    'total' => $monthlyStats['total_patients'] ?? 0
                 ];
             }
             

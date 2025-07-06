@@ -141,27 +141,32 @@ class AdminAllFormatter extends ExcelExportFormatter
      */
     protected function fillPuskesmasRowInAllTemplate($row, $no, $puskesmasData)
     {
-        // Hitung total tahunan
+        // Hitung total tahunan dan triwulan
         $yearlyTotal = $this->calculateYearlyTotal($puskesmasData['monthly_data']);
+        $quarterlyData = $this->calculateQuarterlyData($puskesmasData['monthly_data']);
         
-        // Isi data berdasarkan struktur template
+        // Isi data dasar
         $this->sheet->setCellValue('A' . $row, $no); // No
         $this->sheet->setCellValue('B' . $row, $puskesmasData['nama_puskesmas']); // Nama Puskesmas
-        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['sasaran'])); // Sasaran
-        $this->sheet->setCellValue('D' . $row, number_format($yearlyTotal['total'])); // Total Capaian
+        $this->sheet->setCellValue('C' . $row, $puskesmasData['sasaran']); // Sasaran
         
-        // Hitung persentase capaian
-        $achievementPercentage = $puskesmasData['sasaran'] > 0 ? 
-            round(($yearlyTotal['total'] / $puskesmasData['sasaran']) * 100, 2) : 0;
-        $this->sheet->setCellValue('E' . $row, $achievementPercentage . '%'); // % Capaian
+        // Kolom mulai dari D untuk data bulanan dan triwulan
+        $currentCol = 'D';
         
-        // Isi data bulanan (kolom F sampai Q untuk 12 bulan)
-        $startCol = 'F';
-        for ($month = 1; $month <= 12; $month++) {
-            $monthData = $puskesmasData['monthly_data'][$month] ?? ['total' => 0];
-            $col = chr(ord($startCol) + $month - 1);
-            $this->sheet->setCellValue($col . $row, $monthData['total']);
-        }
+        // Isi data Triwulan I (Januari-Maret) - kolom D sampai T
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [1, 2, 3], $quarterlyData[1]);
+        
+        // Isi data Triwulan II (April-Juni) - kolom U sampai AK
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [4, 5, 6], $quarterlyData[2]);
+        
+        // Isi data Triwulan III (Juli-September) - kolom AL sampai BB
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [7, 8, 9], $quarterlyData[3]);
+        
+        // Isi data Triwulan IV (Oktober-Desember) - kolom BC sampai BS
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [10, 11, 12], $quarterlyData[4]);
+        
+        // Isi total tahunan - kolom BT sampai BY
+        $this->fillYearlyTotalData($row, $currentCol, $yearlyTotal, $puskesmasData['sasaran']);
     }
     
     /**
@@ -183,30 +188,261 @@ class AdminAllFormatter extends ExcelExportFormatter
     }
     
     /**
+     * Hitung data triwulan dari data bulanan
+     */
+    protected function calculateQuarterlyData(array $monthlyData): array
+    {
+        $quarters = [
+            1 => [1, 2, 3],    // Q1: Jan-Mar
+            2 => [4, 5, 6],    // Q2: Apr-Jun
+            3 => [7, 8, 9],    // Q3: Jul-Sep
+            4 => [10, 11, 12]  // Q4: Oct-Dec
+        ];
+        
+        $quarterlyData = [];
+        
+        foreach ($quarters as $quarter => $months) {
+            $quarterTotal = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+            
+            foreach ($months as $month) {
+                $data = $monthlyData[$month] ?? ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+                $quarterTotal['male'] += $data['male'];
+                $quarterTotal['female'] += $data['female'];
+                $quarterTotal['standard'] += $data['standard'];
+                $quarterTotal['non_standard'] += $data['non_standard'];
+                $quarterTotal['total'] += $data['total'];
+            }
+            
+            $quarterlyData[$quarter] = $quarterTotal;
+        }
+        
+        return $quarterlyData;
+    }
+    
+    /**
+     * Isi data untuk satu triwulan (3 bulan + total triwulan)
+     */
+    protected function fillQuarterData($row, $startCol, $monthlyData, $months, $quarterTotal)
+    {
+        $currentCol = $startCol;
+        
+        // Isi data untuk 3 bulan dalam triwulan
+        foreach ($months as $month) {
+            $monthData = $monthlyData[$month] ?? ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+            
+            // L, P, Total, TS, %S untuk setiap bulan
+            $this->sheet->setCellValue($currentCol . $row, $monthData['male']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $row, $monthData['female']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $row, $monthData['total']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            // Hitung persentase standar
+            $percentageStandard = $monthData['total'] > 0 ? 
+                round(($monthData['standard'] / $monthData['total']) * 100, 2) : 0;
+            $this->sheet->setCellValue($currentCol . $row, $percentageStandard);
+            $currentCol = $this->getNextColumn($currentCol);
+        }
+        
+        // Isi total triwulan (S, TS, %S)
+        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['standard']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['non_standard']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $quarterPercentage = $quarterTotal['total'] > 0 ? 
+            round(($quarterTotal['standard'] / $quarterTotal['total']) * 100, 2) : 0;
+        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        return $currentCol;
+    }
+    
+    /**
+     * Isi data total tahunan
+     */
+    protected function fillYearlyTotalData($row, $startCol, $yearlyTotal, $sasaran)
+    {
+        $currentCol = $startCol;
+        
+        // L, P, Total, TS untuk tahun
+        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['male']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['female']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['total']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['non_standard']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        // Total pelayanan
+        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['total']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        // % Capaian pelayanan sesuai standar
+        $achievementPercentage = $sasaran > 0 ? 
+            round(($yearlyTotal['standard'] / $sasaran) * 100, 2) : 0;
+        $this->sheet->setCellValue($currentCol . $row, $achievementPercentage);
+    }
+    
+    /**
+     * Dapatkan kolom berikutnya (A->B, Z->AA, dll)
+     */
+    protected function getNextColumn($column)
+    {
+        if (strlen($column) == 1) {
+            if ($column == 'Z') {
+                return 'AA';
+            }
+            return chr(ord($column) + 1);
+        } else {
+            // Handle AA, AB, etc.
+            $lastChar = substr($column, -1);
+            $prefix = substr($column, 0, -1);
+            
+            if ($lastChar == 'Z') {
+                return $this->getNextColumn($prefix) . 'A';
+            }
+            return $prefix . chr(ord($lastChar) + 1);
+        }
+    }
+    
+    /**
      * Tambahkan summary total di akhir template
      */
     protected function addAllTemplateSummary($startRow, $puskesmasData)
     {
-        $grandTotal = ['sasaran' => 0, 'capaian' => 0];
+        // Hitung grand total untuk semua data
+        $grandTotal = [
+            'sasaran' => 0,
+            'yearly' => ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0],
+            'quarterly' => [
+                1 => ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0],
+                2 => ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0],
+                3 => ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0],
+                4 => ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0]
+            ],
+            'monthly' => []
+        ];
         
-        foreach ($puskesmasData as $puskesmas) {
-            $grandTotal['sasaran'] += $puskesmas['sasaran'];
-            $yearlyTotal = $this->calculateYearlyTotal($puskesmas['monthly_data']);
-            $grandTotal['capaian'] += $yearlyTotal['total'];
+        // Inisialisasi data bulanan
+        for ($month = 1; $month <= 12; $month++) {
+            $grandTotal['monthly'][$month] = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
         }
         
-        // Isi baris total
+        // Akumulasi data dari semua puskesmas
+        foreach ($puskesmasData as $puskesmas) {
+            $grandTotal['sasaran'] += $puskesmas['sasaran'];
+            
+            // Akumulasi data bulanan
+            foreach ($puskesmas['monthly_data'] as $month => $data) {
+                $grandTotal['monthly'][$month]['male'] += $data['male'] ?? 0;
+                $grandTotal['monthly'][$month]['female'] += $data['female'] ?? 0;
+                $grandTotal['monthly'][$month]['standard'] += $data['standard'] ?? 0;
+                $grandTotal['monthly'][$month]['non_standard'] += $data['non_standard'] ?? 0;
+                $grandTotal['monthly'][$month]['total'] += $data['total'] ?? 0;
+            }
+            
+            // Akumulasi data tahunan
+            $yearlyTotal = $this->calculateYearlyTotal($puskesmas['monthly_data']);
+            $grandTotal['yearly']['male'] += $yearlyTotal['male'];
+            $grandTotal['yearly']['female'] += $yearlyTotal['female'];
+            $grandTotal['yearly']['standard'] += $yearlyTotal['standard'];
+            $grandTotal['yearly']['non_standard'] += $yearlyTotal['non_standard'];
+            $grandTotal['yearly']['total'] += $yearlyTotal['total'];
+            
+            // Akumulasi data triwulan
+            $quarterlyData = $this->calculateQuarterlyData($puskesmas['monthly_data']);
+            foreach ($quarterlyData as $quarter => $data) {
+                $grandTotal['quarterly'][$quarter]['male'] += $data['male'];
+                $grandTotal['quarterly'][$quarter]['female'] += $data['female'];
+                $grandTotal['quarterly'][$quarter]['standard'] += $data['standard'];
+                $grandTotal['quarterly'][$quarter]['non_standard'] += $data['non_standard'];
+                $grandTotal['quarterly'][$quarter]['total'] += $data['total'];
+            }
+        }
+        
+        // Isi data dasar
         $this->sheet->setCellValue('A' . $startRow, '');
         $this->sheet->setCellValue('B' . $startRow, 'TOTAL KESELURUHAN');
-        $this->sheet->setCellValue('C' . $startRow, number_format($grandTotal['sasaran']));
-        $this->sheet->setCellValue('D' . $startRow, number_format($grandTotal['capaian']));
+        $this->sheet->setCellValue('C' . $startRow, $grandTotal['sasaran']);
         
-        $overallPercentage = $grandTotal['sasaran'] > 0 ? 
-            round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
-        $this->sheet->setCellValue('E' . $startRow, $overallPercentage . '%');
+        // Isi data summary menggunakan struktur yang sama dengan data puskesmas
+        $currentCol = 'D';
+        
+        // Isi data Triwulan I
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [1, 2, 3], $grandTotal['quarterly'][1]);
+        
+        // Isi data Triwulan II
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [4, 5, 6], $grandTotal['quarterly'][2]);
+        
+        // Isi data Triwulan III
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [7, 8, 9], $grandTotal['quarterly'][3]);
+        
+        // Isi data Triwulan IV
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [10, 11, 12], $grandTotal['quarterly'][4]);
+        
+        // Isi total tahunan
+        $this->fillYearlyTotalData($startRow, $currentCol, $grandTotal['yearly'], $grandTotal['sasaran']);
         
         // Style bold untuk baris total
-        $this->sheet->getStyle('A' . $startRow . ':E' . $startRow)->getFont()->setBold(true);
+        $this->sheet->getStyle('A' . $startRow . ':' . $this->sheet->getHighestColumn() . $startRow)->getFont()->setBold(true);
+    }
+    
+    /**
+     * Isi data summary untuk satu triwulan
+     */
+    protected function fillQuarterSummaryData($row, $startCol, $monthlyData, $months, $quarterTotal)
+    {
+        $currentCol = $startCol;
+        
+        // Isi data untuk 3 bulan dalam triwulan
+        foreach ($months as $month) {
+            $monthData = $monthlyData[$month];
+            
+            // L, P, Total, TS, %S untuk setiap bulan
+            $this->sheet->setCellValue($currentCol . $row, $monthData['male']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $row, $monthData['female']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $row, $monthData['total']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
+            $currentCol = $this->getNextColumn($currentCol);
+            
+            // Hitung persentase standar
+            $percentageStandard = $monthData['total'] > 0 ? 
+                round(($monthData['standard'] / $monthData['total']) * 100, 2) : 0;
+            $this->sheet->setCellValue($currentCol . $row, $percentageStandard);
+            $currentCol = $this->getNextColumn($currentCol);
+        }
+        
+        // Isi total triwulan (S, TS, %S)
+        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['standard']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['non_standard']);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        $quarterPercentage = $quarterTotal['total'] > 0 ? 
+            round(($quarterTotal['standard'] / $quarterTotal['total']) * 100, 2) : 0;
+        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage);
+        $currentCol = $this->getNextColumn($currentCol);
+        
+        return $currentCol;
     }
 
     /**
@@ -221,7 +457,7 @@ class AdminAllFormatter extends ExcelExportFormatter
             $formattedData = [];
             
             foreach ($puskesmasList as $puskesmas) {
-                $puskesmasId = $puskesmas['id'];
+                $puskesmasId = $puskesmas->id;
                 $monthlyData = [];
                 
                 // Ambil data untuk setiap bulan
@@ -234,11 +470,11 @@ class AdminAllFormatter extends ExcelExportFormatter
                     );
                     
                     $monthlyData[$month] = [
-                        'male' => $monthlyStats['male_count'] ?? 0,
-                        'female' => $monthlyStats['female_count'] ?? 0,
-                        'standard' => $monthlyStats['standard_service_count'] ?? 0,
-                        'non_standard' => $monthlyStats['non_standard_service_count'] ?? 0,
-                        'total' => ($monthlyStats['male_count'] ?? 0) + ($monthlyStats['female_count'] ?? 0)
+                        'male' => $monthlyStats['male_patients'] ?? 0,
+                        'female' => $monthlyStats['female_patients'] ?? 0,
+                        'standard' => $monthlyStats['standard_patients'] ?? 0,
+                        'non_standard' => $monthlyStats['non_standard_patients'] ?? 0,
+                        'total' => $monthlyStats['total_patients'] ?? 0
                     ];
                 }
                 
@@ -247,7 +483,7 @@ class AdminAllFormatter extends ExcelExportFormatter
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,
-                    'nama_puskesmas' => $puskesmas['name'],
+                    'nama_puskesmas' => $puskesmas->name,
                     'sasaran' => $yearlyTarget['target'] ?? 0,
                     'monthly_data' => $monthlyData
                 ];
