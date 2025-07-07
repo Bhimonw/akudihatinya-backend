@@ -68,15 +68,32 @@ class AdminAllFormatter extends ExcelExportFormatter
             throw new \Exception('Sheet template tidak tersedia');
         }
         
-        // Isi informasi header
-        $this->findAndFillCell('TAHUN', $year);
-        $this->findAndFillCell('JENIS PENYAKIT', $diseaseType === 'ht' ? 'HIPERTENSI' : 'DIABETES MELITUS');
+        // Isi informasi header - ganti placeholder
+        $this->replacePlaceholder('<tipe_penyakit>', $diseaseType === 'ht' ? 'HIPERTENSI' : 'DIABETES MELITUS');
+        $this->replacePlaceholder('<tahun>', $year);
+        
+        // Buat template responsif sesuai jumlah puskesmas
+        $this->makeTemplateResponsive(count($puskesmasData));
         
         // Cari baris awal data puskesmas
         $dataStartRow = $this->findAllDataStartRow();
         
         if ($dataStartRow && !empty($puskesmasData)) {
             $currentRow = $dataStartRow;
+            
+            // Hitung berapa baris yang tersedia di template
+            $templateRows = $this->countAvailableTemplateRows($dataStartRow);
+            $puskesmasCount = count($puskesmasData);
+            
+            // Template analysis completed
+            
+            // Jika jumlah puskesmas lebih banyak dari baris template, tambah baris baru
+            if ($puskesmasCount > $templateRows) {
+                $insertPosition = $dataStartRow + $templateRows;
+                $rowsToAdd = $puskesmasCount - $templateRows;
+                // Adding additional rows for extra puskesmas
+                $this->insertAdditionalRows($insertPosition, $rowsToAdd);
+            }
             
             foreach ($puskesmasData as $index => $puskesmas) {
                 $this->fillPuskesmasRowInAllTemplate($currentRow, $index + 1, $puskesmas);
@@ -123,17 +140,66 @@ class AdminAllFormatter extends ExcelExportFormatter
         $highestRow = $this->sheet->getHighestRow();
         
         for ($row = 1; $row <= $highestRow; $row++) {
-            $cellValue = $this->sheet->getCell('A' . $row)->getValue();
-            if (is_string($cellValue) && (stripos($cellValue, 'NO') !== false || stripos($cellValue, 'NAMA PUSKESMAS') !== false)) {
-                // Cek jika ini adalah header row
-                $nextCellValue = $this->sheet->getCell('B' . $row)->getValue();
-                if (is_string($nextCellValue) && stripos($nextCellValue, 'PUSKESMAS') !== false) {
-                    return $row + 1; // Baris setelah header
-                }
+            $cellA = $this->sheet->getCell('A' . $row)->getValue();
+            
+            // Cari marker <mulai > yang menandakan awal data
+            if (is_string($cellA) && stripos($cellA, '<mulai') !== false) {
+                // Found data start marker
+                return $row; // Baris dengan marker <mulai >
             }
         }
         
-        return 5; // Default jika tidak ditemukan
+        // Data start marker not found, using default
+        return 9; // Default berdasarkan struktur template yang diketahui
+    }
+    
+    /**
+     * Hitung berapa baris yang tersedia di template untuk data puskesmas
+     */
+    protected function countAvailableTemplateRows($dataStartRow)
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        $availableRows = 0;
+        
+        // Hitung baris kosong yang tersedia mulai dari dataStartRow
+        // Berdasarkan template, biasanya ada sekitar 6-7 baris kosong untuk data
+        for ($row = $dataStartRow; $row <= $highestRow; $row++) {
+            $cellA = $this->sheet->getCell('A' . $row)->getValue();
+            $cellB = $this->sheet->getCell('B' . $row)->getValue();
+            $cellC = $this->sheet->getCell('C' . $row)->getValue();
+            
+            // Jika menemukan baris yang berisi data atau marker tertentu, hentikan
+            if (!empty($cellA) && !in_array($cellA, ['<mulai >', '<mulai>', 'mulai'])) {
+                break;
+            }
+            if (!empty($cellB) && stripos($cellB, 'TOTAL') !== false) {
+                break;
+            }
+            
+            // Jika semua cell kosong dan sudah melewati batas wajar, hentikan
+            if (empty($cellA) && empty($cellB) && empty($cellC) && $availableRows > 10) {
+                break;
+            }
+            
+            $availableRows++;
+        }
+        
+        // Batasi maksimal 10 baris untuk menghindari penghitungan yang berlebihan
+        $availableRows = min($availableRows, 10);
+        
+        // Counted available template rows
+        
+        return max(1, $availableRows); // Minimal 1 baris
+    }
+    
+    /**
+     * Tambah baris baru untuk data puskesmas tambahan
+     */
+    protected function insertAdditionalRows($insertPosition, $rowsToAdd)
+    {
+        for ($i = 0; $i < $rowsToAdd; $i++) {
+            $this->sheet->insertNewRowBefore($insertPosition, 1);
+        }
     }
     
     /**
@@ -243,10 +309,13 @@ class AdminAllFormatter extends ExcelExportFormatter
             $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            // Hitung persentase standar
+            // Hitung persentase standar dengan validasi range 0-100%
             $percentageStandard = $monthData['total'] > 0 ? 
                 round(($monthData['standard'] / $monthData['total']) * 100, 2) : 0;
-            $this->sheet->setCellValue($currentCol . $row, $percentageStandard);
+            // Pastikan persentase tetap dalam range 0-100%
+            $percentageStandard = max(0, min(100, $percentageStandard));
+            // Konversi ke format desimal untuk Excel (75% = 0.75)
+            $this->sheet->setCellValue($currentCol . $row, $percentageStandard / 100);
             $currentCol = $this->getNextColumn($currentCol);
         }
         
@@ -259,12 +328,88 @@ class AdminAllFormatter extends ExcelExportFormatter
         
         $quarterPercentage = $quarterTotal['total'] > 0 ? 
             round(($quarterTotal['standard'] / $quarterTotal['total']) * 100, 2) : 0;
-        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage);
+        // Pastikan persentase tetap dalam range 0-100%
+        $quarterPercentage = max(0, min(100, $quarterPercentage));
+        // Konversi ke format desimal untuk Excel (75% = 0.75)
+        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage / 100);
         $currentCol = $this->getNextColumn($currentCol);
         
         return $currentCol;
     }
     
+    /**
+     * Ganti placeholder di seluruh worksheet
+     */
+    protected function replacePlaceholder($placeholder, $value)
+    {
+        $highestRow = $this->sheet->getHighestRow();
+        $highestColumn = $this->sheet->getHighestColumn();
+        $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
+        
+        for ($row = 1; $row <= $highestRow; $row++) {
+            for ($colIndex = 1; $colIndex <= $highestColumnIndex; $colIndex++) {
+                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                $cellValue = $this->sheet->getCell($col . $row)->getValue();
+                if (is_string($cellValue) && strpos($cellValue, $placeholder) !== false) {
+                    $newValue = str_replace($placeholder, $value, $cellValue);
+                    $this->sheet->setCellValue($col . $row, $newValue);
+                    Log::info("Replaced placeholder {$placeholder} with {$value} at {$col}{$row}");
+                }
+            }
+        }
+    }
+    
+    /**
+     * Buat template responsif sesuai jumlah puskesmas
+     */
+    protected function makeTemplateResponsive($puskesmasCount)
+    {
+        // Jika jumlah puskesmas lebih dari template default (10), 
+        // duplikasi kolom untuk menampung semua data
+        $defaultColumns = 26; // A-Z
+        $columnsNeeded = 3 + ($puskesmasCount * 6); // 3 kolom awal + 6 kolom per puskesmas
+        
+        if ($columnsNeeded > $defaultColumns) {
+            // Extend kolom jika diperlukan
+            $this->extendColumns($columnsNeeded);
+        }
+        
+        // Sesuaikan header kolom berdasarkan jumlah puskesmas
+        $this->adjustColumnHeaders($puskesmasCount);
+    }
+    
+    /**
+     * Extend kolom template jika diperlukan
+     */
+    protected function extendColumns($columnsNeeded)
+    {
+        $currentHighestColumn = $this->sheet->getHighestColumn();
+        $currentColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($currentHighestColumn);
+        
+        // Tambah kolom jika diperlukan
+        while ($currentColumnIndex < $columnsNeeded) {
+            $currentColumnIndex++;
+            $newColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($currentColumnIndex);
+            
+            // Copy style dari kolom sebelumnya
+            $prevColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($currentColumnIndex - 1);
+            $this->sheet->duplicateStyle(
+                $this->sheet->getStyle($prevColumn . '1:' . $prevColumn . $this->sheet->getHighestRow()),
+                $newColumn . '1:' . $newColumn . $this->sheet->getHighestRow()
+            );
+        }
+    }
+    
+    /**
+     * Sesuaikan header kolom berdasarkan jumlah puskesmas
+     */
+    protected function adjustColumnHeaders($puskesmasCount)
+    {
+        // Implementasi penyesuaian header kolom
+        // Bisa disesuaikan dengan kebutuhan spesifik template
+        Log::info("Template disesuaikan untuk {$puskesmasCount} puskesmas");
+    }
+
     /**
      * Isi data total tahunan
      */
@@ -289,9 +434,11 @@ class AdminAllFormatter extends ExcelExportFormatter
         $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['total']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        // % Capaian pelayanan sesuai standar
+        // % Capaian pelayanan sesuai standar dengan validasi range 0-100%
         $achievementPercentage = $sasaran > 0 ? 
             round(($yearlyTotal['standard'] / $sasaran) * 100, 2) : 0;
+        // Pastikan persentase tetap dalam range 0-100%
+        $achievementPercentage = max(0, min(100, $achievementPercentage));
         $this->sheet->setCellValue($currentCol . $row, $achievementPercentage);
     }
     
@@ -426,7 +573,10 @@ class AdminAllFormatter extends ExcelExportFormatter
             // Hitung persentase standar
             $percentageStandard = $monthData['total'] > 0 ? 
                 round(($monthData['standard'] / $monthData['total']) * 100, 2) : 0;
-            $this->sheet->setCellValue($currentCol . $row, $percentageStandard);
+            // Pastikan persentase tetap dalam range 0-100%
+            $percentageStandard = max(0, min(100, $percentageStandard));
+            // Konversi ke format desimal untuk Excel (75% = 0.75)
+            $this->sheet->setCellValue($currentCol . $row, $percentageStandard / 100);
             $currentCol = $this->getNextColumn($currentCol);
         }
         
@@ -439,7 +589,9 @@ class AdminAllFormatter extends ExcelExportFormatter
         
         $quarterPercentage = $quarterTotal['total'] > 0 ? 
             round(($quarterTotal['standard'] / $quarterTotal['total']) * 100, 2) : 0;
-        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage);
+        // Pastikan persentase tetap dalam range 0-100%
+        $quarterPercentage = max(0, min(100, $quarterPercentage));
+        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage / 100);
         $currentCol = $this->getNextColumn($currentCol);
         
         return $currentCol;

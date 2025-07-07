@@ -246,6 +246,7 @@ class DiseaseStatisticsService
 
     public function getMonthlyStatistics($puskesmasId, $year, $diseaseType, $month)
     {
-        return $this->getStatisticsWithMonthlyBreakdown($puskesmasId, $year, $diseaseType, $month);
+        // Use cache for better performance
+        return $this->getStatisticsFromCache($puskesmasId, $year, $diseaseType, $month);
     }
 }

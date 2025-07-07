@@ -195,6 +195,8 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
         
         $overallPercentage = $grandTotal['sasaran'] > 0 ? 
             round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
+        // Pastikan persentase tetap dalam range 0-100%
+        $overallPercentage = max(0, min(100, $overallPercentage));
         $this->sheet->setCellValue('I' . $startRow, $overallPercentage . '%');
         
         // Style bold untuk baris total
@@ -247,6 +249,8 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
                 $yearlyTotal = $this->calculateYearlyTotalFromQuarterly($quarterlyData);
                 $achievementPercentage = $yearlyTarget['target'] > 0 ? 
                     round(($yearlyTotal['total'] / $yearlyTarget['target']) * 100, 2) : 0;
+                // Pastikan persentase tetap dalam range 0-100%
+                $achievementPercentage = max(0, min(100, $achievementPercentage));
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,

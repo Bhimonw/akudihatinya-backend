@@ -195,6 +195,8 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
         
         $overallPercentage = $grandTotal['sasaran'] > 0 ? 
             round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
+        // Pastikan persentase tetap dalam range 0-100%
+        $overallPercentage = max(0, min(100, $overallPercentage));
         $this->sheet->setCellValue('Q' . $startRow, $overallPercentage . '%');
         
         // Style bold untuk baris total
@@ -216,26 +218,33 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
                 $puskesmasId = $puskesmas->id;
                 $monthlyData = [];
                 
-                // Ambil data untuk setiap bulan dengan detail klasifikasi
+                // Ambil data untuk semua bulan sekaligus
+                $yearlyStats = $this->statisticsService->getMonthlyStatistics(
+                    $puskesmasId, 
+                    $year, 
+                    $diseaseType,
+                    null // null untuk mendapatkan data semua bulan
+                );
+                
+                // Extract monthly data dari response
+                $monthlyBreakdown = $yearlyStats['monthly_data'] ?? [];
+                
+                // Format data untuk setiap bulan
                 for ($month = 1; $month <= 12; $month++) {
-                    $monthlyStats = $this->statisticsService->getMonthlyStatistics(
-                        $puskesmasId, 
-                        $year, 
-                        $diseaseType,
-                        $month
-                    );
+                    $monthData = $monthlyBreakdown[$month] ?? [];
                     
-                    // Hitung persentase standar
-                    $totalPatients = $monthlyStats['total_patients'] ?? 0;
-                    $standardCount = $monthlyStats['standard_patients'] ?? 0;
-                    $nonStandardCount = $monthlyStats['non_standard_patients'] ?? 0;
+                    $totalPatients = (int)($monthData['total'] ?? 0);
+                    $standardCount = (int)($monthData['standard'] ?? 0);
+                    $nonStandardCount = (int)($monthData['non_standard'] ?? 0);
+                    $maleCount = (int)($monthData['male'] ?? 0);
+                    $femaleCount = (int)($monthData['female'] ?? 0);
                     
                     $standardPercentage = $totalPatients > 0 ? 
                         round(($standardCount / $totalPatients) * 100, 2) : 0;
                     
                     $monthlyData[$month] = [
-                        'male' => $monthlyStats['male_patients'] ?? 0,
-                        'female' => $monthlyStats['female_patients'] ?? 0,
+                        'male' => $maleCount,
+                        'female' => $femaleCount,
                         'standard' => $standardCount,
                         'non_standard' => $nonStandardCount,
                         'total' => $totalPatients,
@@ -250,6 +259,8 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
                 $yearlyTotal = $this->calculateYearlyTotals($monthlyData);
                 $achievementPercentage = $yearlyTarget['target'] > 0 ? 
                     round(($yearlyTotal['total'] / $yearlyTarget['target']) * 100, 2) : 0;
+                // Pastikan persentase tetap dalam range 0-100%
+                $achievementPercentage = max(0, min(100, $achievementPercentage));
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,
@@ -267,7 +278,8 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
             Log::error('AdminMonthlyFormatter: Error getting puskesmas data', [
                 'error' => $e->getMessage(),
                 'disease_type' => $diseaseType,
-                'year' => $year
+                'year' => $year,
+                'trace' => $e->getTraceAsString()
             ]);
             
             // Return empty data jika error
@@ -289,11 +301,16 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
         ];
         
         foreach ($monthlyData as $month => $data) {
-            $totals['male'] += $data['male'] ?? 0;
-            $totals['female'] += $data['female'] ?? 0;
-            $totals['standard'] += $data['standard'] ?? 0;
-            $totals['non_standard'] += $data['non_standard'] ?? 0;
-            $totals['total'] += $data['total'] ?? 0;
+            // Pastikan $data adalah array, bukan integer
+            if (is_array($data)) {
+                $totals['male'] += $data['male'] ?? 0;
+                $totals['female'] += $data['female'] ?? 0;
+                $totals['standard'] += $data['standard'] ?? 0;
+                $totals['non_standard'] += $data['non_standard'] ?? 0;
+                $totals['total'] += $data['total'] ?? 0;
+            } else {
+                Log::warning('AdminMonthlyFormatter: Expected array but got ' . gettype($data) . ' for month ' . $month);
+            }
         }
         
         // Hitung persentase standar tahunan

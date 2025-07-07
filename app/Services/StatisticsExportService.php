@@ -97,7 +97,7 @@ class StatisticsExportService
             if ($format === 'pdf') {
                 return $this->exportToPdf($statistics, $year, $month, $diseaseType, $filename);
             } else {
-                return $this->exportToExcel($statistics, $year, $month, $diseaseType, $filename);
+                return $this->exportToExcel($statistics, $year, $month, $diseaseType, $filename, $tableType);
             }
 
         } catch (\Exception $e) {
@@ -226,18 +226,18 @@ class StatisticsExportService
      * Export ke Excel menggunakan template dari resources/excel
      * Membedakan antara admin dan puskesmas dengan formatter yang berbeda
      */
-    private function exportToExcel($statistics, $year, $month, $diseaseType, $filename)
+    private function exportToExcel($statistics, $year, $month, $diseaseType, $filename, $tableType = 'all')
     {
         $user = Auth::user();
         
         // Tentukan template dan formatter berdasarkan role user dan jenis laporan
         if ($user && $user->isAdmin()) {
-            // Admin menggunakan AdminFormatter berdasarkan jenis laporan dan disease type
-            if ($diseaseType === 'all') {
-                // All disease types - gunakan template all.xlsx
+            // Admin menggunakan AdminFormatter berdasarkan table_type dan disease type
+            if ($diseaseType === 'all' || $tableType === 'all') {
+                // All disease types atau all table types - gunakan template all.xlsx
                 $templatePath = resource_path('excel/all.xlsx');
                 $formatter = $this->adminAllFormatter;
-            } elseif ($month) {
+            } elseif ($tableType === 'monthly' || $month) {
                 // Monthly report untuk admin - gunakan template monthly.xlsx
                 $templatePath = resource_path('excel/monthly.xlsx');
                 $formatter = $this->adminMonthlyFormatter;

@@ -315,36 +315,43 @@ class ExcelExportFormatter
      */
     protected function fillPuskesmasData(array $puskesmasData, int $year, string $diseaseType, string $reportType)
     {
-        $row = 7; // Mulai dari baris 7
+        $startRow = 9; // Mulai dari baris 9 (setelah header)
+        $currentRow = $startRow;
+        
+        // Hapus baris TOTAL yang sudah ada di template (baris 34) dan baris kosong sebelumnya
+        $this->sheet->removeRow(34, 7); // Hapus baris 34-40 yang tidak diperlukan
         
         foreach ($puskesmasData as $index => $data) {
             // Kolom A: NO
-            $this->sheet->setCellValue('A' . $row, $index + 1);
+            $this->sheet->setCellValue('A' . $currentRow, $index + 1);
             
             // Kolom B: NAMA PUSKESMAS
-            $this->sheet->setCellValue('B' . $row, $data['nama_puskesmas'] ?? '');
+            $this->sheet->setCellValue('B' . $currentRow, $data['nama_puskesmas'] ?? '');
             
             // Kolom C: SASARAN
-            $this->sheet->setCellValue('C' . $row, $data['sasaran'] ?? 0);
+            $this->sheet->setCellValue('C' . $currentRow, $data['sasaran'] ?? 0);
             
             // Isi data berdasarkan jenis laporan
             switch ($reportType) {
                 case 'all':
-                    $this->fillAllData($row, $data, $year, $diseaseType);
+                    $this->fillAllData($currentRow, $data, $year, $diseaseType);
                     break;
                 case 'monthly':
-                    $this->fillMonthlyData($row, $data, $year, $diseaseType);
+                    $this->fillMonthlyData($currentRow, $data, $year, $diseaseType);
                     break;
                 case 'quarterly':
-                    $this->fillQuarterlyData($row, $data, $year, $diseaseType);
+                    $this->fillQuarterlyData($currentRow, $data, $year, $diseaseType);
                     break;
             }
             
-            $row++;
+            $currentRow++;
         }
         
-        // Tambah baris total jika diperlukan
-        $this->addTotalRow($row, $puskesmasData, $reportType);
+        // Tambah baris total di posisi yang tepat setelah semua data puskesmas
+        $this->addTotalRow($currentRow, $puskesmasData, $reportType);
+        
+        // Update current row untuk styling
+        $this->currentRow = $currentRow + 1;
     }
 
     /**
@@ -442,6 +449,8 @@ class ExcelExportFormatter
         // %S (Persentase Standar)
         $standard = $monthData['standard'] ?? 0;
         $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
+        // Pastikan persentase tetap dalam range 0-100%
+        $percentage = max(0, min(100, $percentage));
         $this->sheet->setCellValue($columns[4] . $row, $percentage . '%');
     }
 
@@ -472,6 +481,8 @@ class ExcelExportFormatter
         // %S (Persentase Standar)
         $standard = $quarterData['standard'] ?? 0;
         $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
+        // Pastikan persentase tetap dalam range 0-100%
+        $percentage = max(0, min(100, $percentage));
         $this->sheet->setCellValue($columns[4] . $row, $percentage . '%');
     }
 
@@ -496,6 +507,8 @@ class ExcelExportFormatter
         // %S (Persentase Standar)
         $standard = $totalData['standard'] ?? 0;
         $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
+        // Pastikan persentase tetap dalam range 0-100%
+        $percentage = max(0, min(100, $percentage));
         $this->sheet->setCellValue($this->totalColumns[4] . $row, $percentage . '%');
     }
 
@@ -560,6 +573,9 @@ class ExcelExportFormatter
      */
     protected function addTotalRow(int $row, array $puskesmasData, string $reportType)
     {
+        // Insert baris baru untuk TOTAL
+        $this->sheet->insertNewRowBefore($row, 1);
+        
         $this->sheet->setCellValue('A' . $row, 'TOTAL');
         $this->sheet->setCellValue('B' . $row, 'KESELURUHAN');
         
@@ -567,10 +583,19 @@ class ExcelExportFormatter
         $totalSasaran = array_sum(array_column($puskesmasData, 'sasaran'));
         $this->sheet->setCellValue('C' . $row, $totalSasaran);
         
+        // Hitung dan isi total data berdasarkan jenis laporan
+        $this->fillTotalRowData($row, $puskesmasData, $reportType);
+        
         // Apply bold styling untuk baris total
         $this->sheet->getStyle('A' . $row . ':' . $this->sheet->getHighestColumn() . $row)
             ->getFont()
             ->setBold(true);
+            
+        // Apply background color untuk baris total
+        $this->sheet->getStyle('A' . $row . ':' . $this->sheet->getHighestColumn() . $row)
+            ->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB('E6E6FA');
     }
 
     /**
@@ -582,14 +607,14 @@ class ExcelExportFormatter
         $this->sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $this->sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         
-        // Style untuk header (baris 3-6)
-        $headerRange = 'A3:' . $this->sheet->getHighestColumn() . '6';
+        // Style untuk header (baris 4-8)
+        $headerRange = 'A4:' . $this->sheet->getHighestColumn() . '8';
         $this->sheet->getStyle($headerRange)->getFont()->setBold(true);
         $this->sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $this->sheet->getStyle($headerRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
         
-        // Border untuk semua data
-        $dataRange = 'A3:' . $this->sheet->getHighestColumn() . $this->sheet->getHighestRow();
+        // Border untuk semua data (mulai dari header sampai akhir data)
+        $dataRange = 'A4:' . $this->sheet->getHighestColumn() . $this->sheet->getHighestRow();
         $this->sheet->getStyle($dataRange)->getBorders()->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN);
         
@@ -609,6 +634,133 @@ class ExcelExportFormatter
         
         // Merge cells untuk judul
         $this->sheet->mergeCells('A1:' . $this->sheet->getHighestColumn() . '1');
+        $this->sheet->mergeCells('A2:' . $this->sheet->getHighestColumn() . '2');
+    }
+
+    /**
+     * Isi data total untuk baris TOTAL berdasarkan jenis laporan
+     */
+    protected function fillTotalRowData(int $row, array $puskesmasData, string $reportType)
+    {
+        switch ($reportType) {
+            case 'all':
+                $this->fillTotalAllData($row, $puskesmasData);
+                break;
+            case 'monthly':
+                $this->fillTotalMonthlyData($row, $puskesmasData);
+                break;
+            case 'quarterly':
+                $this->fillTotalQuarterlyData($row, $puskesmasData);
+                break;
+        }
+    }
+    
+    /**
+     * Isi total data untuk laporan all.xlsx
+     */
+    protected function fillTotalAllData(int $row, array $puskesmasData)
+    {
+        // Hitung total untuk setiap bulan
+        for ($month = 1; $month <= 12; $month++) {
+            $monthTotal = $this->calculateMonthTotal($puskesmasData, $month);
+            $this->fillMonthDataToColumns($row, $month, $monthTotal);
+        }
+        
+        // Hitung total untuk setiap triwulan
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $quarterTotal = $this->calculateQuarterTotal($puskesmasData, $quarter);
+            $this->fillQuarterDataToColumns($row, $quarter, $quarterTotal);
+        }
+        
+        // Hitung total tahunan
+        $yearlyTotal = $this->calculateYearlyTotalFromAll($puskesmasData);
+        $this->fillTotalDataToColumns($row, $yearlyTotal);
+    }
+    
+    /**
+     * Isi total data untuk laporan monthly.xlsx
+     */
+    protected function fillTotalMonthlyData(int $row, array $puskesmasData)
+    {
+        // Hitung total untuk setiap bulan
+        for ($month = 1; $month <= 12; $month++) {
+            $monthTotal = $this->calculateMonthTotal($puskesmasData, $month);
+            $this->fillMonthDataToColumns($row, $month, $monthTotal);
+        }
+        
+        // Hitung total tahunan
+        $yearlyTotal = $this->calculateYearlyTotalFromAll($puskesmasData);
+        $this->fillTotalDataToColumns($row, $yearlyTotal);
+    }
+    
+    /**
+     * Isi total data untuk laporan quarterly.xlsx
+     */
+    protected function fillTotalQuarterlyData(int $row, array $puskesmasData)
+    {
+        // Hitung total untuk setiap triwulan
+        for ($quarter = 1; $quarter <= 4; $quarter++) {
+            $quarterTotal = $this->calculateQuarterTotal($puskesmasData, $quarter);
+            $this->fillQuarterDataToColumns($row, $quarter, $quarterTotal);
+        }
+        
+        // Hitung total tahunan
+        $yearlyTotal = $this->calculateYearlyTotalFromAll($puskesmasData);
+        $this->fillTotalDataToColumns($row, $yearlyTotal);
+    }
+    
+    /**
+     * Hitung total bulanan dari semua puskesmas
+     */
+    protected function calculateMonthTotal(array $puskesmasData, int $month): array
+    {
+        $total = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0];
+        
+        foreach ($puskesmasData as $data) {
+            $monthData = $data['monthly_data'][$month] ?? [];
+            $total['male'] += $monthData['male'] ?? 0;
+            $total['female'] += $monthData['female'] ?? 0;
+            $total['standard'] += $monthData['standard'] ?? 0;
+            $total['non_standard'] += $monthData['non_standard'] ?? 0;
+        }
+        
+        return $total;
+    }
+    
+    /**
+     * Hitung total triwulan dari semua puskesmas
+     */
+    protected function calculateQuarterTotal(array $puskesmasData, int $quarter): array
+    {
+        $total = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0];
+        
+        foreach ($puskesmasData as $data) {
+            $quarterData = $this->calculateQuarterData($data['monthly_data'] ?? [], $quarter);
+            $total['male'] += $quarterData['male'] ?? 0;
+            $total['female'] += $quarterData['female'] ?? 0;
+            $total['standard'] += $quarterData['standard'] ?? 0;
+            $total['non_standard'] += $quarterData['non_standard'] ?? 0;
+        }
+        
+        return $total;
+    }
+    
+    /**
+     * Hitung total tahunan dari semua puskesmas
+     */
+    protected function calculateYearlyTotalFromAll(array $puskesmasData): array
+    {
+        $total = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0];
+        
+        foreach ($puskesmasData as $data) {
+            $yearlyData = $this->calculateYearlyTotal($data['monthly_data'] ?? []);
+            $total['male'] += $yearlyData['male'] ?? 0;
+            $total['female'] += $yearlyData['female'] ?? 0;
+            $total['standard'] += $yearlyData['standard'] ?? 0;
+            $total['non_standard'] += $yearlyData['non_standard'] ?? 0;
+        }
+        
+        return $total;
     }
 
     /**
