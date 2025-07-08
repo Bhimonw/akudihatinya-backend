@@ -345,3 +345,5 @@ class DatabaseSeeder extends Seeder
         return $bpjs;
     }
 }
+
+// ... existing code ...

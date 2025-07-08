@@ -153,10 +153,17 @@ abstract class BaseAdminFormatter
 
     /**
      * Format number with thousand separator
+     * Menghilangkan koma pada angka bulat
      */
     protected function formatNumber($number): string
     {
-        return number_format($number ?? 0, 0, ',', '.');
+        $num = $number ?? 0;
+        // Jika angka adalah bilangan bulat, tidak perlu koma
+        if (is_numeric($num) && $num == intval($num)) {
+            return number_format($num, 0, '', '.');
+        }
+        // Jika ada desimal, gunakan koma sebagai pemisah desimal
+        return number_format($num, 2, ',', '.');
     }
 
     /**
@@ -168,7 +175,7 @@ abstract class BaseAdminFormatter
     }
 
     /**
-     * Calculate percentage safely
+     * Calculate percentage safely with 0-100% constraint
      */
     protected function calculatePercentage($numerator, $denominator, int $decimals = 2): float
     {
@@ -176,7 +183,26 @@ abstract class BaseAdminFormatter
             return 0;
         }
         
-        return round(($numerator / $denominator) * 100, $decimals);
+        $percentage = round(($numerator / $denominator) * 100, $decimals);
+        
+        // Pastikan persentase tetap dalam range 0-100%
+        return max(0, min(100, $percentage));
+    }
+
+    /**
+     * Calculate percentage allowing values above 100% for achievement scenarios
+     * Digunakan untuk kasus di mana pencapaian bisa melebihi target (>100%)
+     */
+    protected function calculateAchievementPercentage($numerator, $denominator, int $decimals = 2): float
+    {
+        if ($denominator == 0) {
+            return 0;
+        }
+        
+        $percentage = round(($numerator / $denominator) * 100, $decimals);
+        
+        // Hanya pastikan tidak negatif, tapi izinkan >100%
+        return max(0, $percentage);
     }
 
     /**

@@ -147,7 +147,7 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
         // Isi data berdasarkan struktur template
         $this->sheet->setCellValue('A' . $row, $no); // No
         $this->sheet->setCellValue('B' . $row, $puskesmasData['nama_puskesmas']); // Nama Puskesmas
-        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['sasaran'])); // Sasaran
+        $this->sheet->setCellValue('C' . $row, $this->formatNumber($puskesmasData['sasaran'])); // Sasaran
         
         // Isi data bulanan (kolom D sampai O untuk 12 bulan)
         $startCol = 'D';
@@ -158,7 +158,7 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
         }
         
         // Total tahunan dan persentase capaian
-        $this->sheet->setCellValue('P' . $row, number_format($puskesmasData['yearly_total']['total'])); // Total
+        $this->sheet->setCellValue('P' . $row, $this->formatNumber($puskesmasData['yearly_total']['total'])); // Total
         $this->sheet->setCellValue('Q' . $row, $puskesmasData['achievement_percentage'] . '%'); // % Capaian
     }
     
@@ -182,21 +182,21 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
         // Isi baris total
         $this->sheet->setCellValue('A' . $startRow, '');
         $this->sheet->setCellValue('B' . $startRow, 'TOTAL KESELURUHAN');
-        $this->sheet->setCellValue('C' . $startRow, number_format($grandTotal['sasaran']));
+        $this->sheet->setCellValue('C' . $startRow, $this->formatNumber($grandTotal['sasaran']));
         
         // Total bulanan
         $startCol = 'D';
         for ($month = 1; $month <= 12; $month++) {
             $col = chr(ord($startCol) + $month - 1);
-            $this->sheet->setCellValue($col . $startRow, number_format($grandTotal['monthly'][$month]));
+            $this->sheet->setCellValue($col . $startRow, $this->formatNumber($grandTotal['monthly'][$month]));
         }
         
-        $this->sheet->setCellValue('P' . $startRow, number_format($grandTotal['capaian']));
+        $this->sheet->setCellValue('P' . $startRow, $this->formatNumber($grandTotal['capaian']));
         
-        $overallPercentage = $grandTotal['sasaran'] > 0 ? 
-            round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $overallPercentage = max(0, min(100, $overallPercentage));
+        $overallPercentage = $this->calculateAchievementPercentage(
+            $grandTotal['capaian'], 
+            $grandTotal['sasaran']
+        );
         $this->sheet->setCellValue('Q' . $startRow, $overallPercentage . '%');
         
         // Style bold untuk baris total
@@ -255,12 +255,12 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
                 // Ambil sasaran tahunan
                 $yearlyTarget = $this->statisticsService->getYearlyTarget($puskesmasId, $year, $diseaseType);
                 
-                // Hitung total tahunan dan persentase capaian
+                // Hitung total tahunan dan persentase capaian (izinkan >100% untuk over-achievement)
                 $yearlyTotal = $this->calculateYearlyTotals($monthlyData);
-                $achievementPercentage = $yearlyTarget['target'] > 0 ? 
-                    round(($yearlyTotal['total'] / $yearlyTarget['target']) * 100, 2) : 0;
-                // Pastikan persentase tetap dalam range 0-100%
-                $achievementPercentage = max(0, min(100, $achievementPercentage));
+                $achievementPercentage = $this->calculateAchievementPercentage(
+                    $yearlyTotal['total'], 
+                    $yearlyTarget['target']
+                );
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,
@@ -313,9 +313,9 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
             }
         }
         
-        // Hitung persentase standar tahunan
-        $totals['standard_percentage'] = $totals['total'] > 0 ? 
-            round(($totals['standard'] / $totals['total']) * 100, 2) : 0;
+        // Hitung persentase standar tahunan berdasarkan yearly target
+        // Note: yearly target perlu diambil dari parameter atau service
+        $totals['standard_percentage'] = 0; // Will be calculated with yearly target
         
         return $totals;
     }
@@ -402,7 +402,7 @@ class AdminMonthlyFormatter extends ExcelExportFormatter
             }
         }
         
-        // Hitung rata-rata capaian
+        // Hitung rata-rata capaian berdasarkan yearly target
         $summary['rata_rata_capaian'] = $summary['total_sasaran'] > 0 ? 
             round(($summary['total_capaian'] / $summary['total_sasaran']) * 100, 2) : 0;
         

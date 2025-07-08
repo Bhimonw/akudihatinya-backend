@@ -220,16 +220,16 @@ class AdminAllFormatter extends ExcelExportFormatter
         $currentCol = 'D';
         
         // Isi data Triwulan I (Januari-Maret) - kolom D sampai T
-        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [1, 2, 3], $quarterlyData[1]);
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [1, 2, 3], $quarterlyData[1], $puskesmasData['sasaran']);
         
         // Isi data Triwulan II (April-Juni) - kolom U sampai AK
-        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [4, 5, 6], $quarterlyData[2]);
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [4, 5, 6], $quarterlyData[2], $puskesmasData['sasaran']);
         
         // Isi data Triwulan III (Juli-September) - kolom AL sampai BB
-        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [7, 8, 9], $quarterlyData[3]);
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [7, 8, 9], $quarterlyData[3], $puskesmasData['sasaran']);
         
         // Isi data Triwulan IV (Oktober-Desember) - kolom BC sampai BS
-        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [10, 11, 12], $quarterlyData[4]);
+        $currentCol = $this->fillQuarterData($row, $currentCol, $puskesmasData['monthly_data'], [10, 11, 12], $quarterlyData[4], $puskesmasData['sasaran']);
         
         // Isi total tahunan - kolom BT sampai BY
         $this->fillYearlyTotalData($row, $currentCol, $yearlyTotal, $puskesmasData['sasaran']);
@@ -288,7 +288,7 @@ class AdminAllFormatter extends ExcelExportFormatter
     /**
      * Isi data untuk satu triwulan (3 bulan + total triwulan)
      */
-    protected function fillQuarterData($row, $startCol, $monthlyData, $months, $quarterTotal)
+    protected function fillQuarterData($row, $startCol, $monthlyData, $months, $quarterTotal, $yearlyTarget = 0)
     {
         $currentCol = $startCol;
         
@@ -309,12 +309,11 @@ class AdminAllFormatter extends ExcelExportFormatter
             $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            // Hitung persentase standar dengan validasi range 0-100%
-            $percentageStandard = $monthData['total'] > 0 ? 
-                round(($monthData['standard'] / $monthData['total']) * 100, 2) : 0;
-            // Pastikan persentase tetap dalam range 0-100%
-            $percentageStandard = max(0, min(100, $percentageStandard));
-            // Konversi ke format desimal untuk Excel (75% = 0.75)
+            // Hitung persentase pencapaian target (izinkan >100% untuk over-achievement)
+            $percentageStandard = $yearlyTarget > 0 ? 
+                $this->calculateAchievementPercentage($monthData['standard'], $yearlyTarget) : 0;
+            
+            // Konversi ke format desimal untuk Excel (75% = 0.75, 120% = 1.20)
             $this->sheet->setCellValue($currentCol . $row, $percentageStandard / 100);
             $currentCol = $this->getNextColumn($currentCol);
         }
@@ -326,11 +325,11 @@ class AdminAllFormatter extends ExcelExportFormatter
         $this->sheet->setCellValue($currentCol . $row, $quarterTotal['non_standard']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $quarterPercentage = $quarterTotal['total'] > 0 ? 
-            round(($quarterTotal['standard'] / $quarterTotal['total']) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $quarterPercentage = max(0, min(100, $quarterPercentage));
-        // Konversi ke format desimal untuk Excel (75% = 0.75)
+        // Hitung persentase pencapaian target triwulan (izinkan >100% untuk over-achievement)
+        $quarterPercentage = $yearlyTarget > 0 ? 
+            $this->calculateAchievementPercentage($quarterTotal['standard'], $yearlyTarget) : 0;
+        
+        // Konversi ke format desimal untuk Excel (75% = 0.75, 120% = 1.20)
         $this->sheet->setCellValue($currentCol . $row, $quarterPercentage / 100);
         $currentCol = $this->getNextColumn($currentCol);
         
@@ -434,11 +433,11 @@ class AdminAllFormatter extends ExcelExportFormatter
         $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['total']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        // % Capaian pelayanan sesuai standar dengan validasi range 0-100%
-        $achievementPercentage = $sasaran > 0 ? 
-            round(($yearlyTotal['standard'] / $sasaran) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $achievementPercentage = max(0, min(100, $achievementPercentage));
+        // % Capaian pelayanan sesuai standar (dapat melebihi 100% untuk over-achievement)
+        $achievementPercentage = $this->calculateAchievementPercentage(
+            $yearlyTotal['standard'], 
+            $sasaran
+        );
         $this->sheet->setCellValue($currentCol . $row, $achievementPercentage);
     }
     
@@ -528,16 +527,16 @@ class AdminAllFormatter extends ExcelExportFormatter
         $currentCol = 'D';
         
         // Isi data Triwulan I
-        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [1, 2, 3], $grandTotal['quarterly'][1]);
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [1, 2, 3], $grandTotal['quarterly'][1], $grandTotal['sasaran']);
         
         // Isi data Triwulan II
-        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [4, 5, 6], $grandTotal['quarterly'][2]);
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [4, 5, 6], $grandTotal['quarterly'][2], $grandTotal['sasaran']);
         
         // Isi data Triwulan III
-        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [7, 8, 9], $grandTotal['quarterly'][3]);
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [7, 8, 9], $grandTotal['quarterly'][3], $grandTotal['sasaran']);
         
         // Isi data Triwulan IV
-        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [10, 11, 12], $grandTotal['quarterly'][4]);
+        $currentCol = $this->fillQuarterSummaryData($startRow, $currentCol, $grandTotal['monthly'], [10, 11, 12], $grandTotal['quarterly'][4], $grandTotal['sasaran']);
         
         // Isi total tahunan
         $this->fillYearlyTotalData($startRow, $currentCol, $grandTotal['yearly'], $grandTotal['sasaran']);
@@ -549,7 +548,7 @@ class AdminAllFormatter extends ExcelExportFormatter
     /**
      * Isi data summary untuk satu triwulan
      */
-    protected function fillQuarterSummaryData($row, $startCol, $monthlyData, $months, $quarterTotal)
+    protected function fillQuarterSummaryData($row, $startCol, $monthlyData, $months, $quarterTotal, $yearlyTarget = 0)
     {
         $currentCol = $startCol;
         
@@ -570,11 +569,11 @@ class AdminAllFormatter extends ExcelExportFormatter
             $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            // Hitung persentase standar
-            $percentageStandard = $monthData['total'] > 0 ? 
-                round(($monthData['standard'] / $monthData['total']) * 100, 2) : 0;
-            // Pastikan persentase tetap dalam range 0-100%
-            $percentageStandard = max(0, min(100, $percentageStandard));
+            // Hitung persentase pencapaian target (dapat melebihi 100% untuk over-achievement)
+            $percentageStandard = $this->calculateAchievementPercentage(
+                $monthData['standard'], 
+                $yearlyTarget
+            );
             // Konversi ke format desimal untuk Excel (75% = 0.75)
             $this->sheet->setCellValue($currentCol . $row, $percentageStandard / 100);
             $currentCol = $this->getNextColumn($currentCol);
@@ -587,10 +586,11 @@ class AdminAllFormatter extends ExcelExportFormatter
         $this->sheet->setCellValue($currentCol . $row, $quarterTotal['non_standard']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $quarterPercentage = $quarterTotal['total'] > 0 ? 
-            round(($quarterTotal['standard'] / $quarterTotal['total']) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $quarterPercentage = max(0, min(100, $quarterPercentage));
+        // Hitung persentase pencapaian target triwulan (konsisten dengan dashboard)
+        $quarterPercentage = $this->calculateAchievementPercentage(
+            $quarterTotal['standard'], 
+            $yearlyTarget
+        );
         $this->sheet->setCellValue($currentCol . $row, $quarterPercentage / 100);
         $currentCol = $this->getNextColumn($currentCol);
         

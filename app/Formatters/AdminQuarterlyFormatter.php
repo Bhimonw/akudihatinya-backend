@@ -147,7 +147,7 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
         // Isi data berdasarkan struktur template
         $this->sheet->setCellValue('A' . $row, $no); // No
         $this->sheet->setCellValue('B' . $row, $puskesmasData['nama_puskesmas']); // Nama Puskesmas
-        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['sasaran'])); // Sasaran
+        $this->sheet->setCellValue('C' . $row, $this->formatNumber($puskesmasData['sasaran'])); // Sasaran
         
         // Isi data triwulan (kolom D sampai G untuk 4 triwulan)
         $startCol = 'D';
@@ -158,7 +158,7 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
         }
         
         // Total tahunan dan persentase capaian
-        $this->sheet->setCellValue('H' . $row, number_format($puskesmasData['yearly_total']['total'])); // Total
+        $this->sheet->setCellValue('H' . $row, $this->formatNumber($puskesmasData['yearly_total']['total'])); // Total
         $this->sheet->setCellValue('I' . $row, $puskesmasData['achievement_percentage'] . '%'); // % Capaian
     }
     
@@ -182,21 +182,21 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
         // Isi baris total
         $this->sheet->setCellValue('A' . $startRow, '');
         $this->sheet->setCellValue('B' . $startRow, 'TOTAL KESELURUHAN');
-        $this->sheet->setCellValue('C' . $startRow, number_format($grandTotal['sasaran']));
+        $this->sheet->setCellValue('C' . $startRow, $this->formatNumber($grandTotal['sasaran']));
         
         // Total triwulan
         $startCol = 'D';
         for ($quarter = 1; $quarter <= 4; $quarter++) {
             $col = chr(ord($startCol) + $quarter - 1);
-            $this->sheet->setCellValue($col . $startRow, number_format($grandTotal['quarterly'][$quarter]));
+            $this->sheet->setCellValue($col . $startRow, $this->formatNumber($grandTotal['quarterly'][$quarter]));
         }
         
-        $this->sheet->setCellValue('H' . $startRow, number_format($grandTotal['capaian']));
+        $this->sheet->setCellValue('H' . $startRow, $this->formatNumber($grandTotal['capaian']));
         
-        $overallPercentage = $grandTotal['sasaran'] > 0 ? 
-            round(($grandTotal['capaian'] / $grandTotal['sasaran']) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $overallPercentage = max(0, min(100, $overallPercentage));
+        $overallPercentage = $this->calculateAchievementPercentage(
+            $grandTotal['capaian'], 
+            $grandTotal['sasaran']
+        );
         $this->sheet->setCellValue('I' . $startRow, $overallPercentage . '%');
         
         // Style bold untuk baris total
@@ -245,12 +245,12 @@ class AdminQuarterlyFormatter extends ExcelExportFormatter
                 // Ambil sasaran tahunan
                 $yearlyTarget = $this->statisticsService->getYearlyTarget($puskesmasId, $year, $diseaseType);
                 
-                // Hitung total tahunan dan persentase capaian
+                // Hitung total tahunan dan persentase capaian (izinkan >100%)
                 $yearlyTotal = $this->calculateYearlyTotalFromQuarterly($quarterlyData);
-                $achievementPercentage = $yearlyTarget['target'] > 0 ? 
-                    round(($yearlyTotal['total'] / $yearlyTarget['target']) * 100, 2) : 0;
-                // Pastikan persentase tetap dalam range 0-100%
-                $achievementPercentage = max(0, min(100, $achievementPercentage));
+                $achievementPercentage = $this->calculateAchievementPercentage(
+                    $yearlyTotal['total'], 
+                    $yearlyTarget['target']
+                );
                 
                 $formattedData[] = [
                     'id' => $puskesmasId,

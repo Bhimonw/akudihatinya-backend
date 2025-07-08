@@ -76,7 +76,7 @@ class PuskesmasFormatter extends ExcelExportFormatter
         if ($puskesmasData) {
             // Cari dan isi nama puskesmas (biasanya di cell tertentu)
             $this->findAndFillCell('NAMA PUSKESMAS', $puskesmasData['nama_puskesmas']);
-            $this->findAndFillCell('SASARAN', number_format($puskesmasData['sasaran']));
+            $this->findAndFillCell('SASARAN', $this->formatNumber($puskesmasData['sasaran']));
             $this->findAndFillCell('TAHUN', $year);
             
             // Isi data bulanan ke template
@@ -131,12 +131,12 @@ class PuskesmasFormatter extends ExcelExportFormatter
                 ];
             }
             
-            // Hitung total tahunan dan persentase capaian
+            // Hitung total tahunan dan persentase capaian (izinkan >100% untuk over-achievement)
             $yearlyTotal = $this->calculateYearlyTotal($monthlyData);
-            $achievementPercentage = $yearlyTarget['target'] > 0 ? 
-                round(($yearlyTotal['total'] / $yearlyTarget['target']) * 100, 2) : 0;
-            // Pastikan persentase tetap dalam range 0-100%
-            $achievementPercentage = max(0, min(100, $achievementPercentage));
+            $achievementPercentage = $this->calculateAchievementPercentage(
+                $yearlyTotal['total'], 
+                $yearlyTarget['target']
+            );
             
             return [
                 'id' => $puskesmasId,
@@ -249,9 +249,9 @@ class PuskesmasFormatter extends ExcelExportFormatter
      protected function fillSummaryDataToTemplate($puskesmasData)
      {
          // Cari area summary dan isi total tahunan
-         $this->findAndFillCell('TOTAL TAHUNAN', number_format($puskesmasData['yearly_total']['total']));
+         $this->findAndFillCell('TOTAL TAHUNAN', $this->formatNumber($puskesmasData['yearly_total']['total']));
          $this->findAndFillCell('CAPAIAN', $puskesmasData['achievement_percentage'] . '%');
-         $this->findAndFillCell('STANDAR TAHUNAN', number_format($puskesmasData['yearly_total']['standard']));
+         $this->findAndFillCell('STANDAR TAHUNAN', $this->formatNumber($puskesmasData['yearly_total']['standard']));
      }
 
     /**
@@ -299,11 +299,11 @@ class PuskesmasFormatter extends ExcelExportFormatter
         $row++;
         
         $this->sheet->setCellValue('A' . $row, 'Sasaran Tahunan:');
-        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['sasaran']));
+        $this->sheet->setCellValue('C' . $row, $this->formatNumber($puskesmasData['sasaran']));
         $row++;
         
         $this->sheet->setCellValue('A' . $row, 'Total Capaian:');
-        $this->sheet->setCellValue('C' . $row, number_format($puskesmasData['yearly_total']['total'] ?? 0));
+        $this->sheet->setCellValue('C' . $row, $this->formatNumber($puskesmasData['yearly_total']['total'] ?? 0));
         $row++;
         
         $this->sheet->setCellValue('A' . $row, 'Persentase Capaian:');
