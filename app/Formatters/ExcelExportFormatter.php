@@ -448,9 +448,8 @@ class ExcelExportFormatter
         
         // %S (Persentase Standar)
         $standard = $monthData['standard'] ?? 0;
-        $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $percentage = max(0, min(100, $percentage));
+        // Hitung persentase standar (standar/total tidak bisa >100%)
+        $percentage = $this->calculateStandardPercentage($standard, $total);
         $this->sheet->setCellValue($columns[4] . $row, $percentage . '%');
     }
 
@@ -480,9 +479,8 @@ class ExcelExportFormatter
         
         // %S (Persentase Standar)
         $standard = $quarterData['standard'] ?? 0;
-        $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $percentage = max(0, min(100, $percentage));
+        // Hitung persentase standar (standar/total tidak bisa >100%)
+        $percentage = $this->calculateStandardPercentage($standard, $total);
         $this->sheet->setCellValue($columns[4] . $row, $percentage . '%');
     }
 
@@ -506,9 +504,8 @@ class ExcelExportFormatter
         
         // %S (Persentase Standar)
         $standard = $totalData['standard'] ?? 0;
-        $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $percentage = max(0, min(100, $percentage));
+        // Hitung persentase standar total (standar/total tidak bisa >100%)
+        $percentage = $this->calculateStandardPercentage($standard, $total);
         $this->sheet->setCellValue($this->totalColumns[4] . $row, $percentage . '%');
     }
 

@@ -8,10 +8,15 @@
 
 Selamat datang di dokumentasi lengkap untuk Akudihatinya Backend. Dokumentasi ini telah diorganisir secara modular untuk memudahkan navigasi dan pemeliharaan.
 
+> 📋 **Quick Navigation**: Lihat [INDEX.md](./INDEX.md) untuk navigasi lengkap semua dokumentasi
+
 ## 📂 Struktur Dokumentasi
 
 ### 01. 🔌 API Documentation
 - **[API_COMPLETE.md](./01-api/API_COMPLETE.md)** - Dokumentasi lengkap semua endpoint API, authentication, dan panduan penggunaan
+- **[API_PROFILE_UPDATE.md](./01-api/API_PROFILE_UPDATE.md)** - Dokumentasi endpoint update profil user
+- **[API_PROFILE_UPDATE_ALTERNATIVE.md](./01-api/API_PROFILE_UPDATE_ALTERNATIVE.md)** - Dokumentasi alternatif endpoint update profil
+- **[EXCEL_FORMATTER_GUIDE.md](./01-api/EXCEL_FORMATTER_GUIDE.md)** - Panduan formatter untuk export Excel
 
 ### 02. 🏗️ Architecture
 - **[SYSTEM_ARCHITECTURE.md](./02-architecture/SYSTEM_ARCHITECTURE.md)** - Arsitektur sistem dan komponen utama
@@ -49,6 +54,15 @@ Selamat datang di dokumentasi lengkap untuk Akudihatinya Backend. Dokumentasi in
 ### 05. ⚙️ Processes
 - **[NEW_YEAR_SETUP.md](./05-processes/NEW_YEAR_SETUP.md)** - Proses setup tahun baru
 - **[CHANGELOG.md](./05-processes/CHANGELOG.md)** - Log perubahan sistem
+
+### 06. 🔧 Code Quality
+- **[CODE_QUALITY_IMPROVEMENTS.md](./06-code-quality/CODE_QUALITY_IMPROVEMENTS.md)** - Peningkatan kualitas kode pada sistem manajemen profil
+- **[CODE_QUALITY_IMPROVEMENTS_COMPREHENSIVE.md](./06-code-quality/CODE_QUALITY_IMPROVEMENTS_COMPREHENSIVE.md)** - Peningkatan kualitas kode secara komprehensif
+
+### 07. ⚡ Optimizations
+- **[OPTIMALISASI_PERHITUNGAN_PERSENTASE.md](./07-optimizations/OPTIMALISASI_PERHITUNGAN_PERSENTASE.md)** - Optimalisasi sistem perhitungan persentase
+- **[PERCENTAGE_CALCULATION_FIX.md](./07-optimizations/PERCENTAGE_CALCULATION_FIX.md)** - Perbaikan perhitungan persentase
+- **[MONTHLY_STANDARD_CALCULATION_UPDATE.md](./07-optimizations/MONTHLY_STANDARD_CALCULATION_UPDATE.md)** - Update perhitungan standar bulanan
 
 ## 🚀 Quick Start
 

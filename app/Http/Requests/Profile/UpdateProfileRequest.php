@@ -2,12 +2,12 @@
 
 namespace App\Http\Requests\Profile;
 
-use App\Traits\HasCommonValidationRules;
+use App\Traits\Validation\HasCommonValidationRulesTrait;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateProfileRequest extends FormRequest
 {
-    use HasCommonValidationRules;
+    use HasCommonValidationRulesTrait;
     
     public function authorize(): bool
     {

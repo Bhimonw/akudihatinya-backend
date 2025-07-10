@@ -1,0 +1,356 @@
+name: Naming Standards Validation
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  validate-naming-standards:
+    runs-on: ubuntu-latest
+    name: Validate Modular Naming Standards
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, dom, filter, gd, iconv, json, mbstring, pdo
+        coverage: none
+
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Copy environment file
+      run: cp .env.example .env
+
+    - name: Generate application key
+      run: php artisan key:generate
+
+    - name: Create storage directories
+      run: |
+        mkdir -p storage/logs
+        mkdir -p storage/framework/cache
+        mkdir -p storage/framework/sessions
+        mkdir -p storage/framework/views
+
+    - name: Set permissions
+      run: |
+        chmod -R 755 storage
+        chmod -R 755 bootstrap/cache
+
+    - name: Run Directory Structure Analysis
+      id: directory-analysis
+      run: |
+        echo "Running directory structure analysis..."
+        php scripts/analyze-directory-structure.php --export directory-analysis.json
+        
+        # Check if analysis found critical issues
+        if [ -f "directory-analysis.json" ]; then
+          CRITICAL_ISSUES=$(jq '.recommendations.immediate_actions | map(select(.priority == "critical")) | length' directory-analysis.json)
+          echo "critical_issues=$CRITICAL_ISSUES" >> $GITHUB_OUTPUT
+          
+          HIGH_ISSUES=$(jq '.recommendations.immediate_actions | map(select(.priority == "high")) | length' directory-analysis.json)
+          echo "high_issues=$HIGH_ISSUES" >> $GITHUB_OUTPUT
+          
+          TOTAL_FILES=$(jq '.stats.total_files' directory-analysis.json)
+          echo "total_files=$TOTAL_FILES" >> $GITHUB_OUTPUT
+          
+          NEEDS_REORGANIZATION=$(jq '.stats.needs_reorganization' directory-analysis.json)
+          echo "needs_reorganization=$NEEDS_REORGANIZATION" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run Naming Standards Validation
+      id: naming-validation
+      run: |
+        echo "Running naming standards validation..."
+        php artisan naming:validate --report --strict
+        VALIDATION_EXIT_CODE=$?
+        echo "validation_exit_code=$VALIDATION_EXIT_CODE" >> $GITHUB_OUTPUT
+        
+        # Parse validation report if it exists
+        if [ -f "storage/logs/naming-standards-report.json" ]; then
+          VIOLATIONS=$(jq '.stats.violations_found' storage/logs/naming-standards-report.json)
+          echo "violations_found=$VIOLATIONS" >> $GITHUB_OUTPUT
+          
+          WARNINGS=$(jq '.stats.warnings_found' storage/logs/naming-standards-report.json)
+          echo "warnings_found=$WARNINGS" >> $GITHUB_OUTPUT
+          
+          FILES_CHECKED=$(jq '.stats.files_checked' storage/logs/naming-standards-report.json)
+          echo "files_checked=$FILES_CHECKED" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Install PHPStan
+      run: composer require --dev phpstan/phpstan
+
+    - name: Run PHPStan with Naming Rules
+      id: phpstan-naming
+      continue-on-error: true
+      run: |
+        echo "Running PHPStan with naming rules..."
+        if [ -f "phpstan-naming-rules.neon" ]; then
+          vendor/bin/phpstan analyse --configuration=phpstan-naming-rules.neon --error-format=json > phpstan-naming-results.json || true
+          
+          if [ -f "phpstan-naming-results.json" ]; then
+            PHPSTAN_ERRORS=$(jq '.totals.errors // 0' phpstan-naming-results.json)
+            echo "phpstan_errors=$PHPSTAN_ERRORS" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "PHPStan naming rules configuration not found, skipping..."
+          echo "phpstan_errors=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Generate Naming Standards Report
+      run: |
+        echo "# 📋 Naming Standards Validation Report" > naming-report.md
+        echo "" >> naming-report.md
+        echo "**Generated on:** $(date)" >> naming-report.md
+        echo "**Commit:** ${{ github.sha }}" >> naming-report.md
+        echo "**Branch:** ${{ github.ref_name }}" >> naming-report.md
+        echo "" >> naming-report.md
+        
+        echo "## 📊 Summary" >> naming-report.md
+        echo "" >> naming-report.md
+        echo "| Metric | Count |" >> naming-report.md
+        echo "|--------|-------|" >> naming-report.md
+        echo "| Total Files Analyzed | ${{ steps.naming-validation.outputs.files_checked || 'N/A' }} |" >> naming-report.md
+        echo "| Naming Violations | ${{ steps.naming-validation.outputs.violations_found || 'N/A' }} |" >> naming-report.md
+        echo "| Warnings | ${{ steps.naming-validation.outputs.warnings_found || 'N/A' }} |" >> naming-report.md
+        echo "| Files Needing Reorganization | ${{ steps.directory-analysis.outputs.needs_reorganization || 'N/A' }} |" >> naming-report.md
+        echo "| PHPStan Naming Errors | ${{ steps.phpstan-naming.outputs.phpstan_errors || 'N/A' }} |" >> naming-report.md
+        echo "" >> naming-report.md
+        
+        # Add status badges
+        VIOLATIONS=${{ steps.naming-validation.outputs.violations_found || 0 }}
+        CRITICAL=${{ steps.directory-analysis.outputs.critical_issues || 0 }}
+        
+        if [ "$VIOLATIONS" -eq 0 ] && [ "$CRITICAL" -eq 0 ]; then
+          echo "## ✅ Status: PASSED" >> naming-report.md
+          echo "All naming standards are compliant!" >> naming-report.md
+        elif [ "$CRITICAL" -gt 0 ]; then
+          echo "## ❌ Status: CRITICAL ISSUES FOUND" >> naming-report.md
+          echo "Critical naming standard violations detected that require immediate attention." >> naming-report.md
+        else
+          echo "## ⚠️ Status: WARNINGS" >> naming-report.md
+          echo "Some naming standard violations found. Review and fix when possible." >> naming-report.md
+        fi
+        
+        echo "" >> naming-report.md
+        echo "## 📁 Directory Analysis" >> naming-report.md
+        
+        if [ -f "directory-analysis.json" ]; then
+          echo "" >> naming-report.md
+          echo "### Organization Scores" >> naming-report.md
+          echo "" >> naming-report.md
+          
+          # Extract and format directory scores
+          jq -r '.analysis | to_entries[] | "- **\(.key)**: \(.value.organization_score // 0)%"' directory-analysis.json >> naming-report.md
+          
+          echo "" >> naming-report.md
+          echo "### Immediate Actions Required" >> naming-report.md
+          echo "" >> naming-report.md
+          
+          IMMEDIATE_ACTIONS=$(jq '.recommendations.immediate_actions | length' directory-analysis.json)
+          if [ "$IMMEDIATE_ACTIONS" -gt 0 ]; then
+            jq -r '.recommendations.immediate_actions[] | "- **[\(.type)]** \(.action)"' directory-analysis.json >> naming-report.md
+          else
+            echo "No immediate actions required! 🎉" >> naming-report.md
+          fi
+        fi
+        
+        echo "" >> naming-report.md
+        echo "## 🔧 Recommendations" >> naming-report.md
+        echo "" >> naming-report.md
+        echo "1. **Review violations**: Check the detailed report in the job artifacts" >> naming-report.md
+        echo "2. **Apply fixes**: Run \`php artisan naming:validate --fix\` locally" >> naming-report.md
+        echo "3. **Reorganize files**: Use the migration script for structural changes" >> naming-report.md
+        echo "4. **Update documentation**: Ensure MODULAR_NAMING_STANDARDS.md is followed" >> naming-report.md
+        echo "" >> naming-report.md
+        echo "## 📚 Resources" >> naming-report.md
+        echo "" >> naming-report.md
+        echo "- [Modular Naming Standards](./MODULAR_NAMING_STANDARDS.md)" >> naming-report.md
+        echo "- [Migration Script](./migrate-modular-naming.php)" >> naming-report.md
+        echo "- [Directory Analysis Script](./scripts/analyze-directory-structure.php)" >> naming-report.md
+
+    - name: Upload Analysis Artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: naming-standards-analysis
+        path: |
+          directory-analysis.json
+          storage/logs/naming-standards-report.json
+          phpstan-naming-results.json
+          naming-report.md
+        retention-days: 30
+
+    - name: Comment PR with Results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          if (fs.existsSync('naming-report.md')) {
+            const report = fs.readFileSync('naming-report.md', 'utf8');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('📋 Naming Standards Validation Report')
+            );
+            
+            const commentBody = `${report}
+            
+            ---
+            *This comment was automatically generated by the Naming Standards Validation workflow.*`;
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+          }
+
+    - name: Set Job Status
+      run: |
+        VIOLATIONS=${{ steps.naming-validation.outputs.violations_found || 0 }}
+        CRITICAL=${{ steps.directory-analysis.outputs.critical_issues || 0 }}
+        VALIDATION_EXIT_CODE=${{ steps.naming-validation.outputs.validation_exit_code || 0 }}
+        
+        echo "Validation Results:"
+        echo "- Violations: $VIOLATIONS"
+        echo "- Critical Issues: $CRITICAL"
+        echo "- Validation Exit Code: $VALIDATION_EXIT_CODE"
+        
+        # Fail the job if there are critical issues or validation failures
+        if [ "$CRITICAL" -gt 0 ] || [ "$VALIDATION_EXIT_CODE" -ne 0 ]; then
+          echo "❌ Job failed due to critical naming standard violations"
+          exit 1
+        elif [ "$VIOLATIONS" -gt 0 ]; then
+          echo "⚠️ Job completed with warnings - naming violations found"
+          # Don't fail for warnings, just report them
+          exit 0
+        else
+          echo "✅ Job completed successfully - all naming standards compliant"
+          exit 0
+        fi
+
+  # Optional: Auto-fix job that creates a PR with fixes
+  auto-fix-naming:
+    runs-on: ubuntu-latest
+    needs: validate-naming-standards
+    if: |
+      failure() && 
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/develop' &&
+      github.repository_owner == github.actor
+    name: Auto-fix Naming Standards
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Copy environment file
+      run: cp .env.example .env
+
+    - name: Generate application key
+      run: php artisan key:generate
+
+    - name: Apply automatic fixes
+      run: |
+        echo "Applying automatic naming fixes..."
+        php artisan naming:validate --fix
+        
+        # Check if any files were modified
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Files were modified by auto-fix"
+          echo "auto_fix_applied=true" >> $GITHUB_ENV
+        else
+          echo "No files were modified"
+          echo "auto_fix_applied=false" >> $GITHUB_ENV
+        fi
+
+    - name: Create Pull Request with fixes
+      if: env.auto_fix_applied == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "🔧 Auto-fix naming standard violations"
+        title: "🔧 Auto-fix: Naming Standards Compliance"
+        body: |
+          ## 🔧 Automatic Naming Standards Fixes
+          
+          This PR was automatically created to fix naming standard violations detected in the codebase.
+          
+          ### Changes Made:
+          - Applied automatic fixes for naming convention violations
+          - Updated class names to include proper suffixes
+          - Fixed namespace declarations where possible
+          
+          ### Review Required:
+          Please review these changes carefully before merging. Some fixes may require manual adjustment.
+          
+          ### Next Steps:
+          1. Review all changed files
+          2. Test the application to ensure functionality is preserved
+          3. Update any references to renamed classes
+          4. Merge when satisfied with the changes
+          
+          ---
+          *This PR was automatically generated by the Naming Standards Validation workflow.*
+        branch: auto-fix/naming-standards
+        delete-branch: true
+        draft: false
+        labels: |
+          auto-fix
+          naming-standards
+          maintenance

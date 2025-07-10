@@ -7,7 +7,7 @@ use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Requests\UpdateMeRequest;
 use App\Http\Requests\UpdateMeAlternativeRequest;
 use App\Http\Resources\UserResource;
-use App\Services\ProfileUpdateService;
+use App\Services\Profile\ProfileUpdateService;
 use App\Services\ProfilePictureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

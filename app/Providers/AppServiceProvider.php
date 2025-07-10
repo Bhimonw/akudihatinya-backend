@@ -11,7 +11,7 @@ use App\Services\StatisticsCacheService;
 use App\Services\ArchiveService;
 use App\Formatters\AdminMonthlyFormatter;
 use App\Formatters\AdminQuarterlyFormatter;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use App\Formatters\AdminAllFormatter;
 use App\Formatters\PuskesmasFormatter;
 use App\Services\DiseaseStatisticsService;

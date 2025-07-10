@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API\Shared;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use App\Services\StatisticsAdminService;
 use Carbon\Carbon;
 

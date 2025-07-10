@@ -3,12 +3,12 @@
 namespace Tests\Unit\Traits;
 
 use App\Constants\ValidationConstants;
-use App\Traits\HasCommonValidationRules;
+use App\Traits\Validation\HasCommonValidationRulesTrait;
 use Tests\TestCase;
 
 class HasCommonValidationRulesTest extends TestCase
 {
-    use HasCommonValidationRules;
+    use HasCommonValidationRulesTrait;
     
     /** @test */
     public function it_returns_correct_name_rules_when_required()

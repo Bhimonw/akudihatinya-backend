@@ -3,20 +3,21 @@
 namespace App\Http\Controllers\API\Shared;
 
 use App\Http\Controllers\Controller;
-use App\Services\StatisticsService;
-use App\Services\StatisticsDataService;
+use App\Services\Statistics\StatisticsService;
+use App\Services\Statistics\StatisticsDataService;
 use App\Services\StatisticsExportService;
 use App\Services\MonitoringReportService;
 use App\Services\RealTimeStatisticsService;
 use App\Repositories\PuskesmasRepositoryInterface;
-use App\Traits\StatisticsValidationTrait;
+use App\Traits\Validation\StatisticsValidationTrait;
+use App\Traits\Calculation\PercentageCalculationTrait;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
 class StatisticsController extends Controller
 {
-    use StatisticsValidationTrait;
+    use StatisticsValidationTrait, PercentageCalculationTrait;
 
     protected $statisticsService;
     protected $statisticsDataService;
@@ -138,7 +139,7 @@ class StatisticsController extends Controller
             $puskesmasData['ht'] = [
                 'target' => $htTarget,
                 'total_patients' => (string)$htData['summary']['total'],
-                'achievement_percentage' => $htTarget > 0 ? max(0, round(((int)$htData['summary']['standard'] / $htTarget) * 100, 2)) : 0,
+                'achievement_percentage' => $this->calculateAchievementPercentage($htData['summary']['standard'], $htTarget),
                 'standard_patients' => (string)$htData['summary']['standard'],
                 'non_standard_patients' => (string)$htData['summary']['non_standard'],
                 'male_patients' => (string)$htData['summary']['male'],
@@ -154,7 +155,7 @@ class StatisticsController extends Controller
             $puskesmasData['dm'] = [
                 'target' => $dmTarget,
                 'total_patients' => (string)$dmData['summary']['total'],
-                'achievement_percentage' => $dmTarget > 0 ? max(0, round(((int)$dmData['summary']['standard'] / $dmTarget) * 100, 2)) : 0,
+                'achievement_percentage' => $this->calculateAchievementPercentage($dmData['summary']['standard'], $dmTarget),
                 'standard_patients' => (string)$dmData['summary']['standard'],
                 'non_standard_patients' => (string)$dmData['summary']['non_standard'],
                 'male_patients' => (string)$dmData['summary']['male'],
@@ -213,7 +214,7 @@ class StatisticsController extends Controller
                 $puskesmasData['ht'] = [
                     'target' => $htTarget,
                     'total_patients' => (string)$htData['summary']['total'],
-                    'achievement_percentage' => $htTarget > 0 ? max(0, round(((int)$htData['summary']['standard'] / $htTarget) * 100, 2)) : 0,
+                    'achievement_percentage' => $this->calculateAchievementPercentage($htData['summary']['standard'], $htTarget),
                     'standard_patients' => (string)$htData['summary']['standard'],
                     'non_standard_patients' => (string)$htData['summary']['non_standard'],
                     'male_patients' => (string)$htData['summary']['male'],
@@ -256,7 +257,7 @@ class StatisticsController extends Controller
                 $puskesmasData['dm'] = [
                     'target' => $dmTarget,
                     'total_patients' => (string)$dmData['summary']['total'],
-                    'achievement_percentage' => $dmTarget > 0 ? max(0, round(((int)$dmData['summary']['standard'] / $dmTarget) * 100, 2)) : 0,
+                    'achievement_percentage' => $this->calculateAchievementPercentage($dmData['summary']['standard'], $dmTarget),
                     'standard_patients' => (string)$dmData['summary']['standard'],
                     'non_standard_patients' => (string)$dmData['summary']['non_standard'],
                     'male_patients' => (string)$dmData['summary']['male'],
@@ -300,7 +301,7 @@ class StatisticsController extends Controller
         
         // Calculate monthly percentages for summary
         foreach ($htMonthlyData as $month => &$monthData) {
-            $monthData['percentage'] = $htTotalTarget > 0 ? max(0, round(($monthData['standard'] / $htTotalTarget) * 100, 2)) : 0;
+            $monthData['percentage'] = $this->calculateAchievementPercentage($monthData['standard'], $htTotalTarget);
             // Convert all values to strings for consistency
             $monthData['male'] = (string)$monthData['male'];
             $monthData['female'] = (string)$monthData['female'];
@@ -309,7 +310,7 @@ class StatisticsController extends Controller
             $monthData['non_standard'] = (string)$monthData['non_standard'];
         }
         foreach ($dmMonthlyData as $month => &$monthData) {
-            $monthData['percentage'] = $dmTotalTarget > 0 ? max(0, round(($monthData['standard'] / $dmTotalTarget) * 100, 2)) : 0;
+            $monthData['percentage'] = $this->calculateAchievementPercentage($monthData['standard'], $dmTotalTarget);
             // Convert all values to strings for consistency
             $monthData['male'] = (string)$monthData['male'];
             $monthData['female'] = (string)$monthData['female'];
@@ -327,7 +328,7 @@ class StatisticsController extends Controller
                 'non_standard_patients' => (string)$htTotalNonStandard,
                 'male_patients' => (string)$htTotalMale,
                 'female_patients' => (string)$htTotalFemale,
-                'achievement_percentage' => $htTotalTarget > 0 ? max(0, round(($htTotalStandard / $htTotalTarget) * 100, 2)) : 0,
+                'achievement_percentage' => $this->calculateAchievementPercentage($htTotalStandard, $htTotalTarget),
                 'monthly_data' => $htMonthlyData
             ];
         }
@@ -340,7 +341,7 @@ class StatisticsController extends Controller
                 'non_standard_patients' => (string)$dmTotalNonStandard,
                 'male_patients' => (string)$dmTotalMale,
                 'female_patients' => (string)$dmTotalFemale,
-                'achievement_percentage' => $dmTotalTarget > 0 ? max(0, round(($dmTotalStandard / $dmTotalTarget) * 100, 2)) : 0,
+                'achievement_percentage' => $this->calculateAchievementPercentage($dmTotalStandard, $dmTotalTarget),
                 'monthly_data' => $dmMonthlyData
             ];
         }
@@ -394,7 +395,7 @@ class StatisticsController extends Controller
                 'total' => (string)$monthData['total'],
                 'standard' => (string)$monthData['standard'],
                 'non_standard' => (string)$monthData['non_standard'],
-                'percentage' => $target > 0 ? max(0, round(((int)$monthData['standard'] / $target) * 100, 2)) : 0
+                'percentage' => $this->calculateAchievementPercentage($monthData['standard'], $target)
             ];
         }
         return $formatted;
@@ -423,7 +424,7 @@ class StatisticsController extends Controller
                 'total' => (string)$monthData['total'],
                 'standard' => (string)$monthData['standard'],
                 'non_standard' => (string)$monthData['non_standard'],
-                'percentage' => $yearlyTarget > 0 ? max(0, round(((int)$monthData['standard'] / $yearlyTarget) * 100, 2)) : 0
+                'percentage' => $this->calculateAchievementPercentage($monthData['standard'], $yearlyTarget)
             ];
         }
         return $formatted;
@@ -538,7 +539,7 @@ class StatisticsController extends Controller
                 
                 // Calculate percentage for this month using yearly target
                 $monthStandard = (int)$monthlyData[$month]['standard'];
-                $monthlyData[$month]['percentage'] = $totalTarget > 0 ? max(0, round(($monthStandard / $totalTarget) * 100, 2)) : 0;
+                $monthlyData[$month]['percentage'] = $this->calculateAchievementPercentage($monthStandard, $totalTarget);
             }
         }
 
@@ -549,7 +550,7 @@ class StatisticsController extends Controller
                 'non_standard_patients' => (string)$totalNonStandard,
                 'male_patients' => (string)$totalMale,
                 'female_patients' => (string)$totalFemale,
-                'achievement_percentage' => $totalTarget > 0 ? max(0, round(($totalStandard / $totalTarget) * 100, 2)) : 0,
+                'achievement_percentage' => $this->calculateAchievementPercentage($totalStandard, $totalTarget),
             'monthly_data' => $monthlyData
         ];
     }

@@ -8,6 +8,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use App\Services\StatisticsService;
+use App\Traits\Calculation\PercentageCalculationTrait;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Log;
  */
 abstract class BaseAdminFormatter
 {
+    use PercentageCalculationTrait;
     protected $statisticsService;
     protected $sheet;
     
@@ -176,34 +178,14 @@ abstract class BaseAdminFormatter
 
     /**
      * Calculate percentage safely with 0-100% constraint
+     * Alias untuk calculateStandardPercentage dari trait
      */
     protected function calculatePercentage($numerator, $denominator, int $decimals = 2): float
     {
-        if ($denominator == 0) {
-            return 0;
-        }
-        
-        $percentage = round(($numerator / $denominator) * 100, $decimals);
-        
-        // Pastikan persentase tetap dalam range 0-100%
-        return max(0, min(100, $percentage));
+        return $this->calculateStandardPercentage($numerator, $denominator, $decimals);
     }
 
-    /**
-     * Calculate percentage allowing values above 100% for achievement scenarios
-     * Digunakan untuk kasus di mana pencapaian bisa melebihi target (>100%)
-     */
-    protected function calculateAchievementPercentage($numerator, $denominator, int $decimals = 2): float
-    {
-        if ($denominator == 0) {
-            return 0;
-        }
-        
-        $percentage = round(($numerator / $denominator) * 100, $decimals);
-        
-        // Hanya pastikan tidak negatif, tapi izinkan >100%
-        return max(0, $percentage);
-    }
+    // Method calculateAchievementPercentage sekarang tersedia melalui PercentageCalculationTrait
 
     /**
      * Merge cells safely

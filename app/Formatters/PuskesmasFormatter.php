@@ -4,6 +4,7 @@ namespace App\Formatters;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use App\Services\StatisticsService;
+use App\Traits\Calculation\PercentageCalculationTrait;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Log;
  */
 class PuskesmasFormatter extends ExcelExportFormatter
 {
+    use PercentageCalculationTrait;
     public function __construct(StatisticsService $statisticsService)
     {
         parent::__construct($statisticsService);
@@ -217,10 +219,8 @@ class PuskesmasFormatter extends ExcelExportFormatter
                 $this->sheet->setCellValue('F' . $row, $data['standard']); // Standar
                 $this->sheet->setCellValue('G' . $row, $data['non_standard']); // Tidak Standar
                 
-                // Hitung persentase standar
-                $percentage = $data['total'] > 0 ? round(($data['standard'] / $data['total']) * 100, 2) : 0;
-                // Pastikan persentase tetap dalam range 0-100%
-                $percentage = max(0, min(100, $percentage));
+                // Hitung persentase standar (standar/total tidak bisa >100%)
+                $percentage = $this->calculateStandardPercentage($data['standard'], $data['total']);
                 $this->sheet->setCellValue('H' . $row, $percentage . '%'); // % Standar
             }
         }
@@ -272,9 +272,8 @@ class PuskesmasFormatter extends ExcelExportFormatter
         // Persentase standar tahunan
         $total = $yearlyTotal['total'] ?? 0;
         $standard = $yearlyTotal['standard'] ?? 0;
-        $percentage = $total > 0 ? round(($standard / $total) * 100, 2) : 0;
-        // Pastikan persentase tetap dalam range 0-100%
-        $percentage = max(0, min(100, $percentage));
+        // Hitung persentase standar total (standar/total tidak bisa >100%)
+        $percentage = $this->calculateStandardPercentage($standard, $total);
         $this->sheet->setCellValue('H' . $row, $percentage . '%');
         
         // Style bold untuk baris total
