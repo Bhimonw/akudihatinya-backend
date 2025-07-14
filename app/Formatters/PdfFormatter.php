@@ -2,7 +2,7 @@
 
 namespace App\Formatters;
 
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 

@@ -14,11 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Register middleware aliases
         $middleware->alias([
-            'auth' => \App\Http\Middleware\Authenticate::class,
-            'is_admin' => \App\Http\Middleware\IsAdmin::class,
-            'is_puskesmas' => \App\Http\Middleware\IsPuskesmas::class,
-            'admin_or_puskesmas' => \App\Http\Middleware\AdminOrPuskesmas::class,
-            'check_user_role' => \App\Http\Middleware\CheckUserRole::class,
+            'auth' => \App\Http\Middleware\AuthenticateMiddleware::class,
+            'is_admin' => \App\Http\Middleware\IsAdminMiddleware::class,
+            'is_puskesmas' => \App\Http\Middleware\IsPuskesmasMiddleware::class,
+            'admin_or_puskesmas' => \App\Http\Middleware\AdminOrPuskesmasMiddleware::class,
+            'check_user_role' => \App\Http\Middleware\CheckUserRoleMiddleware::class,
         ]);
 
         // API middleware group (with throttle)
@@ -30,7 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Web middleware group
         $middleware->group('web', [
-            \App\Http\Middleware\EncryptCookies::class,
+            \App\Http\Middleware\EncryptCookiesMiddleware::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,

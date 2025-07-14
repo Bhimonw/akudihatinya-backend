@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\DmExamination;
-use App\Services\RealTimeStatisticsService;
+use App\Services\Statistics\RealTimeStatisticsService;
 use Carbon\Carbon;
 
 class DmExaminationObserver

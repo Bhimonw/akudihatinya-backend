@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
-use App\Services\DiseaseStatisticsService;
+use App\Services\Statistics\DiseaseStatisticsService;
 
 /**
  * Optimized Statistics Service

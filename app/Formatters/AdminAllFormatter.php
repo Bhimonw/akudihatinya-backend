@@ -3,7 +3,8 @@
 namespace App\Formatters;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
+use App\Traits\Calculation\PercentageCalculationTrait;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Log;
  */
 class AdminAllFormatter extends ExcelExportFormatter
 {
+    use PercentageCalculationTrait;
+    
     public function __construct(StatisticsService $statisticsService)
     {
         parent::__construct($statisticsService);

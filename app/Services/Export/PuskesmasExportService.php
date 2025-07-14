@@ -5,7 +5,7 @@ namespace App\Services\Export;
 use Carbon\Carbon;
 use App\Models\Puskesmas;
 use App\Models\YearlyTarget;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use App\Formatters\PuskesmasFormatter;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;

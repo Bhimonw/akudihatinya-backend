@@ -8,7 +8,7 @@ use App\Http\Requests\UpdateMeRequest;
 use App\Http\Requests\UpdateMeAlternativeRequest;
 use App\Http\Resources\UserResource;
 use App\Services\Profile\ProfileUpdateService;
-use App\Services\ProfilePictureService;
+use App\Services\Profile\ProfilePictureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;

@@ -18,7 +18,7 @@ Route::middleware('auth:sanctum')->prefix('users')->group(function () {
 });
 
 // Admin user management routes
-Route::middleware(['auth:sanctum', \App\Http\Middleware\IsAdmin::class])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\IsAdminMiddleware::class])->prefix('admin')->group(function () {
     // User management
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
     Route::resource('users', UserController::class)->except(['create', 'edit']);

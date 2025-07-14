@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\StatisticsCacheService;
+use App\Services\Statistics\StatisticsCacheService;
 use Illuminate\Console\Command;
 
 class RebuildStatisticsCache extends Command

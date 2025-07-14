@@ -6,7 +6,7 @@ use App\Models\Patient;
 use App\Models\Puskesmas;
 use App\Models\HtExamination;
 use App\Models\DmExamination;
-use App\Services\StatisticsCacheService;
+use App\Services\Statistics\StatisticsCacheService;
 use Illuminate\Database\Seeder;
 use Faker\Factory as Faker;
 use Illuminate\Support\Carbon;

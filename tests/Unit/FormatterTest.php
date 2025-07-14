@@ -9,7 +9,7 @@ use App\Formatters\AdminQuarterlyFormatter;
 use App\Formatters\PuskesmasFormatter;
 use App\Formatters\BaseAdminFormatter;
 use App\Formatters\ExcelExportFormatter;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Mockery;
 

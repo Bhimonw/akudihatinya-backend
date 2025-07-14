@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Patient;
 use App\Models\DmExamination;
-use App\Services\StatisticsCacheService;
+use App\Services\Statistics\StatisticsCacheService;
 use Illuminate\Support\Carbon;
 use Faker\Factory as Faker;
 

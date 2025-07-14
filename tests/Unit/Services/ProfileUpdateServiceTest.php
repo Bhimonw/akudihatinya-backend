@@ -4,8 +4,8 @@ namespace Tests\Unit\Services;
 
 use App\Models\User;
 use App\Models\Puskesmas;
-use App\Services\ProfileUpdateService;
-use App\Services\ProfilePictureService;
+use App\Services\Profile\ProfileUpdateService;
+use App\Services\Profile\ProfilePictureService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;

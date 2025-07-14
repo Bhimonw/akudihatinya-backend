@@ -7,7 +7,7 @@ use App\Formatters\AdminAllFormatter;
 use App\Formatters\AdminMonthlyFormatter;
 use App\Formatters\AdminQuarterlyFormatter;
 use App\Formatters\PuskesmasFormatter;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Mockery;

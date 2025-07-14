@@ -7,7 +7,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use App\Traits\Calculation\PercentageCalculationTrait;
 use Illuminate\Support\Facades\Log;
 

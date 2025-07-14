@@ -4,10 +4,10 @@ use App\Http\Controllers\API\Puskesmas\HtExaminationController;
 use App\Http\Controllers\API\Puskesmas\DmExaminationController;
 use App\Http\Controllers\API\Puskesmas\PatientController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Middleware\IsPuskesmas;
+use App\Http\Middleware\IsPuskesmasMiddleware;
 
 // Examination routes (Puskesmas only)
-Route::middleware(['auth:sanctum', IsPuskesmas::class])->prefix('puskesmas')->group(function () {
+Route::middleware(['auth:sanctum', IsPuskesmasMiddleware::class])->prefix('puskesmas')->group(function () {
     // Patients
     Route::resource('patients', PatientController::class)->except(['create', 'edit']);
     Route::get('/patients-export', [PatientController::class, 'export']);

@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
-class AdminOrPuskesmas
+class AdminOrPuskesmasMiddleware
 {
     /**
      * Handle an incoming request.

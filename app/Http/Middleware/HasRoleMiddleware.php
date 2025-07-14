@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Middleware yang lebih fleksibel untuk role-based access control
  * Dapat menerima multiple roles dan kondisi OR/AND
  */
-class HasRole
+class HasRoleMiddleware
 {
     /**
      * Handle an incoming request.

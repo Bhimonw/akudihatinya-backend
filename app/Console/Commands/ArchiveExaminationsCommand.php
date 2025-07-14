@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\ArchiveService;
+use App\Services\System\ArchiveService;
 use Illuminate\Console\Command;
 
 class ArchiveExaminations extends Command

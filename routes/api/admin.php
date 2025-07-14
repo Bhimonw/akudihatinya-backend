@@ -4,7 +4,7 @@ use App\Http\Controllers\API\Admin\YearlyTargetController;
 use Illuminate\Support\Facades\Route;
 
 // Admin-specific routes (yearly targets management)
-Route::middleware(['auth:sanctum', \App\Http\Middleware\IsAdmin::class])->prefix('admin')->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\IsAdminMiddleware::class])->prefix('admin')->group(function () {
     // Yearly targets management
     Route::get('/yearly-targets', [YearlyTargetController::class, 'index']);
     Route::post('/yearly-targets', [YearlyTargetController::class, 'store']);

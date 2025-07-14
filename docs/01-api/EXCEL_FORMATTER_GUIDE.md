@@ -114,10 +114,10 @@ php artisan storage:link
 ### Basic Usage
 
 ```php
-use App\Services\ExcelExportService;
+use App\Services\Export\StatisticsExportService;
 
 // Inject service
-$excelService = app(ExcelExportService::class);
+$excelService = app(StatisticsExportService::class);
 
 // Export all.xlsx
 $result = $excelService->exportAll('ht', 2024);

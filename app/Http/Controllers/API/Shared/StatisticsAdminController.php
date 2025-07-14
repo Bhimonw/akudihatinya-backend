@@ -5,7 +5,7 @@ namespace App\Http\Controllers\API\Shared;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\Statistics\StatisticsService;
-use App\Services\StatisticsAdminService;
+use App\Services\Statistics\StatisticsAdminService;
 use Carbon\Carbon;
 
 class StatisticsAdminController extends Controller

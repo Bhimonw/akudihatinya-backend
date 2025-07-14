@@ -53,21 +53,21 @@ class Kernel extends HttpKernel
      * @var array<string, class-string|string>
      */
     protected $middlewareAliases = [
-        'auth' => \App\Http\Middleware\Authenticate::class,
+        'auth' => \App\Http\Middleware\AuthenticateMiddleware::class,
         'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
         'auth.session' => \Illuminate\Session\Middleware\AuthenticateSession::class,
         'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
         'can' => \Illuminate\Auth\Middleware\Authorize::class,
-        'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
+        'guest' => \App\Http\Middleware\RedirectIfAuthenticatedMiddleware::class,
         'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
         'precognitive' => \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
-        'signed' => \App\Http\Middleware\ValidateSignature::class,
+        'signed' => \App\Http\Middleware\ValidateSignatureMiddleware::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         // Middleware khusus aplikasi
-        'role' => \App\Http\Middleware\CheckUserRole::class,
-        'admin' => \App\Http\Middleware\IsAdmin::class,
-        'puskesmas' => \App\Http\Middleware\IsPuskesmas::class,
-        'admin.or.puskesmas' => \App\Http\Middleware\AdminOrPuskesmas::class,
+        'role' => \App\Http\Middleware\CheckUserRoleMiddleware::class,
+        'admin' => \App\Http\Middleware\IsAdminMiddleware::class,
+        'puskesmas' => \App\Http\Middleware\IsPuskesmasMiddleware::class,
+        'admin.or.puskesmas' => \App\Http\Middleware\AdminOrPuskesmasMiddleware::class,
     ];
 }

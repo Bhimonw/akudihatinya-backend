@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\NewYearSetupService;
+use App\Services\System\NewYearSetupService;
 use Illuminate\Console\Command;
 
 class SetupNewYear extends Command

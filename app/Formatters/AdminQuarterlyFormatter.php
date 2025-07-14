@@ -3,7 +3,7 @@
 namespace App\Formatters;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use Illuminate\Support\Facades\Log;
 
 /**

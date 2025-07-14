@@ -10,10 +10,10 @@ use App\Models\DmExamination;
 use App\Models\HtExamination;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use Illuminate\Support\Facades\Auth;
 use App\Formatters\AdminAllFormatter;
-use App\Services\DashboardPdfService;
+use App\Services\Export\PdfService;
 use App\Models\MonthlyStatisticsCache;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Formatters\AdminMonthlyFormatter;
@@ -615,7 +615,7 @@ class ExportService
     {
         try {
             // Use PdfService for PDF generation
-            $pdfService = app(\App\Services\PdfService::class);
+            $pdfService = app(\App\Services\Export\PdfService::class);
 
             if ($isRecap) {
                 return $pdfService->generateQuarterlyRecapPdf($puskesmasAll, $year, $diseaseType, $filename);

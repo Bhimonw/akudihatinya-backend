@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\HtExamination;
 use App\Models\DmExamination;
-use App\Services\RealTimeStatisticsService;
+use App\Services\Statistics\RealTimeStatisticsService;
 use Illuminate\Support\Facades\DB;
 
 class PopulateExaminationStats extends Command

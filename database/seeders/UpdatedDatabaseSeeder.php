@@ -9,7 +9,7 @@ use App\Models\YearlyTarget;
 use App\Models\HtExamination;
 use App\Models\DmExamination;
 use App\Models\MonthlyStatisticsCache;
-use App\Services\StatisticsCacheService;
+use App\Services\Statistics\StatisticsCacheService;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;

@@ -3,7 +3,7 @@
 namespace App\Services\Statistics;
 
 use Illuminate\Http\Request;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use Carbon\Carbon;
 
 class StatisticsAdminService

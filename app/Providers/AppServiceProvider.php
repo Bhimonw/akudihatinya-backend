@@ -7,17 +7,28 @@ use App\Models\HtExamination;
 use App\Models\DmExamination;
 use App\Observers\HtExaminationObserver;
 use App\Observers\DmExaminationObserver;
-use App\Services\StatisticsCacheService;
-use App\Services\ArchiveService;
+use App\Services\Statistics\StatisticsCacheService;
+use App\Services\System\ArchiveService;
 use App\Formatters\AdminMonthlyFormatter;
 use App\Formatters\AdminQuarterlyFormatter;
 use App\Services\Statistics\StatisticsService;
 use App\Formatters\AdminAllFormatter;
 use App\Formatters\PuskesmasFormatter;
-use App\Services\DiseaseStatisticsService;
+use App\Services\Statistics\DiseaseStatisticsService;
+use App\Services\Statistics\StatisticsDataService;
+use App\Services\Statistics\StatisticsAdminService;
+use App\Services\Statistics\RealTimeStatisticsService;
+use App\Services\Statistics\OptimizedStatisticsService;
+use App\Services\Export\StatisticsExportService;
+use App\Services\Export\PuskesmasExportService;
+use App\Services\System\MonitoringReportService;
+use App\Services\System\NewYearSetupService;
+use App\Services\Profile\ProfileUpdateService;
+use App\Services\Profile\ProfilePictureService;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
-use App\Services\DashboardPdfService;
+use App\Services\Export\PdfService;
+use App\Formatters\PdfFormatter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -51,6 +62,34 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
+        // Register StatisticsDataService with StatisticsService dependency
+        $this->app->singleton(StatisticsDataService::class, function ($app) {
+            return new StatisticsDataService(
+                $app->make(StatisticsService::class)
+            );
+        });
+
+        // Register StatisticsAdminService with StatisticsService dependency
+        $this->app->singleton(StatisticsAdminService::class, function ($app) {
+            return new StatisticsAdminService(
+                $app->make(StatisticsService::class)
+            );
+        });
+
+        // Register RealTimeStatisticsService
+        $this->app->singleton(RealTimeStatisticsService::class, function ($app) {
+            return new RealTimeStatisticsService();
+        });
+
+        // Register OptimizedStatisticsService with dependencies
+        $this->app->singleton(OptimizedStatisticsService::class, function ($app) {
+            return new OptimizedStatisticsService(
+                $app->make(PuskesmasRepository::class),
+                $app->make(YearlyTargetRepository::class),
+                $app->make(DiseaseStatisticsService::class)
+            );
+        });
+
         // Register services
         $this->app->singleton(StatisticsCacheService::class, function ($app) {
             return new StatisticsCacheService();
@@ -60,10 +99,60 @@ class AppServiceProvider extends ServiceProvider
             return new ArchiveService();
         });
 
-        // Register DashboardPdfService with StatisticsService dependency
-        $this->app->singleton(DashboardPdfService::class, function ($app) {
-            return new DashboardPdfService(
+        // Register Export Services
+        $this->app->singleton(StatisticsExportService::class, function ($app) {
+            return new StatisticsExportService(
+                $app->make(PdfService::class),
+                $app->make(PuskesmasExportService::class),
+                $app->make(StatisticsDataService::class),
+                $app->make(AdminAllFormatter::class),
+                $app->make(AdminMonthlyFormatter::class),
+                $app->make(AdminQuarterlyFormatter::class)
+            );
+        });
+
+        $this->app->singleton(PuskesmasExportService::class, function ($app) {
+            return new PuskesmasExportService(
+                $app->make(StatisticsService::class),
+                $app->make(PuskesmasFormatter::class)
+            );
+        });
+
+        // Register System Services
+        $this->app->singleton(MonitoringReportService::class, function ($app) {
+            return new MonitoringReportService(
+                $app->make(PdfService::class),
+                $app->make(StatisticsDataService::class)
+            );
+        });
+
+        $this->app->singleton(NewYearSetupService::class, function ($app) {
+            return new NewYearSetupService();
+        });
+
+        // Register Profile Services
+        $this->app->singleton(ProfileUpdateService::class, function ($app) {
+            return new ProfileUpdateService(
+                $app->make(ProfilePictureService::class)
+            );
+        });
+
+        $this->app->singleton(ProfilePictureService::class, function ($app) {
+            return new ProfilePictureService();
+        });
+
+        // Register PdfFormatter
+        $this->app->singleton(PdfFormatter::class, function ($app) {
+            return new PdfFormatter(
                 $app->make(StatisticsService::class)
+            );
+        });
+
+        // Register PdfService with StatisticsAdminService dependency
+        $this->app->singleton(PdfService::class, function ($app) {
+            return new PdfService(
+                $app->make(StatisticsAdminService::class),
+                $app->make(PdfFormatter::class)
             );
         });
 

@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use App\Services\StatisticsService;
+use App\Services\Statistics\StatisticsService;
 use Illuminate\Support\Facades\Log;
 
 /**

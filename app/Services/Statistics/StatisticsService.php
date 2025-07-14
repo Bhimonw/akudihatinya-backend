@@ -8,7 +8,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
-use App\Services\DiseaseStatisticsService;
+use App\Services\Statistics\DiseaseStatisticsService;
 
 class StatisticsService
 {

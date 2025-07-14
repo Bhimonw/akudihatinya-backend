@@ -2,7 +2,7 @@
 
 namespace App\Services\Export;
 
-use App\Services\StatisticsAdminService;
+use App\Services\Statistics\StatisticsAdminService;
 use App\Formatters\PdfFormatter;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
