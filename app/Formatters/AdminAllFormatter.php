@@ -3,7 +3,9 @@
 namespace App\Formatters;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use App\Services\Statistics\StatisticsService;
+use App\Services\Statistics\RealTimeStatisticsService;
 use App\Traits\Calculation\PercentageCalculationTrait;
 use Illuminate\Support\Facades\Log;
 
@@ -15,9 +17,12 @@ class AdminAllFormatter extends ExcelExportFormatter
 {
     use PercentageCalculationTrait;
     
-    public function __construct(StatisticsService $statisticsService)
+    protected $realTimeStatisticsService;
+    
+    public function __construct(StatisticsService $statisticsService, RealTimeStatisticsService $realTimeStatisticsService)
     {
         parent::__construct($statisticsService);
+        $this->realTimeStatisticsService = $realTimeStatisticsService;
     }
 
     /**
@@ -98,13 +103,22 @@ class AdminAllFormatter extends ExcelExportFormatter
                 $this->insertAdditionalRows($insertPosition, $rowsToAdd);
             }
             
+            // Isi data puskesmas dan hitung posisi dinamis untuk summary
+            $lastDataRow = $currentRow;
             foreach ($puskesmasData as $index => $puskesmas) {
                 $this->fillPuskesmasRowInAllTemplate($currentRow, $index + 1, $puskesmas);
+                $lastDataRow = $currentRow; // Track baris data terakhir
                 $currentRow++;
             }
             
-            // Tambahkan total keseluruhan
-            $this->addAllTemplateSummary($currentRow, $puskesmasData);
+            // Posisi summary dinamis: selalu setelah baris data terakhir + 1 baris kosong
+            $summaryRow = $lastDataRow + 2;
+            
+            // Bersihkan baris template yang tidak terpakai untuk membuat tabel lebih dinamis
+            $this->cleanUnusedTemplateRows($currentRow, $summaryRow - 1);
+            
+            // Tambahkan total keseluruhan di posisi dinamis
+            $this->addAllTemplateSummary($summaryRow, $puskesmasData);
         }
     }
     
@@ -206,6 +220,30 @@ class AdminAllFormatter extends ExcelExportFormatter
     }
     
     /**
+     * Bersihkan baris template yang tidak terpakai untuk membuat tabel lebih dinamis
+     * Menghapus baris kosong antara data terakhir dan summary
+     */
+    protected function cleanUnusedTemplateRows($startRow, $endRow)
+    {
+        if ($startRow >= $endRow) {
+            return; // Tidak ada baris yang perlu dibersihkan
+        }
+        
+        // Hapus baris dari bawah ke atas untuk menghindari pergeseran indeks
+        for ($row = $endRow; $row >= $startRow; $row--) {
+            // Periksa apakah baris kosong atau hanya berisi template placeholder
+            $cellA = $this->sheet->getCell('A' . $row)->getValue();
+            $cellB = $this->sheet->getCell('B' . $row)->getValue();
+            $cellC = $this->sheet->getCell('C' . $row)->getValue();
+            
+            // Hapus baris jika kosong atau berisi placeholder template
+            if (empty($cellA) && empty($cellB) && empty($cellC)) {
+                $this->sheet->removeRow($row, 1);
+            }
+        }
+    }
+    
+    /**
      * Isi satu baris data puskesmas di template all.xlsx
      */
     protected function fillPuskesmasRowInAllTemplate($row, $no, $puskesmasData)
@@ -239,25 +277,39 @@ class AdminAllFormatter extends ExcelExportFormatter
     }
     
     /**
-     * Hitung total tahunan dari data bulanan
+     * Hitung total tahunan dari data bulanan dengan format konsisten seperti dashboard
+     * Menggunakan data bulan terakhir yang memiliki data, bukan akumulasi
      */
     protected function calculateYearlyTotal(array $monthlyData): array
     {
-        $total = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
-        
-        foreach ($monthlyData as $month => $data) {
-            $total['male'] += $data['male'] ?? 0;
-            $total['female'] += $data['female'] ?? 0;
-            $total['standard'] += $data['standard'] ?? 0;
-            $total['non_standard'] += $data['non_standard'] ?? 0;
-            $total['total'] += $data['total'] ?? 0;
+        // Cari bulan terakhir yang memiliki data (seperti dashboard)
+        $lastMonthWithData = null;
+        for ($month = 12; $month >= 1; $month--) {
+            $data = $monthlyData[$month] ?? ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+            if ((int)($data['total'] ?? 0) > 0) {
+                $lastMonthWithData = $data;
+                break;
+            }
         }
         
-        return $total;
+        // Jika tidak ada data, return zero
+        if (!$lastMonthWithData) {
+            return ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+        }
+        
+        // Format data seperti dashboard - gunakan data bulan terakhir
+        return [
+            'male' => (int)($lastMonthWithData['male'] ?? 0),
+            'female' => (int)($lastMonthWithData['female'] ?? 0),
+            'standard' => (int)($lastMonthWithData['standard'] ?? 0),
+            'non_standard' => (int)($lastMonthWithData['non_standard'] ?? 0),
+            'total' => (int)($lastMonthWithData['total'] ?? 0)
+        ];
     }
     
     /**
-     * Hitung data triwulan dari data bulanan
+     * Hitung data triwulan dari data bulanan dengan format konsisten seperti dashboard
+     * Menggunakan data bulan terakhir dalam setiap triwulan yang memiliki data
      */
     protected function calculateQuarterlyData(array $monthlyData): array
     {
@@ -271,18 +323,33 @@ class AdminAllFormatter extends ExcelExportFormatter
         $quarterlyData = [];
         
         foreach ($quarters as $quarter => $months) {
-            $quarterTotal = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+            // Cari bulan terakhir dalam triwulan yang memiliki data (seperti dashboard)
+            $lastMonthWithDataInQuarter = null;
             
-            foreach ($months as $month) {
+            // Cek dari bulan terakhir ke bulan pertama dalam triwulan
+            for ($i = count($months) - 1; $i >= 0; $i--) {
+                $month = $months[$i];
                 $data = $monthlyData[$month] ?? ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
-                $quarterTotal['male'] += $data['male'];
-                $quarterTotal['female'] += $data['female'];
-                $quarterTotal['standard'] += $data['standard'];
-                $quarterTotal['non_standard'] += $data['non_standard'];
-                $quarterTotal['total'] += $data['total'];
+                
+                if ((int)($data['total'] ?? 0) > 0) {
+                    $lastMonthWithDataInQuarter = $data;
+                    break;
+                }
             }
             
-            $quarterlyData[$quarter] = $quarterTotal;
+            // Jika tidak ada data dalam triwulan, gunakan zero
+            if (!$lastMonthWithDataInQuarter) {
+                $quarterlyData[$quarter] = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
+            } else {
+                // Format data seperti dashboard - gunakan data bulan terakhir dalam triwulan
+                $quarterlyData[$quarter] = [
+                    'male' => (int)($lastMonthWithDataInQuarter['male'] ?? 0),
+                    'female' => (int)($lastMonthWithDataInQuarter['female'] ?? 0),
+                    'standard' => (int)($lastMonthWithDataInQuarter['standard'] ?? 0),
+                    'non_standard' => (int)($lastMonthWithDataInQuarter['non_standard'] ?? 0),
+                    'total' => (int)($lastMonthWithDataInQuarter['total'] ?? 0)
+                ];
+            }
         }
         
         return $quarterlyData;
@@ -290,6 +357,7 @@ class AdminAllFormatter extends ExcelExportFormatter
     
     /**
      * Isi data untuk satu triwulan (3 bulan + total triwulan)
+     * Menggunakan format konsisten seperti dashboard
      */
     protected function fillQuarterData($row, $startCol, $monthlyData, $months, $quarterTotal, $yearlyTarget = 0)
     {
@@ -299,41 +367,56 @@ class AdminAllFormatter extends ExcelExportFormatter
         foreach ($months as $month) {
             $monthData = $monthlyData[$month] ?? ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0, 'total' => 0];
             
+            // Format data seperti dashboard - konversi ke string untuk konsistensi
+            $formattedData = [
+                'male_patients' => (string)($monthData['male'] ?? 0),
+                'female_patients' => (string)($monthData['female'] ?? 0),
+                'total_patients' => (string)($monthData['total'] ?? 0),
+                'standard_patients' => (string)($monthData['standard'] ?? 0),
+                'non_standard_patients' => (string)($monthData['non_standard'] ?? 0),
+                'target' => (string)$yearlyTarget,
+                'achievement_percentage' => $this->calculateAchievementPercentage($monthData['standard'] ?? 0, $yearlyTarget)
+            ];
+            
             // L, P, Total, TS, %S untuk setiap bulan
-            $this->sheet->setCellValue($currentCol . $row, $monthData['male']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedData['male_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            $this->sheet->setCellValue($currentCol . $row, $monthData['female']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedData['female_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            $this->sheet->setCellValue($currentCol . $row, $monthData['total']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedData['total_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedData['non_standard_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            // Hitung persentase pencapaian target (izinkan >100% untuk over-achievement)
-            $percentageStandard = $yearlyTarget > 0 ? 
-                $this->calculateAchievementPercentage($monthData['standard'], $yearlyTarget) : 0;
-            
-            // Konversi ke format desimal untuk Excel (75% = 0.75, 120% = 1.20)
-            $this->sheet->setCellValue($currentCol . $row, $percentageStandard / 100);
+            // Set nilai persentase dalam format desimal (75% = 0.75)
+            $this->sheet->setCellValue($currentCol . $row, $formattedData['achievement_percentage']);
+            // Terapkan format persentase untuk tampilan yang bersih
+            $this->sheet->getStyle($currentCol . $row)->getNumberFormat()->setFormatCode('0.00"%"');
             $currentCol = $this->getNextColumn($currentCol);
         }
         
+        // Format data triwulan seperti dashboard
+        $formattedQuarterData = [
+            'standard_patients' => (string)($quarterTotal['standard'] ?? 0),
+            'non_standard_patients' => (string)($quarterTotal['non_standard'] ?? 0),
+            'target' => (string)$yearlyTarget,
+            'achievement_percentage' => $this->calculateAchievementPercentage($quarterTotal['standard'] ?? 0, $yearlyTarget)
+        ];
+        
         // Isi total triwulan (S, TS, %S)
-        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['standard']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedQuarterData['standard_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['non_standard']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedQuarterData['non_standard_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        // Hitung persentase pencapaian target triwulan (izinkan >100% untuk over-achievement)
-        $quarterPercentage = $yearlyTarget > 0 ? 
-            $this->calculateAchievementPercentage($quarterTotal['standard'], $yearlyTarget) : 0;
-        
-        // Konversi ke format desimal untuk Excel (75% = 0.75, 120% = 1.20)
-        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage / 100);
+        // Set nilai persentase dalam format desimal (75% = 0.75)
+        $this->sheet->setCellValue($currentCol . $row, $formattedQuarterData['achievement_percentage']);
+        // Terapkan format persentase untuk tampilan yang bersih
+        $this->sheet->getStyle($currentCol . $row)->getNumberFormat()->setFormatCode('0.00"%"');
         $currentCol = $this->getNextColumn($currentCol);
         
         return $currentCol;
@@ -413,35 +496,48 @@ class AdminAllFormatter extends ExcelExportFormatter
     }
 
     /**
-     * Isi data total tahunan
+     * Isi data total tahunan dengan format konsisten seperti dashboard
      */
     protected function fillYearlyTotalData($row, $startCol, $yearlyTotal, $sasaran)
     {
         $currentCol = $startCol;
         
+        // Format data tahunan seperti dashboard - konversi ke string untuk konsistensi
+        $formattedYearlyData = [
+            'target' => (string)$sasaran,
+            'total_patients' => (string)($yearlyTotal['total'] ?? 0),
+            'standard_patients' => (string)($yearlyTotal['standard'] ?? 0),
+            'non_standard_patients' => (string)($yearlyTotal['non_standard'] ?? 0),
+            'male_patients' => (string)($yearlyTotal['male'] ?? 0),
+            'female_patients' => (string)($yearlyTotal['female'] ?? 0),
+            'achievement_percentage' => $this->calculateAchievementPercentage(
+                $yearlyTotal['standard'] ?? 0, 
+                $sasaran
+            )
+        ];
+        
         // L, P, Total, TS untuk tahun
-        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['male']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedYearlyData['male_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['female']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedYearlyData['female_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['total']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedYearlyData['total_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['non_standard']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedYearlyData['non_standard_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
         // Total pelayanan
-        $this->sheet->setCellValue($currentCol . $row, $yearlyTotal['total']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedYearlyData['total_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
         // % Capaian pelayanan sesuai standar (dapat melebihi 100% untuk over-achievement)
-        $achievementPercentage = $this->calculateAchievementPercentage(
-            $yearlyTotal['standard'], 
-            $sasaran
-        );
-        $this->sheet->setCellValue($currentCol . $row, $achievementPercentage);
+        // Set nilai persentase dalam format desimal untuk konsistensi
+        $this->sheet->setCellValue($currentCol . $row, $formattedYearlyData['achievement_percentage']);
+        // Terapkan format persentase untuk tampilan yang bersih
+        $this->sheet->getStyle($currentCol . $row)->getNumberFormat()->setFormatCode('0.00"%"');
     }
     
     /**
@@ -501,25 +597,11 @@ class AdminAllFormatter extends ExcelExportFormatter
                 $grandTotal['monthly'][$month]['non_standard'] += $data['non_standard'] ?? 0;
                 $grandTotal['monthly'][$month]['total'] += $data['total'] ?? 0;
             }
-            
-            // Akumulasi data tahunan
-            $yearlyTotal = $this->calculateYearlyTotal($puskesmas['monthly_data']);
-            $grandTotal['yearly']['male'] += $yearlyTotal['male'];
-            $grandTotal['yearly']['female'] += $yearlyTotal['female'];
-            $grandTotal['yearly']['standard'] += $yearlyTotal['standard'];
-            $grandTotal['yearly']['non_standard'] += $yearlyTotal['non_standard'];
-            $grandTotal['yearly']['total'] += $yearlyTotal['total'];
-            
-            // Akumulasi data triwulan
-            $quarterlyData = $this->calculateQuarterlyData($puskesmas['monthly_data']);
-            foreach ($quarterlyData as $quarter => $data) {
-                $grandTotal['quarterly'][$quarter]['male'] += $data['male'];
-                $grandTotal['quarterly'][$quarter]['female'] += $data['female'];
-                $grandTotal['quarterly'][$quarter]['standard'] += $data['standard'];
-                $grandTotal['quarterly'][$quarter]['non_standard'] += $data['non_standard'];
-                $grandTotal['quarterly'][$quarter]['total'] += $data['total'];
-            }
         }
+        
+        // Hitung data tahunan dan triwulan menggunakan logika dashboard (bulan terakhir dengan data)
+        $grandTotal['yearly'] = $this->calculateYearlyTotal($grandTotal['monthly']);
+        $grandTotal['quarterly'] = $this->calculateQuarterlyData($grandTotal['monthly']);
         
         // Isi data dasar
         $this->sheet->setCellValue('A' . $startRow, '');
@@ -544,12 +626,21 @@ class AdminAllFormatter extends ExcelExportFormatter
         // Isi total tahunan
         $this->fillYearlyTotalData($startRow, $currentCol, $grandTotal['yearly'], $grandTotal['sasaran']);
         
-        // Style bold untuk baris total
+        // Style bold untuk baris total dan tambahkan border untuk pemisahan yang jelas
         $this->sheet->getStyle('A' . $startRow . ':' . $this->sheet->getHighestColumn() . $startRow)->getFont()->setBold(true);
+        
+        // Tambahkan border atas untuk memisahkan summary dari data
+        $this->sheet->getStyle('A' . $startRow . ':' . $this->sheet->getHighestColumn() . $startRow)
+            ->getBorders()->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK);
+        
+        // Tambahkan background color untuk highlight summary
+        $this->sheet->getStyle('A' . $startRow . ':' . $this->sheet->getHighestColumn() . $startRow)
+            ->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FFE6E6E6'); // Light gray background
     }
     
     /**
-     * Isi data summary untuk satu triwulan
+     * Isi data summary untuk satu triwulan dengan format konsisten seperti dashboard
      */
     protected function fillQuarterSummaryData($row, $startCol, $monthlyData, $months, $quarterTotal, $yearlyTarget = 0)
     {
@@ -559,42 +650,62 @@ class AdminAllFormatter extends ExcelExportFormatter
         foreach ($months as $month) {
             $monthData = $monthlyData[$month];
             
+            // Format data seperti dashboard - konversi ke string untuk konsistensi
+            $formattedSummaryData = [
+                'male_patients' => (string)($monthData['male'] ?? 0),
+                'female_patients' => (string)($monthData['female'] ?? 0),
+                'total_patients' => (string)($monthData['total'] ?? 0),
+                'standard_patients' => (string)($monthData['standard'] ?? 0),
+                'non_standard_patients' => (string)($monthData['non_standard'] ?? 0),
+                'target' => (string)$yearlyTarget,
+                'achievement_percentage' => $this->calculateAchievementPercentage(
+                    $monthData['standard'] ?? 0, 
+                    $yearlyTarget
+                )
+            ];
+            
             // L, P, Total, TS, %S untuk setiap bulan
-            $this->sheet->setCellValue($currentCol . $row, $monthData['male']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedSummaryData['male_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            $this->sheet->setCellValue($currentCol . $row, $monthData['female']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedSummaryData['female_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            $this->sheet->setCellValue($currentCol . $row, $monthData['total']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedSummaryData['total_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            $this->sheet->setCellValue($currentCol . $row, $monthData['non_standard']);
+            $this->sheet->setCellValue($currentCol . $row, (int)$formattedSummaryData['non_standard_patients']);
             $currentCol = $this->getNextColumn($currentCol);
             
-            // Hitung persentase pencapaian target (dapat melebihi 100% untuk over-achievement)
-            $percentageStandard = $this->calculateAchievementPercentage(
-                $monthData['standard'], 
-                $yearlyTarget
-            );
-            // Konversi ke format desimal untuk Excel (75% = 0.75)
-            $this->sheet->setCellValue($currentCol . $row, $percentageStandard / 100);
+            // Set nilai persentase dalam format desimal (75% = 0.75)
+            $this->sheet->setCellValue($currentCol . $row, $formattedSummaryData['achievement_percentage']);
+            // Terapkan format persentase untuk tampilan yang bersih
+            $this->sheet->getStyle($currentCol . $row)->getNumberFormat()->setFormatCode('0.00"%"');
             $currentCol = $this->getNextColumn($currentCol);
         }
         
+        // Format data triwulan seperti dashboard
+        $formattedQuarterSummary = [
+            'standard_patients' => (string)($quarterTotal['standard'] ?? 0),
+            'non_standard_patients' => (string)($quarterTotal['non_standard'] ?? 0),
+            'target' => (string)$yearlyTarget,
+            'achievement_percentage' => $this->calculateAchievementPercentage(
+                $quarterTotal['standard'] ?? 0, 
+                $yearlyTarget
+            )
+        ];
+        
         // Isi total triwulan (S, TS, %S)
-        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['standard']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedQuarterSummary['standard_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        $this->sheet->setCellValue($currentCol . $row, $quarterTotal['non_standard']);
+        $this->sheet->setCellValue($currentCol . $row, (int)$formattedQuarterSummary['non_standard_patients']);
         $currentCol = $this->getNextColumn($currentCol);
         
-        // Hitung persentase pencapaian target triwulan (konsisten dengan dashboard)
-        $quarterPercentage = $this->calculateAchievementPercentage(
-            $quarterTotal['standard'], 
-            $yearlyTarget
-        );
-        $this->sheet->setCellValue($currentCol . $row, $quarterPercentage / 100);
+        // Set nilai persentase dalam format desimal (75% = 0.75)
+        $this->sheet->setCellValue($currentCol . $row, $formattedQuarterSummary['achievement_percentage']);
+        // Terapkan format persentase untuk tampilan yang bersih
+        $this->sheet->getStyle($currentCol . $row)->getNumberFormat()->setFormatCode('0.00"%"');
         $currentCol = $this->getNextColumn($currentCol);
         
         return $currentCol;
@@ -602,7 +713,7 @@ class AdminAllFormatter extends ExcelExportFormatter
 
     /**
      * Ambil data puskesmas untuk laporan all.xlsx
-     * Termasuk data bulanan, triwulan, dan total tahunan
+     * Menggunakan RealTimeStatisticsService yang sama dengan dashboard untuk konsistensi
      */
     protected function getPuskesmasDataForAll(string $diseaseType, int $year): array
     {
@@ -613,35 +724,47 @@ class AdminAllFormatter extends ExcelExportFormatter
             
             foreach ($puskesmasList as $puskesmas) {
                 $puskesmasId = $puskesmas->id;
-                $monthlyData = [];
                 
-                // Ambil data untuk setiap bulan
-                for ($month = 1; $month <= 12; $month++) {
-                    $monthlyStats = $this->statisticsService->getMonthlyStatistics(
-                        $puskesmasId, 
-                        $year, 
-                        $diseaseType,
-                        $month
-                    );
-                    
+                // Gunakan RealTimeStatisticsService yang sama dengan dashboard
+                $dashboardStats = $this->realTimeStatisticsService->getFastDashboardStats(
+                    $puskesmasId, 
+                    $diseaseType, 
+                    $year
+                );
+                
+                // Konversi format data dari dashboard ke format yang dibutuhkan Excel
+                $monthlyData = [];
+                foreach ($dashboardStats['monthly_data'] as $month => $data) {
                     $monthlyData[$month] = [
-                        'male' => $monthlyStats['male_patients'] ?? 0,
-                        'female' => $monthlyStats['female_patients'] ?? 0,
-                        'standard' => $monthlyStats['standard_patients'] ?? 0,
-                        'non_standard' => $monthlyStats['non_standard_patients'] ?? 0,
-                        'total' => $monthlyStats['total_patients'] ?? 0
+                        'male' => (int)$data['male'],
+                        'female' => (int)$data['female'],
+                        'standard' => (int)$data['standard'],
+                        'non_standard' => (int)$data['non_standard'],
+                        'total' => (int)$data['total']
                     ];
                 }
                 
-                // Ambil sasaran tahunan
+                // Ambil sasaran tahunan dengan format konsisten seperti dashboard
                 $yearlyTarget = $this->statisticsService->getYearlyTarget($puskesmasId, $year, $diseaseType);
                 
-                $formattedData[] = [
+                // Format data puskesmas seperti dashboard
+                $formattedPuskesmasData = [
                     'id' => $puskesmasId,
                     'nama_puskesmas' => $puskesmas->name,
-                    'sasaran' => $yearlyTarget['target'] ?? 0,
+                    'target' => (string)($yearlyTarget['target'] ?? 0),
+                    'sasaran' => (int)($yearlyTarget['target'] ?? 0),
                     'monthly_data' => $monthlyData
                 ];
+                
+                $formattedData[] = $formattedPuskesmasData;
+                
+                Log::info('AdminAllFormatter: Processed puskesmas data using RealTimeStatisticsService', [
+                    'puskesmas_id' => $puskesmasId,
+                    'puskesmas_name' => $puskesmas->name,
+                    'disease_type' => $diseaseType,
+                    'year' => $year,
+                    'yearly_target' => $yearlyTarget['target'] ?? 0
+                ]);
             }
             
             return $formattedData;

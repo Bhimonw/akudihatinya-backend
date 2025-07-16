@@ -29,6 +29,7 @@ use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
 use App\Services\Export\PdfService;
 use App\Formatters\PdfFormatter;
+use App\Formatters\StatisticsFormatter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -158,7 +159,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Register formatters with StatisticsService dependency
         $this->app->singleton(AdminAllFormatter::class, function ($app) {
-            return new AdminAllFormatter($app->make(StatisticsService::class));
+            return new AdminAllFormatter(
+                $app->make(StatisticsService::class),
+                $app->make(RealTimeStatisticsService::class)
+            );
         });
 
         $this->app->singleton(AdminMonthlyFormatter::class, function ($app) {
@@ -171,6 +175,18 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(PuskesmasFormatter::class, function ($app) {
             return new PuskesmasFormatter($app->make(StatisticsService::class));
+        });
+
+        // Register StatisticsFormatter with all statistics services
+        $this->app->singleton(StatisticsFormatter::class, function ($app) {
+            return new StatisticsFormatter(
+                $app->make(StatisticsService::class),
+                $app->make(StatisticsDataService::class),
+                $app->make(StatisticsAdminService::class),
+                $app->make(OptimizedStatisticsService::class),
+                $app->make(RealTimeStatisticsService::class),
+                $app->make(DiseaseStatisticsService::class)
+            );
         });
     }
 

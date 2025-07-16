@@ -173,13 +173,13 @@
                             <td>{{ $monthData['female'] }}</td>
                             <td>{{ $monthData['total'] }}</td>
                             <td>{{ $monthData['non_standard'] }}</td>
-                            <td>{{ number_format($monthData['percentage'], 0) }}%</td>
+                            <td>{{ number_format($monthData['percentage'], 0, '.', '') }}%</td>
                         @endforeach
                         <td>{{ $puskesmas['quarterly'][0]['male'] }}</td>
                         <td>{{ $puskesmas['quarterly'][0]['female'] }}</td>
                         <td>{{ $puskesmas['quarterly'][0]['standard'] }}</td>
                         <td>{{ $puskesmas['total_patients'] }}</td>
-                        <td>{{ number_format($puskesmas['achievement_percentage'], 0) }}%</td>
+                        <td>{{ number_format($puskesmas['achievement_percentage'], 0, '.', '') }}%</td>
                     </tr>
                 @endforeach
 
@@ -193,13 +193,13 @@
                         <td>{{ $monthData['female'] }}</td>
                         <td>{{ $monthData['total'] }}</td>
                         <td>{{ $monthData['non_standard'] }}</td>
-                        <td>{{ number_format($monthData['percentage'], 0) }}%</td>
+                        <td>{{ number_format($monthData['percentage'], 0, '.', '') }}%</td>
                     @endforeach
                     <td>{{ $quarter_data['grand_total']['quarterly'][0]['male'] }}</td>
                     <td>{{ $quarter_data['grand_total']['quarterly'][0]['female'] }}</td>
                     <td>{{ $quarter_data['grand_total']['quarterly'][0]['standard'] }}</td>
                     <td>{{ $quarter_data['grand_total']['total_patients'] }}</td>
-                    <td>{{ number_format($quarter_data['grand_total']['achievement_percentage'], 0) }}%</td>
+                    <td>{{ number_format($quarter_data['grand_total']['achievement_percentage'], 0, '.', '') }}%</td>
                 </tr>
             </tbody>
         </table>

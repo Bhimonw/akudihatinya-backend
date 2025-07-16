@@ -198,7 +198,7 @@
                     <td class="data-col">{{ $monthly_data[$month]['female'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['standard'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['non_standard'] ?? 0 }}</td>
-                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%</td>
+                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2, '.', '') }}%</td>
                 </tr>
             @endfor
             <tr class="quarter-row">
@@ -207,7 +207,7 @@
                 <td class="data-col">{{ $monthly_data[3]['female'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[3]['standard'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[3]['non_standard'] ?? 0 }}</td>
-                <td class="percentage-col">{{ number_format($monthly_data[3]['percentage'] ?? 0, 2) }}%</td>
+                <td class="percentage-col">{{ number_format($monthly_data[3]['percentage'] ?? 0, 2, '.', '') }}%</td>
             </tr>
 
             {{-- Triwulan II --}}
@@ -218,7 +218,7 @@
                     <td class="data-col">{{ $monthly_data[$month]['female'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['standard'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['non_standard'] ?? 0 }}</td>
-                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%</td>
+                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2, '.', '') }}%</td>
                 </tr>
             @endfor
             <tr class="quarter-row">
@@ -227,7 +227,7 @@
                 <td class="data-col">{{ $monthly_data[6]['female'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[6]['standard'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[6]['non_standard'] ?? 0 }}</td>
-                <td class="percentage-col">{{ number_format($monthly_data[6]['percentage'] ?? 0, 2) }}%</td>
+                <td class="percentage-col">{{ number_format($monthly_data[6]['percentage'] ?? 0, 2, '.', '') }}%</td>
             </tr>
 
             {{-- Triwulan III --}}
@@ -238,7 +238,7 @@
                     <td class="data-col">{{ $monthly_data[$month]['female'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['standard'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['non_standard'] ?? 0 }}</td>
-                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%</td>
+                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2, '.', '') }}%</td>
                 </tr>
             @endfor
             <tr class="quarter-row">
@@ -247,7 +247,7 @@
                 <td class="data-col">{{ $monthly_data[9]['female'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[9]['standard'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[9]['non_standard'] ?? 0 }}</td>
-                <td class="percentage-col">{{ number_format($monthly_data[9]['percentage'] ?? 0, 2) }}%</td>
+                <td class="percentage-col">{{ number_format($monthly_data[9]['percentage'] ?? 0, 2, '.', '') }}%</td>
             </tr>
 
             {{-- Triwulan IV --}}
@@ -258,7 +258,7 @@
                     <td class="data-col">{{ $monthly_data[$month]['female'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['standard'] ?? 0 }}</td>
                     <td class="data-col">{{ $monthly_data[$month]['non_standard'] ?? 0 }}</td>
-                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2) }}%</td>
+                    <td class="percentage-col">{{ number_format($monthly_data[$month]['percentage'] ?? 0, 2, '.', '') }}%</td>
                 </tr>
             @endfor
             <tr class="quarter-row">
@@ -267,7 +267,7 @@
                 <td class="data-col">{{ $monthly_data[12]['female'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[12]['standard'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[12]['non_standard'] ?? 0 }}</td>
-                <td class="percentage-col">{{ number_format($monthly_data[12]['percentage'] ?? 0, 2) }}%</td>
+                <td class="percentage-col">{{ number_format($monthly_data[12]['percentage'] ?? 0, 2, '.', '') }}%</td>
             </tr>
 
             {{-- Total Tahunan (menggunakan data Desember) --}}
@@ -277,7 +277,7 @@
                 <td class="data-col">{{ $monthly_data[12]['female'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[12]['standard'] ?? 0 }}</td>
                 <td class="data-col">{{ $monthly_data[12]['non_standard'] ?? 0 }}</td>
-                <td class="percentage-col">{{ number_format($monthly_data[12]['percentage'] ?? 0, 2) }}%</td>
+                <td class="percentage-col">{{ number_format($monthly_data[12]['percentage'] ?? 0, 2, '.', '') }}%</td>
             </tr>
         </tbody>
     </table>
@@ -307,7 +307,7 @@
                 <td>{{ $monthly_data[12]['standard'] ?? 0 }}</td>
                 <td>{{ $monthly_data[12]['non_standard'] ?? 0 }}</td>
                 <td>{{ ($monthly_data[12]['standard'] ?? 0) + ($monthly_data[12]['non_standard'] ?? 0) }}</td>
-                <td>{{ number_format($monthly_data[12]['percentage'] ?? 0, 2) }}%</td>
+                <td>{{ number_format($monthly_data[12]['percentage'] ?? 0, 2, '.', '') }}%</td>
             </tr>
         </tbody>
     </table>
