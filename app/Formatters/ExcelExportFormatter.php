@@ -86,8 +86,10 @@ class ExcelExportFormatter
     protected function initializeHelpers(): void
     {
         $this->headerBuilder = new ExcelHeaderBuilder($this->sheet, $this->reportType);
-        $this->dataBuilder = new ExcelDataBuilder($this->sheet, $this->statisticsService, $this->reportType);
-        $this->totalRowBuilder = new ExcelTotalRowBuilder($this->sheet, $this->reportType);
+        // Create StatisticsCalculator instance for ExcelDataBuilder and ExcelTotalRowBuilder
+        $statisticsCalculator = new \App\Formatters\Calculators\StatisticsCalculator();
+        $this->dataBuilder = new ExcelDataBuilder($this->sheet, $statisticsCalculator, $this->reportType);
+        $this->totalRowBuilder = new ExcelTotalRowBuilder($this->sheet, $statisticsCalculator);
         $this->pageSetupHelper = new ExcelPageSetupHelper($this->sheet);
         $this->cleanupHelper = new ExcelCleanupHelper($this->sheet);
         $this->dimensionHelper = new ExcelDimensionHelper($this->sheet, $this->reportType);
@@ -137,10 +139,10 @@ class ExcelExportFormatter
             $this->currentRow = 7;
             
             // Setup header struktur menggunakan HeaderBuilder
-            $this->headerBuilder->setupHeaders($diseaseType, $year);
+            $this->headerBuilder->setupHeaders($diseaseType, $year, $this->reportType);
             
             // Isi data puskesmas menggunakan DataBuilder
-            $this->dataBuilder->fillPuskesmasData($puskesmasData, $year, $diseaseType);
+        $this->dataBuilder->fillPuskesmasData($puskesmasData, $year, $diseaseType, $this->reportType);
             
             // Apply styling
             $this->applyExcelStyling();
@@ -179,10 +181,10 @@ class ExcelExportFormatter
         $this->initializeHelpers();
         
         // Setup header struktur untuk monthly
-        $this->headerBuilder->setupHeaders($diseaseType, $year);
+        $this->headerBuilder->setupHeaders($diseaseType, $year, $this->reportType);
         
         // Isi data puskesmas untuk monthly
-        $this->dataBuilder->fillPuskesmasData($puskesmasData, $year, $diseaseType);
+        $this->dataBuilder->fillPuskesmasData($puskesmasData, $year, $diseaseType, $this->reportType);
         
         // Apply styling
         $this->applyExcelStyling();
@@ -203,10 +205,10 @@ class ExcelExportFormatter
         $this->initializeHelpers();
         
         // Setup header struktur untuk quarterly
-        $this->headerBuilder->setupHeaders($diseaseType, $year);
+        $this->headerBuilder->setupHeaders($diseaseType, $year, $this->reportType);
         
         // Isi data puskesmas untuk quarterly
-        $this->dataBuilder->fillPuskesmasData($puskesmasData, $year, $diseaseType);
+        $this->dataBuilder->fillPuskesmasData($puskesmasData, $year, $diseaseType, $this->reportType);
         
         // Apply styling
         $this->applyExcelStyling();
@@ -225,7 +227,7 @@ class ExcelExportFormatter
         $this->initializeHelpers();
         
         // Setup header struktur untuk puskesmas
-        $this->headerBuilder->setupHeaders($diseaseType, $year);
+        $this->headerBuilder->setupHeaders($diseaseType, $year, $this->reportType);
         
         // Isi metadata puskesmas jika ada
         if ($puskesmasData) {
@@ -1098,7 +1100,7 @@ class ExcelExportFormatter
         $styleConfig = $this->getExcelStyleConfig();
         
         // Cleanup dan persiapan
-        $this->cleanupHelper->prepareWorksheetForStyling($styleConfig);
+        $this->cleanupHelper->cleanupExtraAreas($styleConfig['lastDataColumn'], $styleConfig['lastDataRow']);
         
         // Apply styling bertahap
         $this->dimensionHelper->applyTitleStyling($styleConfig);
@@ -1203,13 +1205,14 @@ class ExcelExportFormatter
         ];
     }
     
-    /**
-     * Set dimensi untuk baris judul
+        /**
+     * Set dimensi untuk baris judul dengan ukuran yang lebih sesuai
      */
     private function setTitleRowDimensions(): void
     {
-        $this->sheet->getRowDimension('1')->setRowHeight(30);
-        $this->sheet->getRowDimension('2')->setRowHeight(25);
+        $this->sheet->getRowDimension('1')->setRowHeight(25); // Diperkecil dari 30
+        $this->sheet->getRowDimension('2')->setRowHeight(20); // Diperkecil dari 25
+        $this->sheet->getRowDimension('3')->setRowHeight(5);  // Baris kosong spacing
     }
     
     /**
@@ -1217,38 +1220,45 @@ class ExcelExportFormatter
      */
     private function applyHeaderStyling(array $config): void
     {
-        // Header utama (kolom identifikasi)
+        // Header utama (kolom identifikasi) - dengan merge yang lebih rapi
         $this->applyMainHeaderStyling();
         
         // Header periode dan kategori
         $this->applyPeriodHeaderStyling($config['lastDataColumn']);
         $this->applyCategoryHeaderStyling($config['lastDataColumn']);
+        
+        // Set tinggi baris header yang optimal
+        $this->setOptimalHeaderRowHeights();
     }
     
     /**
-     * Apply styling untuk header utama
+     * Apply styling untuk header utama dengan merge yang lebih rapi
      */
     private function applyMainHeaderStyling(): void
     {
-        $mainHeaderCells = ['A4:A7', 'B4:B7', 'C4:C7'];
+        // Merge cells untuk header utama dengan ukuran yang lebih kompak
+        $mainHeaderCells = [
+            'A4:A6', // NO - merge 3 baris saja
+            'B4:B6', // NAMA PUSKESMAS - merge 3 baris saja  
+            'C4:C6'  // SASARAN - merge 3 baris saja
+        ];
         
-        // Merge cells untuk header utama
         foreach ($mainHeaderCells as $range) {
             $this->sheet->mergeCells($range);
         }
         
-        // Apply styling
-        $mainHeaderRange = 'A4:C7';
+        // Apply styling dengan ukuran font yang disesuaikan
+        $mainHeaderRange = 'A4:C6';
         $this->sheet->getStyle($mainHeaderRange)->applyFromArray($this->getMainHeaderStyleConfig());
     }
     
     /**
-     * Get konfigurasi style untuk header utama
+     * Get konfigurasi style untuk header utama dengan ukuran yang lebih kompak
      */
     private function getMainHeaderStyleConfig(): array
     {
         return [
-            'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => '1F4E79']],
+            'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => '1F4E79']], // Ukuran font diperkecil
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
                 'vertical' => Alignment::VERTICAL_CENTER,
@@ -1257,6 +1267,18 @@ class ExcelExportFormatter
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D9E2F3']],
             'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_MEDIUM, 'color' => ['rgb' => '1F4E79']]]
         ];
+    }
+    
+    /**
+     * Set tinggi baris header yang optimal
+     */
+    private function setOptimalHeaderRowHeights(): void
+    {
+        // Tinggi baris header yang lebih kompak
+        $this->sheet->getRowDimension('4')->setRowHeight(20); // Header utama
+        $this->sheet->getRowDimension('5')->setRowHeight(18); // Sub header periode
+        $this->sheet->getRowDimension('6')->setRowHeight(16); // Header kategori
+        $this->sheet->getRowDimension('7')->setRowHeight(14); // Header detail (jika ada)
     }
     
     /**
@@ -1340,7 +1362,7 @@ class ExcelExportFormatter
     }
     
     /**
-     * Isi total data untuk laporan all.xlsx
+     * Isi total data untuk laporan all.xlsx - dengan perbaikan duplikasi total
      */
     protected function fillTotalAllData(int $row, array $puskesmasData)
     {
@@ -1350,15 +1372,20 @@ class ExcelExportFormatter
             $this->fillMonthDataToColumns($row, $month, $monthTotal);
         }
         
-        // Hitung total untuk setiap triwulan
+        // Hitung dan isi total tahunan (menggabungkan triwulan dan total keseluruhan)
+        $yearlyTotal = $this->calculateYearlyTotalFromAll($puskesmasData);
+        
+        // Isi data triwulan summary berdasarkan data tahunan terbaru
         for ($quarter = 1; $quarter <= 4; $quarter++) {
-            $quarterTotal = $this->calculateQuarterTotal($puskesmasData, $quarter);
+            $quarterTotal = $this->calculateQuarterFromYearlyData($yearlyTotal, $quarter, $puskesmasData);
             $this->fillQuarterDataToColumns($row, $quarter, $quarterTotal);
         }
         
-        // Hitung total tahunan
-        $yearlyTotal = $this->calculateYearlyTotalFromAll($puskesmasData);
+        // Isi total tahunan (hanya satu total, bukan duplikasi)
         $this->fillTotalDataToColumns($row, $yearlyTotal);
+        
+        // Kosongkan baris setelah total dan hapus garis tabel
+        $this->clearRowsAfterTotal($row + 1, 5); // Kosongkan 5 baris setelah total
     }
     
     /**
@@ -1483,15 +1510,15 @@ class ExcelExportFormatter
     }
     
     /**
-     * Set lebar kolom yang optimal dengan konfigurasi yang terstruktur
+     * Set lebar kolom yang optimal dengan konfigurasi yang terstruktur dan lebih kompak
      */
     protected function setOptimalColumnWidths(string $lastColumn): void
     {
-        // Konfigurasi lebar kolom utama
+        // Konfigurasi lebar kolom utama yang lebih kompak
         $mainColumnWidths = [
-            'A' => 6,  // NO - sempit tapi cukup
-            'B' => 35, // NAMA PUSKESMAS - lebar untuk nama panjang
-            'C' => 12  // SASARAN - sedang
+            'A' => 4,  // NO - diperkecil untuk lebih kompak
+            'B' => 28, // NAMA PUSKESMAS - diperkecil sedikit
+            'C' => 10  // SASARAN - diperkecil
         ];
         
         // Set lebar kolom utama
@@ -1499,23 +1526,100 @@ class ExcelExportFormatter
             $this->sheet->getColumnDimension($column)->setWidth($width);
         }
         
-        // Optimasi kolom data dengan lebar yang konsisten
+        // Optimasi kolom data dengan lebar yang konsisten dan lebih kompak
         $this->optimizeDataColumns($lastColumn);
     }
     
     /**
-     * Optimasi lebar kolom data dengan batasan yang wajar
+     * Optimasi lebar kolom data dengan batasan yang wajar dan lebih kompak
      */
     private function optimizeDataColumns(string $lastColumn): void
     {
         $startColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString('D');
         $lastColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($lastColumn);
-        $dataColumnWidth = 10; // Lebar optimal untuk kolom data
+        $dataColumnWidth = 8; // Lebar diperkecil untuk lebih kompak
         
         // Set lebar yang konsisten untuk semua kolom data
         for ($i = $startColumnIndex; $i <= $lastColumnIndex; $i++) {
             $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i);
             $this->sheet->getColumnDimension($col)->setWidth($dataColumnWidth);
+        }
+    }
+    
+    /**
+     * Hitung data triwulan berdasarkan data tahunan terbaru
+     */
+    protected function calculateQuarterFromYearlyData(array $yearlyTotal, int $quarter, array $puskesmasData): array
+    {
+        // Ambil data terbaru dari puskesmas untuk triwulan tertentu
+        $quarterMonths = $this->getQuarterMonths($quarter);
+        $quarterData = ['male' => 0, 'female' => 0, 'standard' => 0, 'non_standard' => 0];
+        
+        foreach ($puskesmasData as $data) {
+            $monthlyData = $data['monthly_data'] ?? [];
+            foreach ($quarterMonths as $month) {
+                if (isset($monthlyData[$month])) {
+                    $monthData = $monthlyData[$month];
+                    $quarterData['male'] += $monthData['male'] ?? 0;
+                    $quarterData['female'] += $monthData['female'] ?? 0;
+                    $quarterData['standard'] += $monthData['standard'] ?? 0;
+                    $quarterData['non_standard'] += $monthData['non_standard'] ?? 0;
+                }
+            }
+        }
+        
+        return $quarterData;
+    }
+    
+    /**
+     * Dapatkan bulan-bulan dalam triwulan
+     */
+    protected function getQuarterMonths(int $quarter): array
+    {
+        $quarters = [
+            1 => [1, 2, 3],   // Q1: Jan, Feb, Mar
+            2 => [4, 5, 6],   // Q2: Apr, May, Jun
+            3 => [7, 8, 9],   // Q3: Jul, Aug, Sep
+            4 => [10, 11, 12] // Q4: Oct, Nov, Dec
+        ];
+        
+        return $quarters[$quarter] ?? [];
+    }
+    
+    /**
+     * Kosongkan baris setelah total
+     */
+    protected function clearRowsAfterTotal(int $startRow, int $numRows): void
+    {
+        $lastColumn = $this->getLastStatisticsColumn();
+        
+        for ($i = 0; $i < $numRows; $i++) {
+            $row = $startRow + $i;
+            $range = 'A' . $row . ':' . $lastColumn . $row;
+            
+            // Kosongkan nilai
+            for ($col = 'A'; $col <= $lastColumn; $col++) {
+                $this->sheet->setCellValue($col . $row, '');
+            }
+            
+            // Hapus semua styling termasuk border
+            $this->sheet->getStyle($range)->applyFromArray([
+                'borders' => [
+                    'allBorders' => ['borderStyle' => Border::BORDER_NONE],
+                    'outline' => ['borderStyle' => Border::BORDER_NONE],
+                    'inside' => ['borderStyle' => Border::BORDER_NONE]
+                ],
+                'fill' => ['fillType' => Fill::FILL_NONE],
+                'font' => [
+                    'bold' => false,
+                    'size' => 11,
+                    'color' => ['rgb' => '000000']
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_GENERAL,
+                    'vertical' => Alignment::VERTICAL_BOTTOM
+                ]
+            ]);
         }
     }
     

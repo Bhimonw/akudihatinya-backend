@@ -27,6 +27,7 @@ class ExcelDataBuilder
     {
         $this->sheet = $sheet;
         $this->statisticsCalculator = $statisticsCalculator;
+        $this->currentRow = 8; // Data dimulai dari baris 8 (setelah header yang sampai baris 7)
         $this->initializeColumnMappings();
     }
 
@@ -75,7 +76,7 @@ class ExcelDataBuilder
     public function fillPuskesmasData(array $puskesmasData, int $year, string $diseaseType, string $reportType): void
     {
         $this->reportType = $reportType;
-        $this->currentRow = 8; // Reset ke baris data pertama
+        $this->currentRow = 8; // Reset ke baris data pertama (header sampai baris 7)
         
         $config = $this->getDataFillConfig();
         
@@ -319,12 +320,11 @@ class ExcelDataBuilder
     }
 
     /**
-     * Finalisasi data sheet dengan menambahkan baris total dan footer
+     * Finalisasi data sheet dengan menambahkan footer
      */
     private function finalizeDataSheet(array $config): void
     {
-        // Tambahkan baris total jika diperlukan
-        $this->addTotalRow();
+        // Total row akan ditambahkan oleh ExcelExportFormatter untuk menghindari duplikasi
         
         // Tambahkan footer informasi
         $this->addFooterInfo();

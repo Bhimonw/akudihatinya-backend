@@ -90,7 +90,7 @@ class ExcelHeaderBuilder
     }
 
     /**
-     * Setup header utama
+     * Setup header utama dengan merge yang lebih rapi
      */
     private function setupMainHeader(): void
     {
@@ -98,10 +98,13 @@ class ExcelHeaderBuilder
         $this->sheet->setCellValue('B4', 'NAMA PUSKESMAS');
         $this->sheet->setCellValue('C4', 'SASARAN');
         
-        // Merge cells untuk header utama
+        // Merge cells untuk header utama - sampai baris 7 untuk penggabungan yang benar
         $this->sheet->mergeCells('A4:A7');
         $this->sheet->mergeCells('B4:B7');
         $this->sheet->mergeCells('C4:C7');
+        
+        // Apply styling untuk header utama
+        $this->applyMainHeaderStyling();
     }
 
     /**
@@ -225,38 +228,38 @@ class ExcelHeaderBuilder
     }
 
     /**
-     * Setup kategori untuk laporan all
+     * Setup kategori untuk laporan all dengan struktur yang lebih rapi
      */
     private function setupAllCategoryHeaders(array $categories): void
     {
-        // Kategori untuk bulan
+        // Kategori untuk bulan - hanya di baris 6 (tidak perlu merge ke baris 7)
         for ($month = 1; $month <= 12; $month++) {
             foreach ($categories as $index => $category) {
                 $col = $this->monthColumns[$month][$index];
                 $this->sheet->setCellValue($col . '6', $category);
-                $this->sheet->mergeCells($col . '6:' . $col . '7');
+                // Tidak merge ke baris 7 untuk struktur yang lebih kompak
             }
         }
         
-        // Kategori untuk triwulan
+        // Kategori untuk triwulan - hanya di baris 6
         for ($quarter = 1; $quarter <= 4; $quarter++) {
             foreach ($categories as $index => $category) {
                 $col = $this->quarterColumns[$quarter][$index];
                 $this->sheet->setCellValue($col . '6', $category);
-                $this->sheet->mergeCells($col . '6:' . $col . '7');
+                // Tidak merge ke baris 7 untuk struktur yang lebih kompak
             }
         }
         
-        // Kategori untuk total
+        // Kategori untuk total - hanya di baris 6
         foreach ($categories as $index => $category) {
             $col = $this->totalColumns[$index];
             $this->sheet->setCellValue($col . '6', $category);
-            $this->sheet->mergeCells($col . '6:' . $col . '7');
+            // Tidak merge ke baris 7 untuk struktur yang lebih kompak
         }
     }
 
     /**
-     * Setup kategori untuk laporan bulanan
+     * Setup kategori untuk laporan bulanan dengan struktur yang lebih kompak
      */
     private function setupMonthlyCategoryHeaders(array $categories): void
     {
@@ -264,13 +267,13 @@ class ExcelHeaderBuilder
             foreach ($categories as $index => $category) {
                 $col = $this->monthColumns[$month][$index];
                 $this->sheet->setCellValue($col . '6', $category);
-                $this->sheet->mergeCells($col . '6:' . $col . '7');
+                // Tidak merge ke baris 7 untuk struktur yang lebih kompak
             }
         }
     }
 
     /**
-     * Setup kategori untuk laporan triwulan
+     * Setup kategori untuk laporan triwulan dengan struktur yang lebih kompak
      */
     private function setupQuarterlyCategoryHeaders(array $categories): void
     {
@@ -278,7 +281,7 @@ class ExcelHeaderBuilder
             foreach ($categories as $index => $category) {
                 $col = $this->quarterOnlyColumns[$quarter][$index];
                 $this->sheet->setCellValue($col . '6', $category);
-                $this->sheet->mergeCells($col . '6:' . $col . '7');
+                // Tidak merge ke baris 7 untuk struktur yang lebih kompak
             }
         }
         
@@ -286,12 +289,12 @@ class ExcelHeaderBuilder
         foreach ($categories as $index => $category) {
             $col = $this->quarterTotalColumns[$index];
             $this->sheet->setCellValue($col . '6', $category);
-            $this->sheet->mergeCells($col . '6:' . $col . '7');
+            // Tidak merge ke baris 7 untuk struktur yang lebih kompak
         }
     }
 
     /**
-     * Setup kategori untuk template puskesmas
+     * Setup kategori untuk template puskesmas dengan struktur yang lebih kompak
      */
     private function setupPuskesmasCategoryHeaders(array $categories): void
     {
@@ -299,7 +302,7 @@ class ExcelHeaderBuilder
             foreach ($categories as $index => $category) {
                 $col = $this->monthColumns[$month][$index];
                 $this->sheet->setCellValue($col . '6', $category);
-                $this->sheet->mergeCells($col . '6:' . $col . '7');
+                // Tidak merge ke baris 7 untuk struktur yang lebih kompak
             }
         }
     }
@@ -393,5 +396,41 @@ class ExcelHeaderBuilder
     public function getQuarterTotalColumns(): array
     {
         return $this->quarterTotalColumns;
+    }
+    
+    /**
+     * Apply styling untuk header utama
+     */
+    private function applyMainHeaderStyling(): void
+    {
+        $mainHeaderRange = 'A4:C7';
+        $this->sheet->getStyle($mainHeaderRange)->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'size' => 10,
+                'color' => ['rgb' => '1F4E79']
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+                'wrapText' => true
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'D9E2F3']
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_MEDIUM,
+                    'color' => ['rgb' => '1F4E79']
+                ]
+            ]
+        ]);
+        
+        // Set tinggi baris yang optimal
+        $this->sheet->getRowDimension('4')->setRowHeight(20);
+        $this->sheet->getRowDimension('5')->setRowHeight(18);
+        $this->sheet->getRowDimension('6')->setRowHeight(16);
+        $this->sheet->getRowDimension('7')->setRowHeight(16);
     }
 }
