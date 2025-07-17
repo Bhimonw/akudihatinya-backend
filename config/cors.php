@@ -29,6 +29,7 @@ return [
         env('APP_URL', 'http://localhost:8000'), // Laravel app URL for SPA integration
         'http://localhost:8000', // Default Laravel development server
         'http://127.0.0.1:8000', // Alternative localhost format
+        'https://akudihatinya.banjarkab.go.id', // Production frontend domain
     ],
 
     'allowed_origins_patterns' => [],

@@ -7,11 +7,11 @@
     <title>akudihatinya</title>
     
     <!-- Preload critical resources -->
-    <link rel="preload" href="{{ asset('assets/index-BV2e4To_.css') }}" as="style">
-    <link rel="preload" href="{{ asset('assets/index-ByF3rBPZ.js') }}" as="script">
+    <link rel="preload" href="{{ asset('assets/index-BAAp1Kbd.css') }}" as="style">
+    <link rel="preload" href="{{ asset('assets/index-DjSQ9tTq.js') }}" as="script">
     
     <!-- CSS -->
-    <link rel="stylesheet" href="{{ asset('assets/index-BV2e4To_.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/index-BAAp1Kbd.css') }}">
     
     <!-- Favicon -->
     <link rel="icon" type="image/jpeg" href="{{ asset('ptm-icon.jpg') }}">
@@ -21,6 +21,6 @@
     <div id="app"></div>
     
     <!-- JavaScript -->
-    <script src="{{ asset('assets/index-ByF3rBPZ.js') }}"></script>
+    <script type="module" src="{{ asset('assets/index-DjSQ9tTq.js') }}"></script>
 </body>
 </html>
