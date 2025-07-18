@@ -7,6 +7,7 @@ use App\Models\Puskesmas;
 use App\Models\YearlyTarget;
 use App\Services\Statistics\StatisticsService;
 use App\Formatters\PuskesmasFormatter;
+use App\Formatters\DynamicFormatterFactory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Illuminate\Support\Facades\Auth;
@@ -37,12 +38,20 @@ class PuskesmasExportService
             $puskesmasId = Auth::user()->puskesmas_id;
         }
 
+        // Gunakan factory untuk mendapatkan template path dan formatter untuk puskesmas
+        $templatePath = DynamicFormatterFactory::getTemplatePath('puskesmas', $diseaseType);
+        $formatter = DynamicFormatterFactory::createFormatter('puskesmas', $diseaseType);
+
+        // Validasi keberadaan template
+        if (!DynamicFormatterFactory::validateTemplate($templatePath)) {
+            throw new \Exception('Template puskesmas tidak ditemukan: ' . basename($templatePath));
+        }
+
         // Load the Excel template
-        $templatePath = resource_path('excel/puskesmas.xlsx');
         $spreadsheet = IOFactory::load($templatePath);
 
         // Format the spreadsheet with data
-        $spreadsheet = $this->puskesmasFormatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
+        $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $puskesmasId);
 
         // Generate filename
         $filename = $this->generateFilename($diseaseType, $year, $puskesmasId);

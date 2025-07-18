@@ -9,6 +9,7 @@ use App\Exceptions\PuskesmasNotFoundException;
 use App\Formatters\AdminAllFormatter;
 use App\Formatters\AdminMonthlyFormatter;
 use App\Formatters\AdminQuarterlyFormatter;
+use App\Formatters\DynamicFormatterFactory;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -224,44 +225,30 @@ class StatisticsExportService
     }
 
     /**
-     * Export ke Excel menggunakan template dari resources/excel
-     * Membedakan antara admin dan puskesmas dengan formatter yang berbeda
+     * Export ke Excel menggunakan template dinamis
+     * Menggunakan DynamicFormatterFactory untuk menentukan formatter yang sesuai
      */
     private function exportToExcel($statistics, $year, $month, $diseaseType, $filename, $tableType = 'all')
     {
         $user = Auth::user();
         
-        // Tentukan template dan formatter berdasarkan role user dan jenis laporan
-        if ($user && $user->isAdmin()) {
-            // Admin menggunakan AdminFormatter berdasarkan table_type dan disease type
-            if ($diseaseType === 'all' || $tableType === 'all') {
-                // All disease types atau all table types - gunakan template all.xlsx
-                $templatePath = resource_path('excel/all.xlsx');
-                $formatter = $this->adminAllFormatter;
-            } elseif ($tableType === 'monthly' || $month) {
-                // Monthly report untuk admin - gunakan template monthly.xlsx
-                $templatePath = resource_path('excel/monthly.xlsx');
-                $formatter = $this->adminMonthlyFormatter;
-            } else {
-                // Quarterly or yearly report untuk admin - gunakan template quarterly.xlsx
-                $templatePath = resource_path('excel/quarterly.xlsx');
-                $formatter = $this->adminQuarterlyFormatter;
-            }
-        } else {
-            // Puskesmas menggunakan template puskesmas.xlsx
-            $templatePath = resource_path('excel/puskesmas.xlsx');
-            $puskesmasId = $user ? $user->puskesmas_id : null;
-            return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $puskesmasId);
+        // Untuk puskesmas, gunakan service khusus
+        if (!$user->isAdmin() && $user->puskesmas_id) {
+            return $this->puskesmasExportService->exportPuskesmasStatistics($diseaseType, $year, $user->puskesmas_id);
         }
+        
+        // Tentukan quarter jika ada
+        $quarter = null;
+        if ($month) {
+            $quarter = ceil($month / 3);
+        }
+        
+        // Gunakan factory untuk mendapatkan template path dan formatter
+        $templatePath = DynamicFormatterFactory::getTemplatePath($tableType, $diseaseType, $month, $quarter);
+        $formatter = DynamicFormatterFactory::createFormatter($tableType, $diseaseType, $month, $quarter);
 
         // Validasi keberadaan template Excel
-        if (!file_exists($templatePath)) {
-            Log::error('Template Excel tidak ditemukan', [
-                'template_path' => $templatePath,
-                'disease_type' => $diseaseType,
-                'month' => $month
-            ]);
-            
+        if (!DynamicFormatterFactory::validateTemplate($templatePath)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Template Excel tidak ditemukan: ' . basename($templatePath)
@@ -269,11 +256,17 @@ class StatisticsExportService
         }
 
         try {
-            // Load template Excel dari resources/excel
+            // Load template Excel
             $spreadsheet = IOFactory::load($templatePath);
 
-            // Format spreadsheet menggunakan formatter admin yang sesuai
-            $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $statistics);
+            // Format spreadsheet menggunakan formatter yang sesuai
+            if ($month && method_exists($formatter, 'format')) {
+                // Untuk monthly formatter yang memerlukan parameter month
+                $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $statistics, $month);
+            } else {
+                // Untuk formatter lainnya
+                $spreadsheet = $formatter->format($spreadsheet, $diseaseType, $year, $statistics);
+            }
 
             // Save file
             $writer = new Xlsx($spreadsheet);
@@ -291,7 +284,8 @@ class StatisticsExportService
             Log::error('Error saat export Excel', [
                 'error' => $e->getMessage(),
                 'template_path' => $templatePath,
-                'disease_type' => $diseaseType
+                'disease_type' => $diseaseType,
+                'table_type' => $tableType
             ]);
             
             return response()->json([
