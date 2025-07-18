@@ -180,7 +180,7 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
     /**
      * Dapatkan bulan-bulan dalam triwulan
      */
-    private function getQuarterMonths(int $quarter): array
+    protected function getQuarterMonths(int $quarter): array
     {
         switch ($quarter) {
             case 1:
