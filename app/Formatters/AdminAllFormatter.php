@@ -20,7 +20,7 @@ class AdminAllFormatter extends BaseAdminFormatter
     public function format(Spreadsheet $spreadsheet, string $diseaseType, int $year, array $statistics): Spreadsheet
     {
         $this->sheet = $spreadsheet->getActiveSheet();
-        
+
         // Replace placeholders di template
         $replacements = [
             '{{YEAR}}' => $year,
@@ -28,20 +28,23 @@ class AdminAllFormatter extends BaseAdminFormatter
             '{{GENERATED_DATE}}' => Carbon::now()->format('d/m/Y'),
             '{{GENERATED_TIME}}' => Carbon::now()->format('H:i:s')
         ];
-        
+
         $this->replacePlaceholders($spreadsheet, $replacements);
-        
+
+        // Ensure headers align with data columns
+        $this->ensureListHeaders($diseaseType, 7);
+
         // Format data statistik
         $this->formatData($statistics, $diseaseType);
-        
+
         // Apply styles
         $this->applyStyles($spreadsheet, 'A1:Z100', [
             'font' => ['name' => 'Arial', 'size' => 10],
         ]);
-        
+
         return $spreadsheet;
     }
-    
+
     /**
      * Format data statistik ke dalam spreadsheet
      */
@@ -49,29 +52,29 @@ class AdminAllFormatter extends BaseAdminFormatter
     {
         $startRow = 8; // Mulai dari baris 8 (sesuaikan dengan template)
         $currentRow = $startRow;
-        
+
         // Hitung total untuk summary
         $totals = $this->calculateTotals($statistics, $diseaseType);
-        
+
         // Format data per puskesmas
         foreach ($statistics as $index => $data) {
             $this->formatPuskesmasData($data, $currentRow, $index + 1, $diseaseType);
             $currentRow++;
         }
-        
+
         // Format total di baris terakhir
         $this->formatTotalRow($totals, $currentRow, $diseaseType);
-        
+
         // Format data bulanan dan triwulanan
         $this->formatMonthlyAndQuarterlyData($statistics, $diseaseType);
-        
+
         // Format pencapaian tahunan
         $this->formatYearlyAchievement($statistics, $diseaseType);
-        
+
         // Apply number formatting
         $this->applyNumberFormats();
     }
-    
+
     /**
      * Format data individual puskesmas
      */
@@ -79,10 +82,10 @@ class AdminAllFormatter extends BaseAdminFormatter
     {
         // Kolom A: No
         $this->sheet->setCellValue('A' . $row, $no);
-        
+
         // Kolom B: Nama Puskesmas
         $this->sheet->setCellValue('B' . $row, $data['puskesmas_name'] ?? '');
-        
+
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
             // Data Hipertensi
             $htData = $data['ht'] ?? [];
@@ -94,12 +97,12 @@ class AdminAllFormatter extends BaseAdminFormatter
             $this->sheet->setCellValue('H' . $row, $this->formatDataForExcel($htData['female_patients'] ?? 0));
             $this->sheet->setCellValue('I' . $row, ($htData['achievement_percentage'] ?? 0) / 100); // Convert to decimal for percentage format
         }
-        
+
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
             // Data Diabetes Melitus
             $dmData = $data['dm'] ?? [];
             $colOffset = ($diseaseType === 'all') ? 7 : 0; // Offset kolom jika menampilkan kedua penyakit
-            
+
             $this->sheet->setCellValue(chr(67 + $colOffset) . $row, $this->formatDataForExcel($dmData['target'] ?? 0)); // C atau J
             $this->sheet->setCellValue(chr(68 + $colOffset) . $row, $this->formatDataForExcel($dmData['total_patients'] ?? 0)); // D atau K
             $this->sheet->setCellValue(chr(69 + $colOffset) . $row, $this->formatDataForExcel($dmData['standard_patients'] ?? 0)); // E atau L
@@ -109,7 +112,7 @@ class AdminAllFormatter extends BaseAdminFormatter
             $this->sheet->setCellValue(chr(73 + $colOffset) . $row, ($dmData['achievement_percentage'] ?? 0) / 100); // I atau P
         }
     }
-    
+
     /**
      * Hitung total untuk summary
      */
@@ -133,7 +136,7 @@ class AdminAllFormatter extends BaseAdminFormatter
                 'female_patients' => 0
             ]
         ];
-        
+
         foreach ($statistics as $data) {
             if ($diseaseType === 'all' || $diseaseType === 'ht') {
                 $htData = $data['ht'] ?? [];
@@ -144,7 +147,7 @@ class AdminAllFormatter extends BaseAdminFormatter
                 $totals['ht']['male_patients'] += intval($htData['male_patients'] ?? 0);
                 $totals['ht']['female_patients'] += intval($htData['female_patients'] ?? 0);
             }
-            
+
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
                 $dmData = $data['dm'] ?? [];
                 $totals['dm']['target'] += intval($dmData['target'] ?? 0);
@@ -155,20 +158,20 @@ class AdminAllFormatter extends BaseAdminFormatter
                 $totals['dm']['female_patients'] += intval($dmData['female_patients'] ?? 0);
             }
         }
-        
+
         // Hitung persentase achievement
         $totals['ht']['achievement_percentage'] = $this->calculatePercentage(
-            $totals['ht']['standard_patients'], 
+            $totals['ht']['standard_patients'],
             $totals['ht']['target']
         );
         $totals['dm']['achievement_percentage'] = $this->calculatePercentage(
-            $totals['dm']['standard_patients'], 
+            $totals['dm']['standard_patients'],
             $totals['dm']['target']
         );
-        
+
         return $totals;
     }
-    
+
     /**
      * Format baris total
      */
@@ -176,7 +179,7 @@ class AdminAllFormatter extends BaseAdminFormatter
     {
         $this->sheet->setCellValue('A' . $row, '');
         $this->sheet->setCellValue('B' . $row, 'TOTAL');
-        
+
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
             $this->sheet->setCellValue('C' . $row, $totals['ht']['target']);
             $this->sheet->setCellValue('D' . $row, $totals['ht']['total_patients']);
@@ -186,7 +189,7 @@ class AdminAllFormatter extends BaseAdminFormatter
             $this->sheet->setCellValue('H' . $row, $totals['ht']['female_patients']);
             $this->sheet->setCellValue('I' . $row, $totals['ht']['achievement_percentage'] / 100);
         }
-        
+
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
             $colOffset = ($diseaseType === 'all') ? 7 : 0;
             $this->sheet->setCellValue(chr(67 + $colOffset) . $row, $totals['dm']['target']);
@@ -198,7 +201,7 @@ class AdminAllFormatter extends BaseAdminFormatter
             $this->sheet->setCellValue(chr(73 + $colOffset) . $row, $totals['dm']['achievement_percentage'] / 100);
         }
     }
-    
+
     /**
      * Format data bulanan dan triwulanan
      */
@@ -206,22 +209,22 @@ class AdminAllFormatter extends BaseAdminFormatter
     {
         // Implementasi untuk mengisi data bulanan ke kolom yang sesuai
         // Sesuaikan dengan struktur template all.xlsx
-        
+
         foreach ($statistics as $index => $data) {
             $row = 8 + $index; // Sesuaikan dengan baris data
-            
+
             if ($diseaseType === 'all' || $diseaseType === 'ht') {
                 $htMonthlyData = $data['ht']['monthly_data'] ?? [];
                 $this->fillMonthlyData($htMonthlyData, $row, 'ht');
             }
-            
+
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
                 $dmMonthlyData = $data['dm']['monthly_data'] ?? [];
                 $this->fillMonthlyData($dmMonthlyData, $row, 'dm');
             }
         }
     }
-    
+
     /**
      * Mengisi data bulanan ke kolom yang sesuai
      */
@@ -229,16 +232,16 @@ class AdminAllFormatter extends BaseAdminFormatter
     {
         // Kolom untuk data bulanan (sesuaikan dengan template)
         $startCol = ($diseaseType === 'ht') ? 'Q' : 'AA'; // Contoh kolom mulai
-        
+
         for ($month = 1; $month <= 12; $month++) {
             $monthData = $monthlyData[$month] ?? [];
             $col = chr(ord($startCol) + $month - 1);
-            
+
             // Isi data sesuai dengan struktur template
             $this->sheet->setCellValue($col . $row, $this->formatDataForExcel($monthData['total'] ?? 0));
         }
     }
-    
+
     /**
      * Format pencapaian tahunan
      */
@@ -247,7 +250,7 @@ class AdminAllFormatter extends BaseAdminFormatter
         // Implementasi untuk mengisi data pencapaian tahunan
         // Sesuaikan dengan struktur template all.xlsx
     }
-    
+
     /**
      * Apply number formats ke range yang sesuai
      */
@@ -256,15 +259,15 @@ class AdminAllFormatter extends BaseAdminFormatter
         // Format angka untuk kolom data
         $this->applyNumberFormat($this->sheet->getParent(), 'C:H', NumberFormat::FORMAT_NUMBER);
         $this->applyNumberFormat($this->sheet->getParent(), 'J:O', NumberFormat::FORMAT_NUMBER);
-        
+
         // Format persentase untuk kolom achievement
         $this->applyPercentageFormat($this->sheet->getParent(), 'I:I');
         $this->applyPercentageFormat($this->sheet->getParent(), 'P:P');
-        
+
         // Apply borders
         $lastRow = $this->sheet->getHighestRow();
         $this->applyBorder($this->sheet->getParent(), 'A8:P' . $lastRow);
-        
+
         // Apply alignment
         $this->applyAlignment($this->sheet->getParent(), 'A8:P' . $lastRow);
     }
