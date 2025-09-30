@@ -22,12 +22,14 @@ class AdminAllFormatter extends BaseAdminFormatter
         $this->sheet = $spreadsheet->getActiveSheet();
         
         // Replace placeholders di template
-        $this->replacePlaceholders($spreadsheet, [
+        $replacements = [
             '{{YEAR}}' => $year,
             '{{DISEASE_TYPE}}' => $this->getDiseaseLabel($diseaseType),
             '{{GENERATED_DATE}}' => Carbon::now()->format('d/m/Y'),
             '{{GENERATED_TIME}}' => Carbon::now()->format('H:i:s')
-        ]);
+        ];
+        
+        $this->replacePlaceholders($spreadsheet, $replacements);
         
         // Format data statistik
         $this->formatData($statistics, $diseaseType);

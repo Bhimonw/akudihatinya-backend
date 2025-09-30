@@ -21,7 +21,7 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
         $this->sheet = $spreadsheet->getActiveSheet();
         
         // Replace placeholders di template
-        $this->replacePlaceholders($spreadsheet, [
+        $replacements = [
             '{{DISEASE_TYPE}}' => $this->getDiseaseLabel($diseaseType),
             '{{YEAR}}' => $year,
             '{{MONTH}}' => $month ? str_pad($month, 2, '0', STR_PAD_LEFT) : '',
@@ -29,7 +29,9 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             '{{PERIOD}}' => $month ? $this->getMonthName($month) . ' ' . $year : 'Tahun ' . $year,
             '{{GENERATED_DATE}}' => date('d/m/Y'),
             '{{GENERATED_TIME}}' => date('H:i:s')
-        ]);
+        ];
+        
+        $this->replacePlaceholders($spreadsheet, $replacements);
         
         // Format data statistik
         $this->formatData($statistics, $diseaseType, $month);
@@ -226,35 +228,63 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
         
         $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, date('Y'));
         
+        // Tentukan baris awal untuk header tanggal
+        $headerRow = 7;
+        
+        // Isi header tanggal
+        $currentCol = 'J';
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $this->sheet->setCellValue($currentCol . $headerRow, $day);
+            $currentCol = $this->incrementColumn($currentCol);
+        }
+        
         foreach ($statistics as $index => $data) {
             $row = 8 + $index; // Sesuaikan dengan baris data
             
             if ($diseaseType === 'all' || $diseaseType === 'ht') {
                 $htDailyData = $data['ht']['daily_data'][$month] ?? [];
-                $this->fillDailyData($htDailyData, $row, 'ht', $daysInMonth);
+                // Kolom untuk data harian HT dimulai dari kolom J
+                $this->fillDailyData($htDailyData, $row, 'J', $daysInMonth);
             }
             
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
                 $dmDailyData = $data['dm']['daily_data'][$month] ?? [];
-                $this->fillDailyData($dmDailyData, $row, 'dm', $daysInMonth);
+                // Kolom untuk data harian DM dimulai dari kolom yang sesuai
+                // Sesuaikan dengan template
+                $dmStartCol = $this->incrementColumn(chr(ord('J') + $daysInMonth));
+                $this->fillDailyData($dmDailyData, $row, $dmStartCol, $daysInMonth);
             }
+        }
+        
+        // Tambahkan header untuk data harian
+        $this->sheet->setCellValue('J6', 'DATA HARIAN');
+        $this->sheet->mergeCells('J6:' . chr(ord('J') + $daysInMonth - 1) . '6');
+        
+        // Tambahkan header untuk DM jika diperlukan
+        if ($diseaseType === 'all' || $diseaseType === 'dm') {
+            $dmStartCol = $this->incrementColumn(chr(ord('J') + $daysInMonth));
+            $this->sheet->setCellValue($dmStartCol . '6', 'DATA HARIAN DM');
+            $this->sheet->mergeCells($dmStartCol . '6:' . chr(ord($dmStartCol) + $daysInMonth - 1) . '6');
         }
     }
     
     /**
      * Mengisi data harian ke kolom yang sesuai
      */
-    private function fillDailyData(array $dailyData, int $row, string $diseaseType, int $daysInMonth): void
+    private function fillDailyData(array $dailyData, int $row, string $startCol, int $daysInMonth): void
     {
-        // Kolom untuk data harian (sesuaikan dengan template)
-        $startCol = ($diseaseType === 'ht') ? 'Q' : 'AO'; // Contoh kolom mulai
+        // Gunakan startCol yang sudah ditentukan dari parameter
+        $currentCol = $startCol;
         
         for ($day = 1; $day <= $daysInMonth; $day++) {
             $dayData = $dailyData[$day] ?? [];
-            $col = chr(ord($startCol) + $day - 1);
             
             // Isi data sesuai dengan struktur template
-            $this->sheet->setCellValue($col . $row, $this->formatDataForExcel($dayData['total'] ?? 0));
+            $standardPatients = $dayData['standard_patients'] ?? 0;
+            $this->sheet->setCellValue($currentCol . $row, $this->formatDataForExcel($standardPatients));
+            
+            // Pindah ke kolom berikutnya
+            $currentCol = $this->incrementColumn($currentCol);
         }
     }
     

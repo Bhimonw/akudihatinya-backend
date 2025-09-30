@@ -7,20 +7,21 @@
     <title>akudihatinya</title>
     
     <!-- Preload critical resources -->
-    <link rel="preload" href="{{ asset('assets/index-qQK5dspK.css') }}" as="style">
-    <link rel="preload" href="{{ asset('assets/index-GPfwhcv-.js') }}" as="script">
+    <link rel="preload" href="{{ asset('frontend/assets/index-C2R5UoCD.css') }}" as="style">
+    <link rel="preload" href="{{ asset('frontend/assets/index-CFdEFBJg.js') }}" as="script">
     
     <!-- CSS -->
-    <link rel="stylesheet" href="{{ asset('assets/index-qQK5dspK.css') }}">
+    <link rel="stylesheet" href="{{ asset('frontend/assets/index-C2R5UoCD.css') }}">
     
     <!-- Favicon -->
     <link rel="icon" type="image/jpeg" href="{{ asset('ptm-icon.jpg') }}">
+
 </head>
 <body>
     <!-- Vue.js App Mount Point -->
     <div id="app"></div>
     
     <!-- JavaScript -->
-    <script type="module" src="{{ asset('assets/index-GPfwhcv-.js') }}"></script>
+    <script type="module" src="{{ asset('frontend/assets/index-CFdEFBJg.js') }}"></script>
 </body>
 </html>

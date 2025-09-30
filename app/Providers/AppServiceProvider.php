@@ -201,5 +201,8 @@ class AppServiceProvider extends ServiceProvider
         
         // Add PDF templates directory as a view location
         view()->addLocation(resource_path('pdf'));
+        
+        // Add PDF namespace for template access
+        view()->addNamespace('pdf', resource_path('views/pdf'));
     }
 }

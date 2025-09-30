@@ -51,7 +51,7 @@ class StatisticsExportService
      */
     public function exportStatistics($request)
     {
-        $year = $request->year;
+        $year = $request->year ?? date('Y'); // Default ke tahun saat ini jika tidak ada parameter year
         $month = $request->month;
         $diseaseType = $request->disease_type ?? $request->type ?? 'all';
         $tableType = $request->table_type ?? 'all';

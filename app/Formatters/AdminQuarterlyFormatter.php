@@ -21,14 +21,16 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
         $this->sheet = $spreadsheet->getActiveSheet();
         
         // Replace placeholders di template
-        $this->replacePlaceholders($spreadsheet, [
+        $replacements = [
             '{{DISEASE_TYPE}}' => $this->getDiseaseLabel($diseaseType),
             '{{YEAR}}' => $year,
             '{{QUARTER}}' => $quarter ? 'Triwulan ' . $quarter : 'Semua Triwulan',
             '{{PERIOD}}' => $quarter ? 'Triwulan ' . $quarter . ' Tahun ' . $year : 'Tahun ' . $year,
             '{{GENERATED_DATE}}' => date('d/m/Y'),
             '{{GENERATED_TIME}}' => date('H:i:s')
-        ]);
+        ];
+        
+        $this->replacePlaceholders($spreadsheet, $replacements);
         
         // Format data statistik
         $this->formatData($statistics, $diseaseType, $quarter);
@@ -289,22 +291,185 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
     }
     
     /**
+     * Increment kolom Excel (A -> B, Z -> AA, dll)
+     */
+    private function incrementColumn(string $column): string
+    {
+        return ++$column;
+    }
+    
+    /**
      * Format data bulanan dalam triwulan
      */
     private function formatQuarterlyMonthlyData(array $statistics, string $diseaseType, int $quarter): void
     {
-        $quarterMonths = $this->getQuarterMonths($quarter);
+        // Dapatkan bulan-bulan dalam triwulan
+        $months = $this->getQuarterMonths($quarter);
+        $monthNames = [
+            1 => 'JANUARI', 2 => 'FEBRUARI', 3 => 'MARET',
+            4 => 'APRIL', 5 => 'MEI', 6 => 'JUNI',
+            7 => 'JULI', 8 => 'AGUSTUS', 9 => 'SEPTEMBER',
+            10 => 'OKTOBER', 11 => 'NOVEMBER', 12 => 'DESEMBER'
+        ];
         
+        // Tentukan baris awal untuk data puskesmas
+        $startRow = 8; // Sesuaikan dengan template quarterly.xlsx
+        
+        // Format data untuk setiap puskesmas
         foreach ($statistics as $index => $data) {
-            $row = 8 + $index; // Sesuaikan dengan baris data
+            $row = $startRow + $index;
+            $puskesmasName = $data['puskesmas_name'] ?? '';
             
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $this->fillQuarterlyMonthlyData($data['ht']['monthly_data'] ?? [], $row, 'ht', $quarterMonths);
+            // Kolom untuk data puskesmas
+            $this->sheet->setCellValue('A' . $row, $index + 1); // No
+            $this->sheet->setCellValue('B' . $row, $puskesmasName); // Nama Puskesmas
+            $this->sheet->setCellValue('C' . $row, $data['ht']['target'] ?? 0); // Sasaran
+            
+            // Format data untuk setiap bulan dalam triwulan
+            $currentCol = 'D'; // Mulai dari kolom D untuk Januari
+            
+            foreach ($months as $month) {
+                $monthlyData = $data['monthly_data'][$month] ?? [];
+                $htData = $monthlyData['ht'] ?? [];
+                
+                // Kolom S (Standard/Terkendali)
+                $this->sheet->setCellValue($currentCol . $row, $htData['standard_patients'] ?? 0);
+                $currentCol = $this->incrementColumn($currentCol);
+                
+                // Kolom TS (Non-Standard/Tidak Terkendali)
+                $this->sheet->setCellValue($currentCol . $row, $htData['non_standard_patients'] ?? 0);
+                $currentCol = $this->incrementColumn($currentCol);
+                
+                // Kolom %S (Persentase Standard)
+                $target = $htData['target'] ?? 0;
+                $standard = $htData['standard_patients'] ?? 0;
+                $percentage = ($target > 0) ? ($standard / $target) * 100 : 0;
+                $this->sheet->setCellValue($currentCol . $row, $percentage / 100); // Format sebagai persentase
+                $currentCol = $this->incrementColumn($currentCol);
             }
             
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $this->fillQuarterlyMonthlyData($data['dm']['monthly_data'] ?? [], $row, 'dm', $quarterMonths);
+            // Kolom TOTAL TW untuk S, TS, %S
+            $totalStandard = 0;
+            $totalNonStandard = 0;
+            $totalTarget = 0;
+            
+            foreach ($months as $month) {
+                $monthlyData = $data['monthly_data'][$month] ?? [];
+                $htData = $monthlyData['ht'] ?? [];
+                $totalStandard += $htData['standard_patients'] ?? 0;
+                $totalNonStandard += $htData['non_standard_patients'] ?? 0;
+                $totalTarget += $htData['target'] ?? 0;
             }
+            
+            // Kolom S untuk TOTAL TW
+            $this->sheet->setCellValue($currentCol . $row, $totalStandard);
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            // Kolom TS untuk TOTAL TW
+            $this->sheet->setCellValue($currentCol . $row, $totalNonStandard);
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            // Kolom %S untuk TOTAL TW
+            $totalPercentage = ($totalTarget > 0) ? ($totalStandard / $totalTarget) * 100 : 0;
+            $this->sheet->setCellValue($currentCol . $row, $totalPercentage / 100);
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            // Kolom untuk bulan berikutnya (April dalam contoh)
+            if ($quarter == 1) {
+                $nextMonth = 4; // April setelah Triwulan I
+                $nextMonthData = $data['monthly_data'][$nextMonth] ?? [];
+                $nextHtData = $nextMonthData['ht'] ?? [];
+                
+                // Kolom L (Laki-laki)
+                $this->sheet->setCellValue($currentCol . $row, $nextHtData['male_patients'] ?? 0);
+                $currentCol = $this->incrementColumn($currentCol);
+                
+                // Kolom P (Perempuan)
+                $this->sheet->setCellValue($currentCol . $row, $nextHtData['female_patients'] ?? 0);
+                $currentCol = $this->incrementColumn($currentCol);
+                
+                // Kolom TOTAL
+                $total = ($nextHtData['male_patients'] ?? 0) + ($nextHtData['female_patients'] ?? 0);
+                $this->sheet->setCellValue($currentCol . $row, $total);
+                $currentCol = $this->incrementColumn($currentCol);
+                
+                // Kolom TS
+                $this->sheet->setCellValue($currentCol . $row, $nextHtData['non_standard_patients'] ?? 0);
+                $currentCol = $this->incrementColumn($currentCol);
+                
+                // Kolom %S
+                $nextTarget = $nextHtData['target'] ?? 0;
+                $nextStandard = $nextHtData['standard_patients'] ?? 0;
+                $nextPercentage = ($nextTarget > 0) ? ($nextStandard / $nextTarget) * 100 : 0;
+                $this->sheet->setCellValue($currentCol . $row, $nextPercentage / 100);
+            }
+        }
+        
+        // Isi header bulan di baris atas
+        $headerRow = $startRow - 2; // Baris untuk header TRIWULAN I
+        $this->sheet->setCellValue('D' . $headerRow, 'TRIWULAN I');
+        
+        $subHeaderRow = $startRow - 1; // Baris untuk nama bulan
+        $currentCol = 'D';
+        foreach ($months as $month) {
+            // Setiap bulan memiliki 3 kolom (S, TS, %S)
+            $this->sheet->setCellValue($currentCol . $subHeaderRow, $monthNames[$month]);
+            $this->sheet->mergeCells($currentCol . $subHeaderRow . ':' . $this->incrementColumn($this->incrementColumn($currentCol)) . $subHeaderRow);
+            $currentCol = $this->incrementColumn($this->incrementColumn($this->incrementColumn($currentCol)));
+        }
+        
+        // Header untuk TOTAL TW
+        $this->sheet->setCellValue($currentCol . $subHeaderRow, 'TOTAL TW I');
+        $this->sheet->mergeCells($currentCol . $subHeaderRow . ':' . $this->incrementColumn($this->incrementColumn($currentCol)) . $subHeaderRow);
+        $currentCol = $this->incrementColumn($this->incrementColumn($this->incrementColumn($currentCol)));
+        
+        // Header untuk bulan berikutnya
+        if ($quarter == 1) {
+            $this->sheet->setCellValue($currentCol . $headerRow, 'APRIL');
+            $this->sheet->mergeCells($currentCol . $headerRow . ':' . $this->incrementColumn($this->incrementColumn($this->incrementColumn($this->incrementColumn($currentCol)))) . $headerRow);
+        }
+        
+        // Isi sub-header untuk kolom S, TS, %S
+        $subHeaderRow2 = $startRow - 1;
+        $currentCol = 'D';
+        
+        // Untuk setiap bulan dalam triwulan
+        foreach ($months as $month) {
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'S');
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'TS');
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, '%S');
+            $currentCol = $this->incrementColumn($currentCol);
+        }
+        
+        // Sub-header untuk TOTAL TW
+        $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'S');
+        $currentCol = $this->incrementColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'TS');
+        $currentCol = $this->incrementColumn($currentCol);
+        
+        $this->sheet->setCellValue($currentCol . $subHeaderRow2, '%S');
+        $currentCol = $this->incrementColumn($currentCol);
+        
+        // Sub-header untuk bulan berikutnya
+        if ($quarter == 1) {
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'L');
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'P');
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'TOTAL');
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, 'TS');
+            $currentCol = $this->incrementColumn($currentCol);
+            
+            $this->sheet->setCellValue($currentCol . $subHeaderRow2, '%S');
         }
     }
     

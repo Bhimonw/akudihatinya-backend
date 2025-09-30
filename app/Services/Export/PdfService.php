@@ -70,7 +70,7 @@ class PdfService
             ]);
 
             // Generate PDF
-            $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
+            $pdf = Pdf::loadView('pdf.all_quarters_recap_pdf', $formattedData);
             $pdf->setPaper('A4', 'landscape');
 
             // Create filename
@@ -128,7 +128,7 @@ class PdfService
 
             $formattedData = $this->formatDataForPdf($statisticsData, $diseaseType, $year, 'summary');
 
-            $pdf = Pdf::loadView('all_quarters_recap_pdf', $formattedData);
+            $pdf = Pdf::loadView('pdf.all_quarters_recap_pdf', $formattedData);
             $pdf->setPaper('A4', 'portrait');
 
             $filename = "Ringkasan_Statistik_{$year}_" . date('Y-m-d_H-i-s') . ".pdf";

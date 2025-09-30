@@ -3,10 +3,11 @@
 namespace Database\Seeders;
 
 use App\Models\Puskesmas;
-use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+// Tambahan model dan helper
+use App\Models\Patient;
+use App\Models\YearlyTarget;
+use Carbon\Carbon;
 
 class PuskesmasSeeder extends Seeder
 {
@@ -15,63 +16,98 @@ class PuskesmasSeeder extends Seeder
      */
     public function run(): void
     {
-        $puskesmasList = [
+        // Hanya seed untuk 5 puskesmas yang sudah ada (berdasarkan nama)
+        $puskesmasNames = [
             'ALUH-ALUH',
             'BERUNTUNG BARU',
             'GAMBUT',
             'KERTAK HANYAR',
             'TATAH MAKMUR',
-            'SUNGAI TABUK 1',
-            'SUNGAI TABUK 2',
-            'SUNGAI TABUK 3',
-            'MARTAPURA 1',
-            'MARTAPURA 2',
-            'MARTAPURA TIMUR',
-            'MARTAPURA BARAT',
-            'ASTAMBUL',
-            'KARANG INTAN 1',
-            'KARANG INTAN 2',
-            'ARANIO',
-            'SUNGAI PINANG',
-            'PARAMASAN',
-            'PENGARON',
-            'SAMBUNG MAKMUR',
-            'MATARAMAN',
-            'SIMPANG EMPAT 1',
-            'SIMPANG EMPAT 2',
-            'TELAGA BAUNTUNG',
-            'CINTAPURI DARUSSALAM',
         ];
 
-        foreach ($puskesmasList as $puskesmasName) {
-            // Generate username from puskesmas name
-            $username = Str::slug($puskesmasName, '');
-            $username = strtolower($username);
-            
-            // Generate password: puskesmas name + 123
-            $passwordBase = Str::slug($puskesmasName, '');
-            $passwordBase = strtolower($passwordBase);
-            $password = $passwordBase . '123';
+        $currentYear = Carbon::now()->year;
+        $years = [$currentYear, $currentYear - 1];
+        $diseaseTypes = ['ht', 'dm'];
 
-            // Create user first
-            $user = User::create([
-                'username' => $username,
-                'password' => Hash::make($password),
-                'name' => 'User ' . $puskesmasName,
-                'role' => 'puskesmas',
-                'puskesmas_id' => null, // Will be updated after puskesmas is created
-            ]);
+        $totalPatientsCreated = 0;
+        $totalPuskesmasProcessed = 0;
+        $this->command?->info('Memulai seeding YearlyTarget dan Patient untuk 5 puskesmas...');
 
-            // Create puskesmas
-            $puskesmas = Puskesmas::create([
-                'name' => $puskesmasName,
-                'user_id' => $user->id,
-            ]);
+        foreach ($puskesmasNames as $name) {
+            $this->command?->info("Memproses puskesmas: {$name}");
+            $puskesmas = Puskesmas::where('name', $name)->first();
+            if (!$puskesmas) {
+                $this->command?->warn("- Dilewati: Puskesmas dengan nama '{$name}' tidak ditemukan di database.");
+                continue;
+            }
 
-            // Update user's puskesmas_id
-            $user->update([
-                'puskesmas_id' => $puskesmas->id,
-            ]);
+            $totalPuskesmasProcessed++;
+
+            // Seed YearlyTarget untuk 2 tahun (tahun ini dan tahun lalu) untuk HT & DM
+            foreach ($years as $year) {
+                foreach ($diseaseTypes as $type) {
+                    YearlyTarget::updateOrCreate(
+                        [
+                            'puskesmas_id' => $puskesmas->id,
+                            'year' => $year,
+                            'disease_type' => $type,
+                        ],
+                        [
+                            // Nilai target contoh; silakan sesuaikan jika diperlukan
+                            'target_count' => $type === 'ht' ? 120 : 100,
+                        ]
+                    );
+                }
+            }
+            $this->command?->info("- YearlyTarget dipastikan untuk tahun {$years[1]} dan {$years[0]} (HT & DM)");
+
+            // Seed 10 pasien contoh per puskesmas
+            $createdForThisPuskesmas = 0;
+            for ($i = 1; $i <= 10; $i++) {
+                // Bangun NIK stabil 16 digit agar idempoten: PPPP II XXXXXXXXXX
+                // PPPP: id puskesmas 4 digit (zero pad), II: index 2 digit, tail 10 digit konstan
+                $nik = str_pad((string)$puskesmas->id, 4, '0', STR_PAD_LEFT)
+                    . str_pad((string)$i, 2, '0', STR_PAD_LEFT)
+                    . '1234567890';
+
+                $gender = $i % 2 === 0 ? 'male' : 'female';
+                $birthDate = Carbon::now()->subYears(rand(30, 65))->subDays(rand(0, 365));
+                $hasHt = $i % 2 === 0; // sebagian pasien punya HT
+                $hasDm = $i % 3 === 0; // sebagian pasien punya DM
+
+                // Tentukan tahun-tahun kunjungan untuk HT/DM (array)
+                $htYears = $hasHt ? [ $currentYear - ($i % 2) ] : [];
+                $dmYears = $hasDm ? [ $currentYear - ($i % 3) ] : [];
+
+                $patient = Patient::firstOrCreate(
+                    [
+                        'nik' => $nik,
+                    ],
+                    [
+                        'puskesmas_id' => $puskesmas->id,
+                        'bpjs_number' => null,
+                        'name' => "Sample Patient {$name} {$i}",
+                        'address' => 'Alamat ' . $name,
+                        'phone_number' => null,
+                        'gender' => $gender,
+                        'birth_date' => $birthDate->toDateString(),
+                        'age' => $birthDate->age,
+                        // has_ht/has_dm dihitung dari accessor berdasarkan ht_years/dm_years
+                        'ht_years' => $htYears,
+                        'dm_years' => $dmYears,
+                        // medical_record_number nullable (opsional)
+                    ]
+                );
+
+                if ($patient->wasRecentlyCreated) {
+                    $createdForThisPuskesmas++;
+                    $totalPatientsCreated++;
+                }
+            }
+
+            $this->command?->info("- Pasien baru dibuat: {$createdForThisPuskesmas} (total kumulatif: {$totalPatientsCreated})");
         }
+
+        $this->command?->info("Selesai. Puskesmas diproses: {$totalPuskesmasProcessed}, pasien baru dibuat: {$totalPatientsCreated}.");
     }
 }

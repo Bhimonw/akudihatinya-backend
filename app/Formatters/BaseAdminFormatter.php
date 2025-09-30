@@ -123,7 +123,7 @@ abstract class BaseAdminFormatter
              $period = '';
              if (isset($replacements['{{MONTH}}']) && is_numeric($replacements['{{MONTH}}'])) {
                  $period = 'Bulan ' . $this->getMonthName($replacements['{{MONTH}}']);
-                 $anglePlaceholders['<mulai >'] = $this->getMonthName($replacements['{{MONTH}}']);
+                 $anglePlaceholders['<mulai>'] = $this->getMonthName($replacements['{{MONTH}}']);
                  $anglePlaceholders['<akhir>'] = $this->getMonthName($replacements['{{MONTH}}']);
              } elseif (isset($replacements['{{QUARTER}}'])) {
                  // Extract quarter number from string like "Triwulan 1"
@@ -131,16 +131,16 @@ abstract class BaseAdminFormatter
                  if (preg_match('/\d+/', $quarterStr, $matches)) {
                      $quarterNum = intval($matches[0]);
                      $quarterMonths = $this->getQuarterMonths($quarterNum);
-                     $anglePlaceholders['<mulai >'] = $this->getMonthName($quarterMonths[0]);
+                     $anglePlaceholders['<mulai>'] = $this->getMonthName($quarterMonths[0]);
                      $anglePlaceholders['<akhir>'] = $this->getMonthName(end($quarterMonths));
                  } else {
-                     $anglePlaceholders['<mulai >'] = $quarterStr;
+                     $anglePlaceholders['<mulai>'] = $quarterStr;
                      $anglePlaceholders['<akhir>'] = $quarterStr;
                  }
              }
          } else {
              // Default untuk laporan tahunan
-             $anglePlaceholders['<mulai >'] = 'Januari';
+             $anglePlaceholders['<mulai>'] = 'Januari';
              $anglePlaceholders['<akhir>'] = 'Desember';
          }
         
