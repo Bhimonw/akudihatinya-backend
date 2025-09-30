@@ -15,6 +15,7 @@ use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 abstract class BaseAdminFormatter
 {
     protected $statisticsService;
+
     protected $sheet;
 
     public function __construct(StatisticsService $statisticsService)
@@ -42,7 +43,7 @@ abstract class BaseAdminFormatter
     {
         $totalAchievement = 0;
         $totalService = 0;
-        
+
         foreach ($data as $puskesmasData) {
             if (isset($puskesmasData['yearly_achievement'])) {
                 $totalAchievement += $puskesmasData['yearly_achievement'];
@@ -51,13 +52,13 @@ abstract class BaseAdminFormatter
                 $totalService += $puskesmasData['yearly_service'];
             }
         }
-        
+
         $achievementPercentage = $totalService > 0 ? ($totalAchievement / $totalService) * 100 : 0;
-        
+
         return [
             'total_achievement' => $totalAchievement,
             'total_service' => $totalService,
-            'achievement_percentage' => round($achievementPercentage, 2)
+            'achievement_percentage' => round($achievementPercentage, 2),
         ];
     }
 
@@ -69,47 +70,51 @@ abstract class BaseAdminFormatter
         // Tambahkan placeholder berformat <> berdasarkan data yang ada
         $additionalReplacements = $this->getAngleBracketPlaceholders($replacements);
         $allReplacements = array_merge($replacements, $additionalReplacements);
-        
+
         foreach ($spreadsheet->getAllSheets() as $sheet) {
             $highestRow = $sheet->getHighestRow();
-            $highestColumn = $sheet->getHighestColumn();
-            
+            $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($sheet->getHighestColumn());
+
             for ($row = 1; $row <= $highestRow; $row++) {
-                for ($col = 'A'; $col <= $highestColumn; $col++) {
-                    $cell = $sheet->getCell($col . $row);
+                for ($colIndex = 1; $colIndex <= $highestColumnIndex; $colIndex++) {
+                    $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                    $cell = $sheet->getCell($col.$row);
                     $value = $cell->getValue();
-                    
+
                     if (is_string($value)) {
+                        $originalValue = $value;
                         foreach ($allReplacements as $placeholder => $replacement) {
-                            $value = str_replace($placeholder, $replacement, $value);
+                            $value = str_replace($placeholder, (string) $replacement, $value);
                         }
-                        $cell->setValue($value);
+                        if ($originalValue !== $value) {
+                            $cell->setValue($value);
+                        }
                     }
                 }
             }
         }
     }
-    
+
     /**
      * Mendapatkan placeholder berformat <> berdasarkan data yang tersedia
      */
     protected function getAngleBracketPlaceholders(array $replacements): array
     {
         $anglePlaceholders = [];
-        
+
         // Mapping dari placeholder {{}} ke placeholder <>
         if (isset($replacements['{{DISEASE_TYPE}}'])) {
             $anglePlaceholders['<tipe_penyakit>'] = $replacements['{{DISEASE_TYPE}}'];
         }
-        
+
         if (isset($replacements['{{YEAR}}'])) {
             $anglePlaceholders['<tahun>'] = $replacements['{{YEAR}}'];
         }
-        
+
         if (isset($replacements['{{PUSKESMAS_NAME}}'])) {
             $anglePlaceholders['<puskesmas>'] = $replacements['{{PUSKESMAS_NAME}}'];
         }
-        
+
         // Placeholder untuk sasaran
         if (isset($replacements['{{TARGET}}'])) {
             $anglePlaceholders['<sasaran>'] = $replacements['{{TARGET}}'];
@@ -117,54 +122,54 @@ abstract class BaseAdminFormatter
             // Default value untuk <sasaran>
             $anglePlaceholders['<sasaran>'] = 'Target Pencapaian';
         }
-        
+
         // Placeholder khusus untuk periode waktu
-         if (isset($replacements['{{MONTH}}']) || isset($replacements['{{QUARTER}}'])) {
-             $period = '';
-             if (isset($replacements['{{MONTH}}']) && is_numeric($replacements['{{MONTH}}'])) {
-                 $period = 'Bulan ' . $this->getMonthName($replacements['{{MONTH}}']);
-                 $anglePlaceholders['<mulai >'] = $this->getMonthName($replacements['{{MONTH}}']);
-                 $anglePlaceholders['<akhir>'] = $this->getMonthName($replacements['{{MONTH}}']);
-             } elseif (isset($replacements['{{QUARTER}}'])) {
-                 // Extract quarter number from string like "Triwulan 1"
-                 $quarterStr = $replacements['{{QUARTER}}'];
-                 if (preg_match('/\d+/', $quarterStr, $matches)) {
-                     $quarterNum = intval($matches[0]);
-                     $quarterMonths = $this->getQuarterMonths($quarterNum);
-                     $anglePlaceholders['<mulai >'] = $this->getMonthName($quarterMonths[0]);
-                     $anglePlaceholders['<akhir>'] = $this->getMonthName(end($quarterMonths));
-                 } else {
-                     $anglePlaceholders['<mulai >'] = $quarterStr;
-                     $anglePlaceholders['<akhir>'] = $quarterStr;
-                 }
-             }
-         } else {
-             // Default untuk laporan tahunan
-             $anglePlaceholders['<mulai >'] = 'Januari';
-             $anglePlaceholders['<akhir>'] = 'Desember';
-         }
-        
+        if (isset($replacements['{{MONTH}}']) || isset($replacements['{{QUARTER}}'])) {
+            $period = '';
+            if (isset($replacements['{{MONTH}}']) && is_numeric($replacements['{{MONTH}}'])) {
+                $period = 'Bulan '.$this->getMonthName($replacements['{{MONTH}}']);
+                $anglePlaceholders['<mulai >'] = $this->getMonthName($replacements['{{MONTH}}']);
+                $anglePlaceholders['<akhir>'] = $this->getMonthName($replacements['{{MONTH}}']);
+            } elseif (isset($replacements['{{QUARTER}}'])) {
+                // Extract quarter number from string like "Triwulan 1"
+                $quarterStr = $replacements['{{QUARTER}}'];
+                if (preg_match('/\d+/', $quarterStr, $matches)) {
+                    $quarterNum = intval($matches[0]);
+                    $quarterMonths = $this->getQuarterMonths($quarterNum);
+                    $anglePlaceholders['<mulai >'] = $this->getMonthName($quarterMonths[0]);
+                    $anglePlaceholders['<akhir>'] = $this->getMonthName(end($quarterMonths));
+                } else {
+                    $anglePlaceholders['<mulai >'] = $quarterStr;
+                    $anglePlaceholders['<akhir>'] = $quarterStr;
+                }
+            }
+        } else {
+            // Default untuk laporan tahunan
+            $anglePlaceholders['<mulai >'] = 'Januari';
+            $anglePlaceholders['<akhir>'] = 'Desember';
+        }
+
         return $anglePlaceholders;
-     }
-     
-     /**
-      * Dapatkan bulan-bulan dalam triwulan
-      */
-     protected function getQuarterMonths(int $quarter): array
-     {
-         switch ($quarter) {
-             case 1:
-                 return [1, 2, 3]; // Jan, Feb, Mar
-             case 2:
-                 return [4, 5, 6]; // Apr, May, Jun
-             case 3:
-                 return [7, 8, 9]; // Jul, Aug, Sep
-             case 4:
-                 return [10, 11, 12]; // Oct, Nov, Dec
-             default:
-                 return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-         }
-     }
+    }
+
+    /**
+     * Dapatkan bulan-bulan dalam triwulan
+     */
+    protected function getQuarterMonths(int $quarter): array
+    {
+        switch ($quarter) {
+            case 1:
+                return [1, 2, 3]; // Jan, Feb, Mar
+            case 2:
+                return [4, 5, 6]; // Apr, May, Jun
+            case 3:
+                return [7, 8, 9]; // Jul, Aug, Sep
+            case 4:
+                return [10, 11, 12]; // Oct, Nov, Dec
+            default:
+                return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        }
+    }
 
     /**
      * Menerapkan style pada range sel
@@ -220,9 +225,9 @@ abstract class BaseAdminFormatter
         $months = [
             1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
             5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
         ];
-        
+
         return $months[$month] ?? '';
     }
 
@@ -249,11 +254,11 @@ abstract class BaseAdminFormatter
         if (is_null($value)) {
             return '0';
         }
-        
+
         if (is_numeric($value)) {
             return (string) $value;
         }
-        
+
         return (string) $value;
     }
 
@@ -265,7 +270,7 @@ abstract class BaseAdminFormatter
         if ($denominator == 0) {
             return 0;
         }
-        
+
         return round(($numerator / $denominator) * 100, 2);
     }
 }
