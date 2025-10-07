@@ -6,10 +6,12 @@
 /public/frontend/*
 !/public/frontend/.gitkeep
 !/public/frontend/README.md
-/public/frontend/runtime-config.js
-/public/frontend/assets
-/public/frontend/index.html
-# NOTE: Frontend build artifacts should come from CI. If you intentionally track them, remove these lines.
+!/public/frontend/index.html
+!/public/frontend/vite.svg
+!/public/frontend/runtime-config.example.js
+!/public/frontend/assets
+# Allow committing built frontend assets (temporary: switch back to CI-only later)
+# If you want to exclude again, revert to previous ignore block.
 /storage/*.key
 /storage/pail
 /vendor
