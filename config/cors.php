@@ -17,28 +17,32 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie', '*'],
+    // Limit paths instead of wildcard to reduce unnecessary CORS surface
+    'paths' => [
+        'api/*',
+        'sanctum/csrf-cookie',
+    ],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        env('FRONTEND_URL', 'http://localhost:5173'),
-        'http://localhost:5174', // Alternative Vite dev server port
-        'http://127.0.0.1:5500', // For Live Server testing
-        'http://localhost:5500', // Alternative Live Server port
-        env('APP_URL', 'http://localhost:8000'), // Laravel app URL for SPA integration
-        'http://localhost:8000', // Default Laravel development server
-        'http://127.0.0.1:8000', // Alternative localhost format
-        'https://akudihatinya.banjarkab.go.id', // Production frontend domain
-    ],
+    'allowed_origins' => array_filter([
+        // Production domain MUST be explicitly set in env for deploys
+        function_exists('env') ? env('FRONTEND_URL') : ($_ENV['FRONTEND_URL'] ?? null),
+        function_exists('env') ? env('APP_URL') : ($_ENV['APP_URL'] ?? null),
+        // Local development fallbacks (only enabled when APP_ENV != production)
+        ((($_ENV['APP_ENV'] ?? (function_exists('env') ? env('APP_ENV') : null)) !== 'production')) ? 'http://localhost:5173' : null,
+        ((($_ENV['APP_ENV'] ?? (function_exists('env') ? env('APP_ENV') : null)) !== 'production')) ? 'http://127.0.0.1:5173' : null,
+    ]),
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['*'],
+    // Restrict headers where possible; wildcard acceptable if dynamic custom headers are used
+    'allowed_headers' => ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Origin'],
 
     'exposed_headers' => [],
 
     'max_age' => 0,
 
     'supports_credentials' => true,
+    // NOTE: When using credentials=true, wildcard origins are NOT allowed. Ensure env FRONTEND_URL is set in production.
 ];

@@ -12,8 +12,10 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            PuskesmasSeeder::class,
-            UserSeeder::class,
+            UserSeeder::class, // create admin
+            PuskesmasListSeeder::class, // create configured puskesmas and users
+            // PuskesmasSeeder::class, // add targets/patients for subset (legacy sample) - file not exists
+            // ExaminationSeeder::class, // file not exists
         ]);
     }
 }

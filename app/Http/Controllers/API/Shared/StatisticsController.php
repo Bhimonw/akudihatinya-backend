@@ -56,7 +56,7 @@ class StatisticsController extends Controller
         $year = $request->year ?? date('Y');
         $month = $request->month;
         $diseaseType = $request->type ?? 'all';
-        $perPage = $request->per_page ?? 15;
+        $perPage = min($request->per_page ?? 15, 100); // Max 100 per page
 
         // Get puskesmas data with filters
         $puskesmasAll = $this->puskesmasRepository->getFilteredPuskesmas($request);

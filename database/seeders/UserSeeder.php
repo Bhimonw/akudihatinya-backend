@@ -13,13 +13,15 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create admin user
-        User::create([
-            'username' => 'admin',
-            'password' => Hash::make('dinas123'),
-            'name' => 'Administrator',
-            'role' => 'admin',
-            'puskesmas_id' => null,
-        ]);
+        // Create admin user (idempotent)
+        User::firstOrCreate(
+            ['username' => 'admin'],
+            [
+                'password' => Hash::make('dinas123'),
+                'name' => 'Administrator',
+                'role' => 'admin',
+                'puskesmas_id' => null,
+            ]
+        );
     }
 }

@@ -83,6 +83,8 @@ Lihat [System Architecture](docs/SYSTEM_ARCHITECTURE.md) untuk setup production 
 ### 📋 Documentation Index
 Lihat [**docs/README.md**](./docs/README.md) untuk daftar lengkap semua dokumentasi yang tersedia.
 
+> ℹ️ Contoh file export Excel (monthly/quarterly/puskesmas) telah dipindahkan ke `docs/examples/exports/` untuk menjaga root repository tetap bersih.
+
 ## 🔧 Recent Fixes
 
 ### User Creation Fix (June 2025)
@@ -246,6 +248,162 @@ docker run -d \
 ### Manual Deployment
 
 Lihat [System Architecture](docs/SYSTEM_ARCHITECTURE.md) untuk panduan deployment manual yang lengkap.
+
+### 🔄 CI/CD (GitHub Actions)
+
+Pipeline otomatis terdiri dari dua workflow:
+
+1. `CI` (`.github/workflows/ci.yml`)
+  - Trigger: setiap push & PR
+  - Backend job: install composer deps, migrate (MySQL service), jalankan tests
+  - Frontend job: `npm ci`, `npm run lint`, `npm run build` (output langsung ke `akudihatinya-backend/public/frontend` – tidak ada artifact terpisah)
+  - Integration packaging: arsipkan folder backend (yang sudah berisi hasil build frontend) menjadi `release-bundle.tar.gz`
+
+2. `Deploy` (`.github/workflows/deploy.yml`)
+  - Trigger: push ke `main` atau manual (workflow_dispatch)
+  - Mengunduh artifact `release-bundle` (jika ada) atau fallback checkout
+  - Rsync ke server target + optimisasi artisan (config/route/view cache) + migrate
+  - Zero downtime sederhana (down/up) – dapat ditingkatkan ke strategi symlink.
+
+Keuntungan alur langsung:
+- Lebih sederhana (tidak perlu upload/download artifact frontend khusus)
+- Mengurangi waktu pipeline & risiko mismatch versi frontend-backend.
+
+#### Secrets yang Dibutuhkan
+| Secret | Deskripsi |
+|--------|-----------|
+| `DEPLOY_SSH_KEY` | Private key untuk SSH ke server (format OpenSSH) |
+| `DEPLOY_HOST` | Hostname/IP server | 
+| `DEPLOY_USER` | Username SSH | 
+| `DEPLOY_PATH` | Path direktori deploy di server (misal `/var/www/akudihatinya`) |
+
+Tambahan environment di server (file `.env` produksi) harus sudah ada dan tidak dioverwrite oleh pipeline.
+
+#### Menjalankan Deploy Manual
+Masuk ke tab Actions → pilih workflow Deploy → Run workflow → pilih environment (misal `production`).
+
+#### Rollback (Manual)
+1. Simpan rilis sebelumnya di server (opsional: tar backup sebelum overwrite)
+2. Jika ada error kritikal: `php artisan down`, restore backup, `php artisan up`
+
+#### Optimalisasi Lanjutan (Belum Diimplementasi)
+| Fitur | Catatan |
+|-------|--------|
+| Zero-downtime deploy | Bisa pakai symlink pattern (`releases/` + `current/`) |
+| Frontend integrity hashing | Tambah Subresource Integrity (SRI) opsional |
+| Security headers | Tambah middleware custom |
+| Static analysis | Tambah step PHPStan/Pint lint gating |
+
+#### Local Test Pipeline
+Simulasi langkah utama secara manual:
+```
+composer install
+php artisan migrate --force
+php artisan test
+cd ../frontend-akudihatinya && npm ci && npm run build
+```
+
+## 🚀 Frontend Production Build Integration
+
+Frontend (Vite + Vue) berada di folder `frontend-akudihatinya` dan sekarang build langsung keluar ke `akudihatinya-backend/public/frontend` (lihat `vite.config.js`).
+
+### Langkah Harian (Dev → Prod)
+```
+cd frontend-akudihatinya
+npm ci  # atau npm install
+npm run dev   # pengembangan
+npm run build # hasil langsung ke ../akudihatinya-backend/public/frontend
+```
+
+Tidak perlu script sync terpisah lagi. Direktori `public/frontend` di-ignore (kecuali README & .gitkeep) sehingga artifact tidak ikut commit.
+
+### Serving
+- API: `/api/*`
+- Frontend: `/frontend/index.html` (atau atur rewrite root → file ini jika menjadi root SPA)
+
+Contoh Nginx:
+```
+location /api/ {
+  proxy_pass http://127.0.0.1:8000/api/;
+}
+location /frontend/ {
+  root /var/www/akudihatinya-backend/public;
+  try_files $uri /frontend/index.html;
+}
+```
+
+### Runtime API Base URL (Hybrid)
+Resolusi prioritas:
+1. `window.__RUNTIME_CONFIG__.API_BASE_URL` (file runtime-config.js di server)
+2. `import.meta.env.VITE_API_BASE_URL`
+3. Fallback `window.location.origin + '/api'`
+
+Update tanpa rebuild:
+```
+cp frontend-akudihatinya/public/runtime-config.example.js akudihatinya-backend/public/frontend/runtime-config.js
+# edit runtime-config.js → window.__RUNTIME_CONFIG__ = { API_BASE_URL: 'https://your-domain/api' };
+```
+
+### Troubleshooting Ringkas
+| Masalah | Solusi |
+|---------|--------|
+| 404 assets | Pastikan web root menunjuk ke `public/` dan path relatif benar |
+| API 401 | Cek header CORS & Sanctum config; base URL benar |
+| Memanggil localhost | Rebuild dengan `.env.production` benar atau set runtime-config.js |
+| Blank page | Cek console browser & permission file |
+
+### Optional Root SPA
+Jika ingin root `/` langsung ke frontend:
+```
+Route::get('/{any}', fn() => file_get_contents(public_path('frontend/index.html')))
+  ->where('any', '.*');
+```
+(Gunakan hanya jika tidak memakai Blade di root.)
+
+## 📑 Export Semantics (Statistik) – Option B Harmonization
+
+Kolom ekspor (Admin All / Monthly / Quarterly) telah distandardisasi agar selaras dengan dashboard:
+
+| Kolom | Periode (bulan/tri) | Arti | Catatan |
+|-------|---------------------|------|---------|
+| L | Bulanan/Quarter | Pemeriksaan standard (laki-laki) | Hanya pasien berstatus standard pada bulan tsb |
+| P | Bulanan/Quarter | Pemeriksaan standard (perempuan) | Sama seperti L (standard only) |
+| TOTAL | Bulanan/Quarter | Total Pelayanan = S + TS | Re-defined (sebelumnya hanya S) |
+| TS | Bulanan/Quarter | Pemeriksaan non-standard | Tidak memenuhi kesinambungan bulanan |
+| %S | Bulanan/Quarter | (S / Target) | S = TOTAL - TS |
+| S (Annual Summary) | Tahunan | Jumlah standard aggregate | Ditampilkan eksplisit di blok ringkasan akhir |
+
+Definisi:
+- Standard Patient: Pasien hadir setiap bulan secara kontinu sejak bulan pertama kunjungan tanpa jeda.
+- Monthly counts = jumlah pemeriksaan (visits), bukan pasien unik.
+- Yearly totals (distinct) ditangani di service untuk ringkasan; di file export disediakan S aggregate & total pelayanan.
+
+Alasan perubahan TOTAL:
+- Mengurangi kebingungan antara “TOTAL” di dashboard (pelayanan) vs Excel (sebelumnya S)
+- Memastikan pengguna tidak salah menafsirkan coverage capaian.
+
+Rumus penting:
+```
+S = TOTAL - TS
+%S = S / Target (dibulatkan sesuai formatter)
+Total Pelayanan (jika diperlukan eksplisit) = TOTAL
+```
+
+Jika membutuhkan S per periode sebagai kolom terpisah di masa depan, tambahkan kolom baru agar backward compatible.
+
+### Validasi Konsistensi
+Uji regresi direkomendasikan:
+1. Buat data 1 pasien hadir 3 bulan tanpa gap → selalu standard.
+2. Tambah pasien kedua skip 1 bulan → hitung TS sesuai bulan skip.
+3. Verifikasi: TOTAL = S + TS; %S memakai S.
+
+### Rencana Testing (Belum Implementasi)
+- Feature test export membandingkan output JSON statistik vs nilai ter-parse dari sheet.
+- Edge case: bulan tanpa data (semua 0) tetap output kolom lengkap.
+
+---
+
+---
 
 ## 🤝 Contributing
 

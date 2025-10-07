@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Middleware\AdminOrPuskesmasMiddleware;
 
 // Statistics export routes - digunakan oleh frontend Dashboard
-Route::middleware(['auth:sanctum', AdminOrPuskesmasMiddleware::class])->prefix('statistics')->group(function () {
+Route::middleware(['auth:sanctum', AdminOrPuskesmasMiddleware::class, 'throttle:exports'])->prefix('statistics')->group(function () {
     // User dashboard export endpoint
     Route::get('/export', [StatisticsController::class, 'exportStatistics']);
     
@@ -15,6 +15,6 @@ Route::middleware(['auth:sanctum', AdminOrPuskesmasMiddleware::class])->prefix('
 });
 
 // Patient export routes - digunakan oleh frontend ListPasien, Hipertensi, DiabetesMellitus
-Route::middleware(['auth:sanctum', \App\Http\Middleware\IsPuskesmasMiddleware::class])->prefix('puskesmas')->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\IsPuskesmasMiddleware::class, 'throttle:exports'])->prefix('puskesmas')->group(function () {
     Route::get('/patients-export-excel', [PatientController::class, 'exportToExcel']);
 });

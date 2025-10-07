@@ -4,8 +4,11 @@ use App\Http\Controllers\API\Auth\AuthController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes (no CSRF protection needed)
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/refresh', [AuthController::class, 'refresh']);
+// Apply rate limiting to prevent brute force (e.g., 10 attempts per minute by IP+username context)
+Route::middleware('throttle:login')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/refresh', [AuthController::class, 'refresh']);
+});
 
 // Protected Auth routes
 Route::middleware('auth:sanctum')->group(function () {

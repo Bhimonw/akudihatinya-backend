@@ -14,10 +14,10 @@ class Kernel extends ConsoleKernel
     {
         // Schedule archive command to run daily at midnight
         $schedule->command('examinations:archive')->dailyAt('00:00');
-        
+
         // Schedule new year setup to run on January 1st at 01:00
         $schedule->command('year:setup --confirm')->yearly()->at('01:00');
-        
+
         // Schedule cache rebuild if needed (optional)
         // $schedule->command('statistics:rebuild-cache')->weekly();
     }
@@ -27,7 +27,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }
@@ -38,9 +38,10 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
-        \App\Console\Commands\ArchiveExaminations::class,
-        \App\Console\Commands\RebuildStatisticsCache::class,
-        \App\Console\Commands\SetupNewYear::class,
-        \App\Console\Commands\CreateYearlyTargets::class,
+        \App\Console\Commands\RebuildStatisticsCacheCommand::class,
+        \App\Console\Commands\SetupNewYearCommand::class,
+        \App\Console\Commands\CreateYearlyTargetsCommand::class,
+        \App\Console\Commands\PopulateExaminationStatsCommand::class,
+        \App\Console\Commands\ExcelExportCommand::class,
     ];
 }

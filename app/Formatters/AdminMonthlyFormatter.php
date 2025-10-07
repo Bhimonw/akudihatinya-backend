@@ -19,9 +19,9 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
     public function format(Spreadsheet $spreadsheet, string $diseaseType, int $year, array $statistics, int $month = null): Spreadsheet
     {
         $this->sheet = $spreadsheet->getActiveSheet();
-        
+
         // Replace placeholders di template
-        $this->replacePlaceholders($spreadsheet, [
+        $replacements = [
             '{{DISEASE_TYPE}}' => $this->getDiseaseLabel($diseaseType),
             '{{YEAR}}' => $year,
             '{{MONTH}}' => $month ? str_pad($month, 2, '0', STR_PAD_LEFT) : '',
@@ -29,101 +29,154 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             '{{PERIOD}}' => $month ? $this->getMonthName($month) . ' ' . $year : 'Tahun ' . $year,
             '{{GENERATED_DATE}}' => date('d/m/Y'),
             '{{GENERATED_TIME}}' => date('H:i:s')
-        ]);
-        
-        // Format data statistik
+        ];
+
+        $this->replacePlaceholders($spreadsheet, $replacements);
+
+        // Hanya input data ke tabel (header/footer sudah ada di template)
         $this->formatData($statistics, $diseaseType, $month);
-        
-        // Apply styles
-        $this->applyStyles($spreadsheet, 'A1:Z100', [
-            'font' => ['name' => 'Arial', 'size' => 10],
-        ]);
-        
+
         return $spreadsheet;
     }
-    
+
     /**
      * Format data statistik ke dalam spreadsheet
      */
     private function formatData(array $statistics, string $diseaseType, ?int $month): void
     {
-        $startRow = 8; // Mulai dari baris 8 (sesuaikan dengan template)
+        // Data mulai dari baris 8 (sesuai template monthly.xlsx)
+        $startRow = 8;
         $currentRow = $startRow;
-        
+
+        // Batas kolom terakhir berdasarkan header '% CAPAIAN PELAYANAN SESUAI STANDAR'
+        $lastAllowedCol = $this->getLastDataColumnByHeaders(['% CAPAIAN PELAYANAN SESUAI STANDAR', '% CAPAIAN']);
+
         // Hitung total untuk summary
         $totals = $this->calculateTotals($statistics, $diseaseType, $month);
-        
+
         // Format data per puskesmas
         foreach ($statistics as $index => $data) {
             $this->formatPuskesmasData($data, $currentRow, $index + 1, $diseaseType, $month);
             $currentRow++;
         }
-        
-        // Format total di baris terakhir
-        $this->formatTotalRow($totals, $currentRow, $diseaseType);
-        
+
+        // Tidak menambahkan baris total; kolom total per baris sudah tersedia di akhir.
+
         // Format data harian jika ada
         if ($month) {
             $this->formatDailyData($statistics, $diseaseType, $month);
         }
-        
-        // Apply number formatting
-        $this->applyNumberFormats();
+
+        // Jangan override format/style template
     }
-    
+
     /**
      * Format data individual puskesmas
      */
     private function formatPuskesmasData(array $data, int $row, int $no, string $diseaseType, ?int $month): void
     {
+        // Tentukan batas kolom terakhir sesuai template agar tidak kelebihan input
+        $lastAllowedCol = $this->getLastDataColumnByHeaders(['% CAPAIAN PELAYANAN SESUAI STANDAR', '% CAPAIAN']);
+
         // Kolom A: No
-        $this->sheet->setCellValue('A' . $row, $no);
-        
+        $this->safeSet('A', $row, $no);
+
         // Kolom B: Nama Puskesmas
-        $this->sheet->setCellValue('B' . $row, $data['puskesmas_name'] ?? '');
-        
-        // Ambil data untuk bulan tertentu atau total
-        $monthlyData = $month ? ($data['monthly_data'][$month] ?? []) : $data;
-        
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            // Data Hipertensi
-            $htData = $monthlyData['ht'] ?? $data['ht'] ?? [];
-            $this->sheet->setCellValue('C' . $row, $this->formatDataForExcel($htData['target'] ?? 0));
-            $this->sheet->setCellValue('D' . $row, $this->formatDataForExcel($htData['total_patients'] ?? 0));
-            $this->sheet->setCellValue('E' . $row, $this->formatDataForExcel($htData['standard_patients'] ?? 0));
-            $this->sheet->setCellValue('F' . $row, $this->formatDataForExcel($htData['non_standard_patients'] ?? 0));
-            $this->sheet->setCellValue('G' . $row, $this->formatDataForExcel($htData['male_patients'] ?? 0));
-            $this->sheet->setCellValue('H' . $row, $this->formatDataForExcel($htData['female_patients'] ?? 0));
-            
-            // Hitung achievement percentage
-            $achievement = $this->calculatePercentage(
-                $htData['standard_patients'] ?? 0,
-                $htData['target'] ?? 0
-            );
-            $this->sheet->setCellValue('I' . $row, $achievement / 100);
+        $this->safeSet('B', $row, $data['puskesmas_name'] ?? '', $lastAllowedCol);
+
+        // Kolom C: Sasaran (target) berdasarkan jenis layanan
+        $key = ($diseaseType === 'dm') ? 'dm' : 'ht';
+        $target = 0;
+        if ($diseaseType === 'all') {
+            $target = intval(($data['ht']['target'] ?? 0)) + intval(($data['dm']['target'] ?? 0));
+        } else {
+            $target = intval($data[$key]['target'] ?? 0);
         }
-        
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            // Data Diabetes Melitus
-            $dmData = $monthlyData['dm'] ?? $data['dm'] ?? [];
-            $colOffset = ($diseaseType === 'all') ? 7 : 0; // Offset kolom jika menampilkan kedua penyakit
-            
-            $this->sheet->setCellValue(chr(67 + $colOffset) . $row, $this->formatDataForExcel($dmData['target'] ?? 0)); // C atau J
-            $this->sheet->setCellValue(chr(68 + $colOffset) . $row, $this->formatDataForExcel($dmData['total_patients'] ?? 0)); // D atau K
-            $this->sheet->setCellValue(chr(69 + $colOffset) . $row, $this->formatDataForExcel($dmData['standard_patients'] ?? 0)); // E atau L
-            $this->sheet->setCellValue(chr(70 + $colOffset) . $row, $this->formatDataForExcel($dmData['non_standard_patients'] ?? 0)); // F atau M
-            $this->sheet->setCellValue(chr(71 + $colOffset) . $row, $this->formatDataForExcel($dmData['male_patients'] ?? 0)); // G atau N
-            $this->sheet->setCellValue(chr(72 + $colOffset) . $row, $this->formatDataForExcel($dmData['female_patients'] ?? 0)); // H atau O
-            
-            // Hitung achievement percentage
-            $achievement = $this->calculatePercentage(
-                $dmData['standard_patients'] ?? 0,
-                $dmData['target'] ?? 0
-            );
-            $this->sheet->setCellValue(chr(73 + $colOffset) . $row, $achievement / 100); // I atau P
+        $this->safeSet('C', $row, $this->formatDataForExcel($target), $lastAllowedCol);
+
+        // Mulai kolom D untuk bulan Januari, setiap bulan 5 kolom: L, P, TOTAL(=Pelayanan=S+TS), TS, %S
+        // Diselaraskan dengan dashboard (Opsi B): TOTAL sekarang menampilkan seluruh pelayanan (standard + non-standard)
+        // S (standard) implisit = TOTAL - TS.
+        $currentCol = 'D';
+        for ($m = 1; $m <= 12; $m++) {
+            if ($diseaseType === 'all') {
+                $mht = $data['ht']['monthly_data'][$m] ?? [];
+                $mdm = $data['dm']['monthly_data'][$m] ?? [];
+                $l = intval($mht['male'] ?? 0) + intval($mdm['male'] ?? 0);
+                $p = intval($mht['female'] ?? 0) + intval($mdm['female'] ?? 0);
+                $ts = intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0); // non-standard
+                $s = (intval($mht['standard'] ?? ($mht['male'] ?? 0) + ($mht['female'] ?? 0))
+                    + intval($mdm['standard'] ?? ($mdm['male'] ?? 0) + ($mdm['female'] ?? 0))); // fallback jika key 'standard' tidak ada
+                $total = $s + $ts; // TOTAL pelayanan
+            } else {
+                $monthly = $data[$key]['monthly_data'][$m] ?? [];
+                $l = intval($monthly['male'] ?? 0);
+                $p = intval($monthly['female'] ?? 0);
+                $ts = intval($monthly['non_standard'] ?? 0);
+                $s = intval($monthly['standard'] ?? ($l + $p));
+                $total = $s + $ts; // pelayanan
+            }
+            // %S memakai S = (TOTAL - TS)
+            $pct = $target > 0 ? (($total - $ts) / $target) : 0;
+
+            // L
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($l), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            // P
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($p), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            // TOTAL
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($total), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($ts), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            $this->safeSet($currentCol, $row, $pct, $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
         }
+
+        // Total capaian tahun (agregat sederhana):
+        // L & P = sum standard male/female, TOTAL = sum pelayanan (S+TS), TS = sum non-standard
+        $sumL = 0;
+        $sumP = 0;
+        $sumTS = 0;
+        $sumService = 0; // TOTAL pelayanan agregat
+        for ($m = 1; $m <= 12; $m++) {
+            if ($diseaseType === 'all') {
+                $mht = $data['ht']['monthly_data'][$m] ?? [];
+                $mdm = $data['dm']['monthly_data'][$m] ?? [];
+                $sumL += intval($mht['male'] ?? 0) + intval($mdm['male'] ?? 0);
+                $sumP += intval($mht['female'] ?? 0) + intval($mdm['female'] ?? 0);
+                $sumTS += intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0);
+                $sPart = (intval($mht['standard'] ?? ($mht['male'] ?? 0) + ($mht['female'] ?? 0))
+                    + intval($mdm['standard'] ?? ($mdm['male'] ?? 0) + ($mdm['female'] ?? 0)));
+                $sumService += $sPart + intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0);
+            } else {
+                $monthly = $data[$key]['monthly_data'][$m] ?? [];
+                $sumL += intval($monthly['male'] ?? 0);
+                $sumP += intval($monthly['female'] ?? 0);
+                $sumTS += intval($monthly['non_standard'] ?? 0);
+                $sPart = intval($monthly['standard'] ?? ($monthly['male'] ?? 0) + ($monthly['female'] ?? 0));
+                $sumService += $sPart + intval($monthly['non_standard'] ?? 0);
+            }
+        }
+        $sumTotal = $sumService; // TOTAL pelayanan agregat
+        // Total capaian tahun: L, P, TOTAL, TS
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumL), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumP), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumTotal), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumTS), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        // Kolom TOTAL PELAYANAN lama sekarang isi S agregat (agar S eksplisit)
+        $aggregateS = $sumService - $sumTS; // = sum standard examinations (L+P agregat lama)
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($aggregateS), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        $finalPct = $target > 0 ? ($aggregateS / $target) : 0;
+        $this->safeSet($currentCol, $row, $finalPct, $lastAllowedCol);
     }
-    
+
     /**
      * Hitung total untuk summary
      */
@@ -147,11 +200,11 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
                 'female_patients' => 0
             ]
         ];
-        
+
         foreach ($statistics as $data) {
             // Ambil data untuk bulan tertentu atau total
             $monthlyData = $month ? ($data['monthly_data'][$month] ?? []) : $data;
-            
+
             if ($diseaseType === 'all' || $diseaseType === 'ht') {
                 $htData = $monthlyData['ht'] ?? $data['ht'] ?? [];
                 $totals['ht']['target'] += intval($htData['target'] ?? 0);
@@ -161,7 +214,7 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
                 $totals['ht']['male_patients'] += intval($htData['male_patients'] ?? 0);
                 $totals['ht']['female_patients'] += intval($htData['female_patients'] ?? 0);
             }
-            
+
             if ($diseaseType === 'all' || $diseaseType === 'dm') {
                 $dmData = $monthlyData['dm'] ?? $data['dm'] ?? [];
                 $totals['dm']['target'] += intval($dmData['target'] ?? 0);
@@ -172,20 +225,20 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
                 $totals['dm']['female_patients'] += intval($dmData['female_patients'] ?? 0);
             }
         }
-        
+
         // Hitung persentase achievement
         $totals['ht']['achievement_percentage'] = $this->calculatePercentage(
-            $totals['ht']['standard_patients'], 
+            $totals['ht']['standard_patients'],
             $totals['ht']['target']
         );
         $totals['dm']['achievement_percentage'] = $this->calculatePercentage(
-            $totals['dm']['standard_patients'], 
+            $totals['dm']['standard_patients'],
             $totals['dm']['target']
         );
-        
+
         return $totals;
     }
-    
+
     /**
      * Format baris total
      */
@@ -193,7 +246,7 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
     {
         $this->sheet->setCellValue('A' . $row, '');
         $this->sheet->setCellValue('B' . $row, 'TOTAL');
-        
+
         if ($diseaseType === 'all' || $diseaseType === 'ht') {
             $this->sheet->setCellValue('C' . $row, $totals['ht']['target']);
             $this->sheet->setCellValue('D' . $row, $totals['ht']['total_patients']);
@@ -203,7 +256,7 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             $this->sheet->setCellValue('H' . $row, $totals['ht']['female_patients']);
             $this->sheet->setCellValue('I' . $row, $totals['ht']['achievement_percentage'] / 100);
         }
-        
+
         if ($diseaseType === 'all' || $diseaseType === 'dm') {
             $colOffset = ($diseaseType === 'all') ? 7 : 0;
             $this->sheet->setCellValue(chr(67 + $colOffset) . $row, $totals['dm']['target']);
@@ -215,70 +268,44 @@ class AdminMonthlyFormatter extends BaseAdminFormatter
             $this->sheet->setCellValue(chr(73 + $colOffset) . $row, $totals['dm']['achievement_percentage'] / 100);
         }
     }
-    
+
     /**
      * Format data harian untuk bulan tertentu
      */
     private function formatDailyData(array $statistics, string $diseaseType, int $month): void
     {
-        // Implementasi untuk mengisi data harian ke kolom yang sesuai
-        // Sesuaikan dengan struktur template monthly.xlsx
-        
-        $daysInMonth = cal_days_in_month(CAL_GREGORIAN, $month, date('Y'));
-        
-        foreach ($statistics as $index => $data) {
-            $row = 8 + $index; // Sesuaikan dengan baris data
-            
-            if ($diseaseType === 'all' || $diseaseType === 'ht') {
-                $htDailyData = $data['ht']['daily_data'][$month] ?? [];
-                $this->fillDailyData($htDailyData, $row, 'ht', $daysInMonth);
-            }
-            
-            if ($diseaseType === 'all' || $diseaseType === 'dm') {
-                $dmDailyData = $data['dm']['daily_data'][$month] ?? [];
-                $this->fillDailyData($dmDailyData, $row, 'dm', $daysInMonth);
-            }
-        }
+        // Pada layout baru tidak ada grid harian di monthly.xlsx. Tidak melakukan apa-apa di sini.
+        return;
     }
-    
+
     /**
      * Mengisi data harian ke kolom yang sesuai
      */
-    private function fillDailyData(array $dailyData, int $row, string $diseaseType, int $daysInMonth): void
+    private function fillDailyData(array $dailyData, int $row, string $startCol, int $daysInMonth): void
     {
-        // Kolom untuk data harian (sesuaikan dengan template)
-        $startCol = ($diseaseType === 'ht') ? 'Q' : 'AO'; // Contoh kolom mulai
-        
+        // Gunakan startCol yang sudah ditentukan dari parameter
+        $currentCol = $startCol;
+
         for ($day = 1; $day <= $daysInMonth; $day++) {
             $dayData = $dailyData[$day] ?? [];
-            $col = chr(ord($startCol) + $day - 1);
-            
+
             // Isi data sesuai dengan struktur template
-            $this->sheet->setCellValue($col . $row, $this->formatDataForExcel($dayData['total'] ?? 0));
+            $standardPatients = $dayData['standard_patients'] ?? 0;
+            $this->sheet->setCellValue($currentCol . $row, $this->formatDataForExcel($standardPatients));
+
+            // Pindah ke kolom berikutnya
+            $currentCol = $this->incrementColumn($currentCol);
         }
     }
-    
+
     /**
      * Apply number formats ke range yang sesuai
      */
     private function applyNumberFormats(): void
     {
-        // Format angka untuk kolom data
-        $this->applyNumberFormat($this->sheet->getParent(), 'C:H', NumberFormat::FORMAT_NUMBER);
-        $this->applyNumberFormat($this->sheet->getParent(), 'J:O', NumberFormat::FORMAT_NUMBER);
-        
-        // Format persentase untuk kolom achievement
-        $this->applyPercentageFormat($this->sheet->getParent(), 'I:I');
-        $this->applyPercentageFormat($this->sheet->getParent(), 'P:P');
-        
-        // Apply borders
-        $lastRow = $this->sheet->getHighestRow();
-        $this->applyBorder($this->sheet->getParent(), 'A8:P' . $lastRow);
-        
-        // Apply alignment
-        $this->applyAlignment($this->sheet->getParent(), 'A8:P' . $lastRow);
+        // No-op to respect template's styles
     }
-    
+
     /**
      * Format data untuk minggu dalam bulan
      */

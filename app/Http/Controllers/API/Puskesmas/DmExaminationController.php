@@ -56,7 +56,7 @@ class DmExaminationController extends Controller
             })
             ->distinct()
             ->orderBy('examination_date', 'desc')
-            ->paginate($request->per_page ?? 15);
+            ->paginate(min($request->per_page ?? 15, 100)); // Max 100 per page
 
         // Siapkan data hasil
         $result = [];

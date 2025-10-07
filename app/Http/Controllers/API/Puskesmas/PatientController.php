@@ -83,7 +83,7 @@ class PatientController extends Controller
             });
             
             // Create a custom paginator
-            $perPage = $request->per_page ?? 15;
+            $perPage = min($request->per_page ?? 15, 100); // Max 100 per page
             $page = $request->page ?? 1;
             $items = $filteredResults->forPage($page, $perPage);
             
@@ -98,8 +98,8 @@ class PatientController extends Controller
             return new PatientCollection($paginator);
         }
         
-        // Standard pagination if no year filtering
-        $patients = $query->paginate($request->per_page ?? 15);
+        // Standard pagination if no year filtering with maximum limit
+        $patients = $query->paginate(min($request->per_page ?? 15, 100)); // Max 100 per page
         
         return new PatientCollection($patients);
     }

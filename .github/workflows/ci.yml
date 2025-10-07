@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  backend-tests:
+    name: Backend (PHP) - Lint & Test
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+            MYSQL_ROOT_PASSWORD: root
+            MYSQL_DATABASE: akudihatinya_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 --password=root --silent" 
+          --health-interval 10s 
+          --health-timeout 5s 
+          --health-retries 5
+    env:
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: akudihatinya_test
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      APP_ENV: testing
+      APP_KEY: base64:0000000000000000000000000000000000000000000=
+      CACHE_DRIVER: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      LOG_CHANNEL: stack
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          extensions: mbstring, intl, bcmath, gd, pdo_mysql
+          tools: composer:v2
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..25}; do
+            mysql -h 127.0.0.1 -P 3306 -uroot -proot -e 'SELECT 1' && break
+            sleep 2
+          done
+
+      - name: Prepare Database
+        run: |
+          php artisan migrate --force
+          php artisan db:seed --force || true
+
+      - name: Run Tests
+        run: php artisan test --testsuite=Feature,Unit --stop-on-failure
+
+  frontend-build:
+    name: Frontend (Node) - Build & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend-akudihatinya/package-lock.json
+
+      - name: Install deps
+        working-directory: frontend-akudihatinya
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend-akudihatinya
+        run: npm run lint || echo 'No lint script'
+
+      - name: Build (outputs directly into backend/public/frontend)
+        working-directory: frontend-akudihatinya
+        run: npm run build
+
+  integration-package:
+    name: Package Combined Artifact
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Archive release bundle (backend includes built frontend assets already)
+        run: |
+          tar -czf release-bundle.tar.gz akudihatinya-backend
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: release-bundle.tar.gz
