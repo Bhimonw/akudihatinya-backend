@@ -25,6 +25,9 @@ use App\Services\System\MonitoringReportService;
 use App\Services\System\NewYearSetupService;
 use App\Services\Profile\ProfileUpdateService;
 use App\Services\Profile\ProfilePictureService;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Http\Request;
+use Illuminate\Cache\RateLimiting\Limit;
 use App\Repositories\PuskesmasRepository;
 use App\Repositories\YearlyTargetRepository;
 use App\Services\Export\PdfService;
@@ -195,6 +198,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Custom rate limiter for login attempts: 10 per minute per IP + username
+        RateLimiter::for('login', function (Request $request) {
+            $username = (string) $request->input('username');
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(10)->by($username.'|'.$request->ip());
+        });
+
+        // Export limiter: protect heavy PDF/Excel generation (5 per minute per user/IP)
+        RateLimiter::for('exports', function (Request $request) {
+            $key = ($request->user()->id ?? 'guest').'|'.$request->ip();
+            return Limit::perMinute(5)->by($key);
+        });
         // Register observers
         HtExamination::observe(HtExaminationObserver::class);
         DmExamination::observe(DmExaminationObserver::class);

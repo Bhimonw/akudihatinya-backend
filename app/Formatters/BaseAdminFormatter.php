@@ -32,7 +32,8 @@ abstract class BaseAdminFormatter
      */
     protected function getStatisticsData(string $diseaseType, int $year, ?int $puskesmasId = null): array
     {
-        return $this->statisticsService->getStatisticsData($diseaseType, $year, $puskesmasId);
+        // In this formatter context, statistics are passed from callers; avoid coupling to service.
+        return [];
     }
 
     /**
@@ -73,16 +74,54 @@ abstract class BaseAdminFormatter
         foreach ($spreadsheet->getAllSheets() as $sheet) {
             $highestRow = $sheet->getHighestRow();
             $highestColumn = $sheet->getHighestColumn();
+            $lastIndex = $this->columnToIndex($highestColumn);
 
             for ($row = 1; $row <= $highestRow; $row++) {
-                for ($col = 'A'; $col <= $highestColumn; $col++) {
+                // Iterate columns using numeric index to avoid invalid coordinates
+                for ($ci = 1; $ci <= $lastIndex; $ci++) {
+                    $col = $this->indexToColumn($ci);
                     $cell = $sheet->getCell($col . $row);
                     $value = $cell->getValue();
+                    // Siapkan regex map satu kali per sel
+                    $regexMap = [
+                        '/<\s*tahun\s*>/i' => (string)($replacements['{{YEAR}}'] ?? ''),
+                        '/<\s*tipe[_\s]*penyakit\s*>/i' => (string)($replacements['{{DISEASE_TYPE}}'] ?? ''),
+                        '/<\s*puskesmas\s*>/i' => (string)($replacements['{{PUSKESMAS_NAME}}'] ?? ''),
+                        '/<\s*sasaran\s*>/i' => (string)($replacements['{{TARGET}}'] ?? 'Target Pencapaian'),
+                        '/<\s*mulai\s*>/i' => (string)($this->getAngleBracketPlaceholders($replacements)['<mulai>'] ?? ''),
+                        '/<\s*akhir\s*>/i' => (string)($this->getAngleBracketPlaceholders($replacements)['<akhir>'] ?? ''),
+                    ];
 
                     if (is_string($value)) {
+                        // Plain string replacement
                         foreach ($allReplacements as $placeholder => $replacement) {
                             $value = str_replace($placeholder, $replacement, $value);
                         }
+                        foreach ($regexMap as $pattern => $rep) {
+                            if ($rep !== '') {
+                                $value = preg_replace($pattern, $rep, $value);
+                            }
+                        }
+                        $cell->setValue($value);
+                    } elseif ($value instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) {
+                        // Replace within RichText runs without losing formatting
+                        foreach ($value->getRichTextElements() as $element) {
+                            // TextElement or RichTextRun both have getText()/setText()
+                            $text = method_exists($element, 'getText') ? $element->getText() : null;
+                            if ($text === null) continue;
+                            foreach ($allReplacements as $placeholder => $replacement) {
+                                $text = str_replace($placeholder, $replacement, $text);
+                            }
+                            foreach ($regexMap as $pattern => $rep) {
+                                if ($rep !== '') {
+                                    $text = preg_replace($pattern, $rep, $text);
+                                }
+                            }
+                            if (method_exists($element, 'setText')) {
+                                $element->setText($text);
+                            }
+                        }
+                        // Assign back to ensure recalculation
                         $cell->setValue($value);
                     }
                 }
@@ -341,6 +380,146 @@ abstract class BaseAdminFormatter
         // Use PHP string increment which correctly advances Excel-like column labels
         ++$column;
         return $column;
+    }
+
+    /**
+     * Convert Excel column label (e.g., 'A', 'Z', 'AA') to 1-based index.
+     */
+    protected function columnToIndex(string $column): int
+    {
+        $column = strtoupper($column);
+        $len = strlen($column);
+        $index = 0;
+        for ($i = 0; $i < $len; $i++) {
+            $index = $index * 26 + (ord($column[$i]) - ord('A') + 1);
+        }
+        return $index;
+    }
+
+    /**
+     * Return true if column A is after column B (A > B)
+     */
+    protected function isColumnAfter(string $a, string $b): bool
+    {
+        return $this->columnToIndex($a) > $this->columnToIndex($b);
+    }
+
+    /**
+     * Find the last data column by scanning header rows for candidate labels.
+     * Returns the column letter or null if not found.
+     */
+    protected function getLastDataColumnByHeaders(array $candidates, int $rowStart = 1, int $rowEnd = 12): ?string
+    {
+        $sheet = $this->sheet;
+        $highestColumn = $sheet->getHighestColumn();
+        $lastIndex = $this->columnToIndex($highestColumn);
+        $foundCol = null;
+        // Normalisasi kandidat: hapus semua non-alfanumerik agar tahan terhadap spasi/baris baru
+        $normCands = array_map(function ($s) {
+            $s = strtolower($s);
+            $s = preg_replace('/[^a-z0-9]/i', '', $s);
+            return $s;
+        }, $candidates);
+        for ($row = $rowStart; $row <= $rowEnd; $row++) {
+            for ($ci = 1; $ci <= $lastIndex; $ci++) {
+                $col = $this->indexToColumn($ci);
+                $val = $sheet->getCell($col . $row)->getValue();
+                // Ambil teks plain jika RichText
+                if ($val instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) {
+                    $val = $val->getPlainText();
+                }
+                if (!is_string($val)) continue;
+                $normVal = strtolower($val);
+                $normVal = preg_replace('/[^a-z0-9]/i', '', $normVal);
+                foreach ($normCands as $nc) {
+                    if ($nc !== '' && (strpos($normVal, $nc) !== false || strpos($nc, $normVal) !== false)) {
+                        if ($foundCol === null || $this->isColumnAfter($col, $foundCol)) {
+                            $foundCol = $col;
+                        }
+                    }
+                }
+            }
+        }
+        if ($foundCol !== null) return $foundCol;
+        // Fallback: cari kolom terakhir yang ada isian pada rentang baris header
+        $lastNonEmpty = null;
+        for ($row = $rowStart; $row <= $rowEnd; $row++) {
+            $rowLast = null;
+            for ($ci = 1; $ci <= $lastIndex; $ci++) {
+                $col = $this->indexToColumn($ci);
+                $val = $sheet->getCell($col . $row)->getValue();
+                if ($val instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) {
+                    $val = $val->getPlainText();
+                }
+                if ($val !== null && $val !== '') {
+                    if ($rowLast === null || $this->isColumnAfter($col, $rowLast)) {
+                        $rowLast = $col;
+                    }
+                }
+            }
+            if ($rowLast !== null && ($lastNonEmpty === null || $this->isColumnAfter($rowLast, $lastNonEmpty))) {
+                $lastNonEmpty = $rowLast;
+            }
+        }
+        return $lastNonEmpty; // Bisa null jika header benar-benar kosong
+    }
+
+    /**
+     * Check if any of the header labels exists within the header scan rows.
+     */
+    protected function hasHeaderLabel(array $labels, int $rowStart = 1, int $rowEnd = 12): bool
+    {
+        $sheet = $this->sheet;
+        $highestColumn = $sheet->getHighestColumn();
+        $lastIndex = $this->columnToIndex($highestColumn);
+        $normLabels = array_map(function ($s) {
+            $s = strtolower($s);
+            $s = preg_replace('/[^a-z0-9]/i', '', $s);
+            return $s;
+        }, $labels);
+        for ($row = $rowStart; $row <= $rowEnd; $row++) {
+            for ($ci = 1; $ci <= $lastIndex; $ci++) {
+                $col = $this->indexToColumn($ci);
+                $val = $sheet->getCell($col . $row)->getValue();
+                if ($val instanceof \PhpOffice\PhpSpreadsheet\RichText\RichText) {
+                    $val = $val->getPlainText();
+                }
+                if (!is_string($val) || $val === '') continue;
+                $normVal = preg_replace('/[^a-z0-9]/i', '', strtolower($val));
+                foreach ($normLabels as $nl) {
+                    if ($nl !== '' && (strpos($normVal, $nl) !== false || strpos($nl, $normVal) !== false)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Convert 1-based column index to Excel column label (e.g., 1 -> 'A', 27 -> 'AA').
+     */
+    protected function indexToColumn(int $index): string
+    {
+        $column = '';
+        while ($index > 0) {
+            $mod = ($index - 1) % 26;
+            $column = chr(65 + $mod) . $column;
+            $index = intdiv($index - 1, 26);
+        }
+        return $column;
+    }
+
+    /**
+     * Safely set a cell value only if within the allowed column bound.
+     * If $lastAllowedCol is null, the value is always set.
+     */
+    protected function safeSet(string $col, int $row, $value, ?string $lastAllowedCol = null): void
+    {
+        if ($lastAllowedCol !== null && $this->isColumnAfter($col, $lastAllowedCol)) {
+            return; // Do not write beyond template area
+        }
+        $this->sheet->setCellValue($col . $row, $value);
     }
 
     /**

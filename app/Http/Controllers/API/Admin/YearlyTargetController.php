@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\YearlyTargetRequest;
 use App\Http\Resources\YearlyTargetResource;
 use App\Models\YearlyTarget;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
 
 class YearlyTargetController extends Controller
@@ -13,39 +14,58 @@ class YearlyTargetController extends Controller
     public function index(Request $request)
     {
         $query = YearlyTarget::with('puskesmas');
-        
-        if ($request->has('year')) {
+
+        // Filters
+        if ($request->filled('year')) {
             $query->where('year', $request->year);
         }
-        
-        if ($request->has('disease_type')) {
+        if ($request->filled('disease_type')) {
             $query->where('disease_type', $request->disease_type);
         }
-        
-        if ($request->has('puskesmas_id')) {
+        if ($request->filled('puskesmas_id')) {
             $query->where('puskesmas_id', $request->puskesmas_id);
         }
-        
-        // Jika semua parameter untuk identifikasi unik tersedia, kembalikan satu target
-        if ($request->has(['puskesmas_id', 'disease_type', 'year'])) {
+        // Search by puskesmas name
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('puskesmas', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            });
+        }
+
+        // Single resource fetch when unique key provided
+        if ($request->filled(['puskesmas_id', 'disease_type', 'year'])) {
             $target = $query->first();
-            
             if (!$target) {
                 return response()->json([
                     'error' => 'yearly_target_not_found',
                     'message' => 'ID sasaran tahunan tidak ditemukan'
                 ], 404);
             }
-            
             return response()->json([
                 'target' => new YearlyTargetResource($target),
             ]);
         }
-        
-        // Jika tidak, kembalikan daftar targets dengan pagination
-        $targets = $query->paginate($request->get('per_page', 10));
-        
-        return response()->json($targets);
+
+        $perPage = min((int)($request->get('per_page', 15)), 100);
+        $page = (int)($request->get('page', 1));
+
+        /** @var LengthAwarePaginator $paginator */
+        $paginator = $query->orderBy('puskesmas_id')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        // Build standardized response similar to UserResource collection
+        return response()->json([
+            'data' => YearlyTargetResource::collection($paginator->items()),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ]
+        ]);
     }
     
     public function store(YearlyTargetRequest $request)

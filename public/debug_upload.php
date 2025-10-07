@@ -1,7 +1,21 @@
 <?php
 
-// Debug endpoint untuk test upload tanpa middleware
-// Simpan file ini di public/ folder dan akses via browser
+// DEBUG ONLY: Endpoint untuk test upload tanpa middleware.
+// KEAMANAN: Otomatis blokir di production. Di non-production, butuh header X-Debug-Token yang cocok dengan env DEBUG_UPLOAD_TOKEN.
+
+if (function_exists('app') && app()->environment('production')) {
+    http_response_code(403);
+    echo json_encode(['error' => 'Forbidden']);
+    exit();
+}
+
+$provided = $_SERVER['HTTP_X_DEBUG_TOKEN'] ?? null;
+$expected = getenv('DEBUG_UPLOAD_TOKEN') ?: null;
+if (!$expected || !$provided || !hash_equals($expected, $provided)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized debug access']);
+    exit();
+}
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');

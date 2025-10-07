@@ -51,11 +51,36 @@ class StatisticsExportService
      */
     public function exportStatistics($request)
     {
-        $year = $request->year ?? date('Y'); // Default ke tahun saat ini jika tidak ada parameter year
+        $year = $request->year ?? date('Y');
         $month = $request->month;
         $diseaseType = $request->disease_type ?? $request->type ?? 'all';
         $tableType = $request->table_type ?? 'all';
         $format = $request->format ?? 'pdf';
+
+        // Whitelist validation
+        $allowedFormats = ['pdf','excel'];
+        if (!in_array($format, $allowedFormats, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Format export tidak didukung',
+                'allowed_formats' => $allowedFormats
+            ], 422);
+        }
+
+        $allowedTableTypes = ['all','puskesmas'];
+        if (!in_array($tableType, $allowedTableTypes, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'table_type tidak valid',
+                'allowed_table_types' => $allowedTableTypes
+            ], 422);
+        }
+
+        // Force scope untuk non-admin (hanya boleh puskesmas)
+        $user = Auth::user();
+        if (!$user->isAdmin()) {
+            $tableType = 'puskesmas';
+        }
 
         // Validasi parameter
         $validationErrors = $this->statisticsDataService->validateParameters($request);
@@ -70,6 +95,14 @@ class StatisticsExportService
         // Filter puskesmas berdasarkan role
         $puskesmasQuery = $this->statisticsDataService->getPuskesmasQuery($request);
         $puskesmasAll = $puskesmasQuery->get();
+
+        // Hard size cap to prevent memory exhaustion on large aggregate export
+        if ($puskesmasAll->count() > 150 && $tableType === 'all') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jumlah puskesmas terlalu besar untuk sekali export. Gunakan filter atau export per puskesmas.'
+            ], 422);
+        }
 
         if ($puskesmasAll->isEmpty()) {
             return response()->json([
@@ -98,15 +131,18 @@ class StatisticsExportService
 
             if ($format === 'pdf') {
                 return $this->exportToPdf($statistics, $year, $month, $diseaseType, $filename);
-            } else {
-                return $this->exportToExcel($statistics, $year, $month, $diseaseType, $filename, $tableType);
             }
+            return $this->exportToExcel($statistics, $year, $month, $diseaseType, $filename, $tableType);
 
         } catch (\Exception $e) {
-            Log::error('Export error: ' . $e->getMessage());
+            Log::error('Export error', [
+                'error' => $e->getMessage(),
+                'trace_hash' => substr(sha1($e->getTraceAsString()),0,12)
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat export: ' . $e->getMessage()
+                'message' => 'Terjadi kesalahan saat export',
+                'error_code' => 'EXPORT_FAILURE'
             ], 500);
         }
     }

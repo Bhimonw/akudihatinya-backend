@@ -32,16 +32,8 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
 
         $this->replacePlaceholders($spreadsheet, $replacements);
 
-        // Ensure headers align with data columns
-        $this->ensureListHeaders($diseaseType, 7);
-
-        // Format data statistik
+        // Data saja, template sudah menyediakan header/footer
         $this->formatData($statistics, $diseaseType, $quarter);
-
-        // Apply styles
-        $this->applyStyles($spreadsheet, 'A1:Z100', [
-            'font' => ['name' => 'Arial', 'size' => 10],
-        ]);
 
         return $spreadsheet;
     }
@@ -51,7 +43,7 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
      */
     private function formatData(array $statistics, string $diseaseType, ?int $quarter): void
     {
-        $startRow = 8; // Mulai dari baris 8 (sesuaikan dengan template)
+        $startRow = 8; // Data mulai di baris 8 sesuai template
         $currentRow = $startRow;
 
         // Hitung total untuk summary
@@ -66,13 +58,9 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
         // Format total di baris terakhir
         $this->formatTotalRow($totals, $currentRow, $diseaseType);
 
-        // Format data bulanan dalam triwulan
-        if ($quarter) {
-            $this->formatQuarterlyMonthlyData($statistics, $diseaseType, $quarter);
-        }
+        // Tidak ada grid bulanan tambahan di layout baru
 
-        // Apply number formatting
-        $this->applyNumberFormats();
+        // Hormati format bawaan template
     }
 
     /**
@@ -80,52 +68,109 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
      */
     private function formatPuskesmasData(array $data, int $row, int $no, string $diseaseType, ?int $quarter): void
     {
+        // Tentukan batas kolom terakhir dari template (kolom persentase paling kanan)
+        $lastAllowedCol = $this->getLastDataColumnByHeaders(['% CAPAIAN PELAYANAN SESUAI STANDAR', '% CAPAIAN', '%S']);
         // Kolom A: No
-        $this->sheet->setCellValue('A' . $row, $no);
-
+        $this->safeSet('A', $row, $no, $lastAllowedCol);
         // Kolom B: Nama Puskesmas
-        $this->sheet->setCellValue('B' . $row, $data['puskesmas_name'] ?? '');
+        $this->safeSet('B', $row, $data['puskesmas_name'] ?? '', $lastAllowedCol);
+        // Kolom C: Sasaran
+        $key = ($diseaseType === 'dm') ? 'dm' : 'ht';
+        if ($diseaseType === 'all') {
+            $target = intval(($data['ht']['target'] ?? 0)) + intval(($data['dm']['target'] ?? 0));
+        } else {
+            $target = intval($data[$key]['target'] ?? 0);
+        }
+        $this->safeSet('C', $row, $this->formatDataForExcel($target), $lastAllowedCol);
 
-        // Ambil data untuk triwulan tertentu atau total
-        $quarterlyData = $quarter ? $this->getQuarterlyData($data, $quarter) : $data;
-
-        if ($diseaseType === 'all' || $diseaseType === 'ht') {
-            // Data Hipertensi
-            $htData = $quarterlyData['ht'] ?? $data['ht'] ?? [];
-            $this->sheet->setCellValue('C' . $row, $this->formatDataForExcel($htData['target'] ?? 0));
-            $this->sheet->setCellValue('D' . $row, $this->formatDataForExcel($htData['total_patients'] ?? 0));
-            $this->sheet->setCellValue('E' . $row, $this->formatDataForExcel($htData['standard_patients'] ?? 0));
-            $this->sheet->setCellValue('F' . $row, $this->formatDataForExcel($htData['non_standard_patients'] ?? 0));
-            $this->sheet->setCellValue('G' . $row, $this->formatDataForExcel($htData['male_patients'] ?? 0));
-            $this->sheet->setCellValue('H' . $row, $this->formatDataForExcel($htData['female_patients'] ?? 0));
-
-            // Hitung achievement percentage
-            $achievement = $this->calculatePercentage(
-                $htData['standard_patients'] ?? 0,
-                $htData['target'] ?? 0
-            );
-            $this->sheet->setCellValue('I' . $row, $achievement / 100);
+        // Kolom D.. set per triwulan: L, P, TOTAL(=Pelayanan=S+TS), TS, %S (S implisit = TOTAL - TS)
+        $currentCol = 'D';
+        for ($q = 1; $q <= 4; $q++) {
+            $months = $this->getQuarterMonths($q);
+            $sumL = 0;
+            $sumP = 0;
+            $sumTS = 0;
+            $sumService = 0;
+            foreach ($months as $m) {
+                if ($diseaseType === 'all') {
+                    $mht = $data['ht']['monthly_data'][$m] ?? [];
+                    $mdm = $data['dm']['monthly_data'][$m] ?? [];
+                    $sumL += intval($mht['male'] ?? 0) + intval($mdm['male'] ?? 0);
+                    $sumP += intval($mht['female'] ?? 0) + intval($mdm['female'] ?? 0);
+                    $sumTS += intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0);
+                    $sPart = (intval($mht['standard'] ?? ($mht['male'] ?? 0) + ($mht['female'] ?? 0))
+                        + intval($mdm['standard'] ?? ($mdm['male'] ?? 0) + ($mdm['female'] ?? 0)));
+                    $sumService += $sPart + intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0);
+                } else {
+                    $mdata = $data[$key]['monthly_data'][$m] ?? [];
+                    $sumL += intval($mdata['male'] ?? 0);
+                    $sumP += intval($mdata['female'] ?? 0);
+                    $sumTS += intval($mdata['non_standard'] ?? 0);
+                    $sPart = intval($mdata['standard'] ?? ($mdata['male'] ?? 0) + ($mdata['female'] ?? 0));
+                    $sumService += $sPart + intval($mdata['non_standard'] ?? 0);
+                }
+            }
+            $sumTotal = $sumService; // TOTAL pelayanan triwulan
+            // L
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumL), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            // P
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumP), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            // TOTAL
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumTotal), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            // TS
+            $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumTS), $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
+            // % S: gunakan S = (TOTAL - TS)
+            $pct = $target > 0 ? (($sumTotal - $sumTS) / $target) : 0;
+            $this->safeSet($currentCol, $row, $pct, $lastAllowedCol);
+            $currentCol = $this->incrementColumn($currentCol);
         }
 
-        if ($diseaseType === 'all' || $diseaseType === 'dm') {
-            // Data Diabetes Melitus
-            $dmData = $quarterlyData['dm'] ?? $data['dm'] ?? [];
-            $colOffset = ($diseaseType === 'all') ? 7 : 0; // Offset kolom jika menampilkan kedua penyakit
-
-            $this->sheet->setCellValue(chr(67 + $colOffset) . $row, $this->formatDataForExcel($dmData['target'] ?? 0)); // C atau J
-            $this->sheet->setCellValue(chr(68 + $colOffset) . $row, $this->formatDataForExcel($dmData['total_patients'] ?? 0)); // D atau K
-            $this->sheet->setCellValue(chr(69 + $colOffset) . $row, $this->formatDataForExcel($dmData['standard_patients'] ?? 0)); // E atau L
-            $this->sheet->setCellValue(chr(70 + $colOffset) . $row, $this->formatDataForExcel($dmData['non_standard_patients'] ?? 0)); // F atau M
-            $this->sheet->setCellValue(chr(71 + $colOffset) . $row, $this->formatDataForExcel($dmData['male_patients'] ?? 0)); // G atau N
-            $this->sheet->setCellValue(chr(72 + $colOffset) . $row, $this->formatDataForExcel($dmData['female_patients'] ?? 0)); // H atau O
-
-            // Hitung achievement percentage
-            $achievement = $this->calculatePercentage(
-                $dmData['standard_patients'] ?? 0,
-                $dmData['target'] ?? 0
-            );
-            $this->sheet->setCellValue(chr(73 + $colOffset) . $row, $achievement / 100); // I atau P
+        // Total capaian tahun (L,P,TOTAL pelayanan, TS), kolom 'TOTAL PELAYANAN' lama diisi S agar S eksplisit
+        $sumL = 0;
+        $sumP = 0;
+        $yearTS = 0;
+        $yearService = 0; // SUM(S+TS)
+        for ($m = 1; $m <= 12; $m++) {
+            if ($diseaseType === 'all') {
+                $mht = $data['ht']['monthly_data'][$m] ?? [];
+                $mdm = $data['dm']['monthly_data'][$m] ?? [];
+                $sumL += intval($mht['male'] ?? 0) + intval($mdm['male'] ?? 0);
+                $sumP += intval($mht['female'] ?? 0) + intval($mdm['female'] ?? 0);
+                $yearTS += intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0);
+                $sPart = (intval($mht['standard'] ?? ($mht['male'] ?? 0) + ($mht['female'] ?? 0))
+                    + intval($mdm['standard'] ?? ($mdm['male'] ?? 0) + ($mdm['female'] ?? 0)));
+                $yearService += $sPart + intval($mht['non_standard'] ?? 0) + intval($mdm['non_standard'] ?? 0);
+            } else {
+                $mdata = $data[$key]['monthly_data'][$m] ?? [];
+                $sumL += intval($mdata['male'] ?? 0);
+                $sumP += intval($mdata['female'] ?? 0);
+                $yearTS += intval($mdata['non_standard'] ?? 0);
+                $sPart = intval($mdata['standard'] ?? ($mdata['male'] ?? 0) + ($mdata['female'] ?? 0));
+                $yearService += $sPart + intval($mdata['non_standard'] ?? 0);
+            }
         }
+        $yearTotal = $yearService; // TOTAL pelayanan
+        // L
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumL), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        // P
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($sumP), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        // TOTAL
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($yearTotal), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        // TS
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($yearTS), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        $yearSExplicit = $yearTotal - $yearTS; // S
+        $this->safeSet($currentCol, $row, $this->formatDataForExcel($yearSExplicit), $lastAllowedCol);
+        $currentCol = $this->incrementColumn($currentCol);
+        $finalPct = $target > 0 ? ($yearSExplicit / $target) : 0;
+        $this->safeSet($currentCol, $row, $finalPct, $lastAllowedCol);
     }
 
     /**
@@ -500,20 +545,7 @@ class AdminQuarterlyFormatter extends BaseAdminFormatter
      */
     private function applyNumberFormats(): void
     {
-        // Format angka untuk kolom data
-        $this->applyNumberFormat($this->sheet->getParent(), 'C:H', NumberFormat::FORMAT_NUMBER);
-        $this->applyNumberFormat($this->sheet->getParent(), 'J:O', NumberFormat::FORMAT_NUMBER);
-
-        // Format persentase untuk kolom achievement
-        $this->applyPercentageFormat($this->sheet->getParent(), 'I:I');
-        $this->applyPercentageFormat($this->sheet->getParent(), 'P:P');
-
-        // Apply borders
-        $lastRow = $this->sheet->getHighestRow();
-        $this->applyBorder($this->sheet->getParent(), 'A8:P' . $lastRow);
-
-        // Apply alignment
-        $this->applyAlignment($this->sheet->getParent(), 'A8:P' . $lastRow);
+        // No-op, biarkan template mengatur format angka dan border
     }
 
     /**

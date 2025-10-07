@@ -8,7 +8,7 @@ use App\Models\DmExamination;
 use App\Services\Statistics\RealTimeStatisticsService;
 use Illuminate\Support\Facades\DB;
 
-class PopulateExaminationStats extends Command
+class PopulateExaminationStatsCommand extends Command
 {
     protected $signature = 'examinations:populate-stats {--year=} {--batch-size=1000}';
     protected $description = 'Populate pre-calculated statistics for existing examination data';
@@ -58,10 +58,10 @@ class PopulateExaminationStats extends Command
             foreach ($examinations as $examination) {
                 // Calculate statistics
                 $examination->calculateStatistics();
-                
+
                 // Update the record
                 $examination->save();
-                
+
                 $processed++;
                 $this->output->progressAdvance();
             }
@@ -86,10 +86,10 @@ class PopulateExaminationStats extends Command
             foreach ($examinations as $examination) {
                 // Calculate statistics
                 $examination->calculateStatistics();
-                
+
                 // Update the record
                 $examination->save();
-                
+
                 $processed++;
                 $this->output->progressAdvance();
             }
@@ -108,17 +108,17 @@ class PopulateExaminationStats extends Command
             for ($month = 1; $month <= 12; $month++) {
                 // Recalculate HT cache
                 $this->realTimeStatisticsService->recalculateMonthlyCache(
-                    $puskesmasId, 
-                    'ht', 
-                    $year, 
+                    $puskesmasId,
+                    'ht',
+                    $year,
                     $month
                 );
 
                 // Recalculate DM cache
                 $this->realTimeStatisticsService->recalculateMonthlyCache(
-                    $puskesmasId, 
-                    'dm', 
-                    $year, 
+                    $puskesmasId,
+                    'dm',
+                    $year,
                     $month
                 );
             }

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Manual Admin Statistics API Tester (Relocated)</title>
+    <meta name="robots" content="noindex" />
+    <style>
+        body { font-family: system-ui, Arial, sans-serif; margin: 2rem auto; max-width: 960px; background:#fafafa; }
+        h1 { margin-top:0; }
+        .panel { background:#fff; padding:1rem 1.25rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.08); margin-bottom:1.5rem; }
+        button { cursor:pointer; background:#2563eb; color:#fff; border:none; padding:.6rem 1.1rem; border-radius:6px; font-size:15px; }
+        button.secondary { background:#f59e0b; }
+        pre { background:#111; color:#ddd; padding:1rem; border-radius:6px; overflow:auto; font-size:13px; }
+        .warn { background:#fff8e1; border-left:4px solid #f59e0b; padding:.75rem 1rem; margin:.75rem 0; }
+        .ok { background:#ecfdf5; border-left:4px solid #10b981; padding:.75rem 1rem; margin:.75rem 0; }
+        label { display:block; margin:.5rem 0 .25rem; font-weight:600; }
+        select, input { padding:.4rem .55rem; font-size:14px; }
+    </style>
+</head>
+<body>
+  <h1>🔍 Manual Admin Statistics API Tester</h1>
+  <div class="panel">
+    <p><strong>PERINGATAN:</strong> File ini tidak boleh diletakkan di <code>public/</code> di production. Hanya untuk debugging lokal.</p>
+    <p>Jika benar-benar perlu diuji di browser: salin sementara file ini ke <code>public/test-temp.html</code> lalu hapus setelah selesai.</p>
+  </div>
+  <div class="panel">
+    <label>API Base URL</label>
+    <input id="api" value="http://localhost:8000/api" style="width:100%" />
+    <label>Year</label>
+    <input id="year" value="2025" />
+    <label>Disease Type</label>
+    <select id="type">
+      <option value="dm">DM (Diabetes Mellitus)</option>
+      <option value="ht">HT (Hipertensi)</option>
+    </select>
+    <label>Bearer Token (Admin)</label>
+    <input id="token" placeholder="paste admin token" style="width:100%" />
+    <div style="margin-top:1rem; display:flex; gap:.75rem;">
+      <button onclick="runTest()">Run Test</button>
+      <button class="secondary" onclick="document.getElementById('output').textContent='';">Clear Output</button>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Output</h2>
+    <div id="msg" class="warn">Belum dijalankan.</div>
+    <pre id="output"></pre>
+  </div>
+
+  <script>
+    async function runTest(){
+      const base = document.getElementById('api').value.trim();
+      const year = document.getElementById('year').value.trim();
+      const type = document.getElementById('type').value.trim();
+      const token = document.getElementById('token').value.trim();
+      const msg = document.getElementById('msg');
+      const out = document.getElementById('output');
+
+      if(!token){ msg.className='warn'; msg.textContent='Token wajib diisi.'; return; }
+      msg.className='warn'; msg.textContent='Memanggil endpoint...'; out.textContent='';
+      try {
+        const res = await fetch(`${base}/statistics/admin?year=${year}&disease_type=${type}`, { headers:{ 'Authorization':`Bearer ${token}`, 'Accept':'application/json' }, cache:'no-store' });
+        const data = await res.json();
+        if(res.ok){
+          msg.className='ok';
+          const summary = data.summary?.[type] || {}; 
+          msg.innerHTML = `✅ Sukses. Total Puskesmas: ${data.total_puskesmas||0}, Target: ${summary.target||0}, Standar: ${summary.standard_patients||0}, Non-Standar: ${summary.non_standard_patients||0}, Total: ${summary.total_patients||0}, %: ${summary.achievement_percentage||'0%'}`;
+        } else {
+          msg.className='warn';
+          msg.textContent = `Error ${res.status}: ${data.message||'Unknown'}`;
+        }
+        out.textContent = JSON.stringify(data, null, 2);
+      } catch(e){
+        msg.className='warn';
+        msg.textContent = 'Network / runtime error: '+ e.message;
+      }
+    }
+  </script>
+</body>
+</html>

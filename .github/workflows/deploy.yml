@@ -1,0 +1,78 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (production/staging)'
+        required: true
+        default: 'staging'
+      bundle-artifact:
+        description: 'Override artifact name (optional)'
+        required: false
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+    steps:
+      - name: Download release bundle from CI
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: ci.yml
+          name: release-bundle
+          path: ./
+          run_id: ${{ github.event.workflow_run.id || '' }}
+        continue-on-error: true
+
+      - name: Fallback checkout (if artifact not found)
+        if: ${{ !exists('release-bundle.tar.gz') }}
+        uses: actions/checkout@v4
+
+      - name: Extract bundle (if exists)
+        if: ${{ exists('release-bundle.tar.gz') }}
+        run: tar -xzf release-bundle.tar.gz
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Rsync Deployment
+        run: |
+          RSYNC_SRC="akudihatinya-backend/"
+          if [ ! -d "akudihatinya-backend" ]; then RSYNC_SRC="."; fi
+          rsync -az --delete \
+            --exclude ".git" \
+            --exclude "storage/logs/*" \
+            --exclude "storage/framework/cache/*" \
+            --exclude "node_modules" \
+            $RSYNC_SRC ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}
+
+      - name: Remote Optimize & Migrate
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} <<'EOF'
+            cd ${{ secrets.DEPLOY_PATH }}
+            php artisan down || true
+            composer install --no-dev --prefer-dist --no-interaction --quiet
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan storage:link || true
+            php artisan up
+          EOF
+
+      - name: Deployment Finished
+        run: echo "Deployment to ${{ inputs.environment || 'production' }} selesai."

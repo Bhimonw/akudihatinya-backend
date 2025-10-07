@@ -24,6 +24,13 @@ Script PHP untuk testing API login secara langsung.
 - Verifikasi password hashing
 - Testing Auth::attempt method
 
+### `cleanup.sh` & `cleanup.ps1`
+Script housekeeping untuk membersihkan cache Laravel, log lama, export file kadaluarsa, dan compiled classes.
+- Retensi default: 30 hari (dapat diubah via `RETENTION_DAYS` atau parameter `-RetentionDays`)
+- Menghapus log kosong
+- Membersihkan cache konfigurasi, route, view, events
+- Mem-prune export lama di `public/exports`
+
 ## Cara Penggunaan
 
 ### Menjalankan check_users.php
@@ -41,6 +48,22 @@ powershell -ExecutionPolicy Bypass -File scripts/test_api_login.ps1
 php scripts/test_login_api.php
 ```
 
+### Menjalankan cleanup (Linux/macOS)
+```bash
+./scripts/cleanup.sh
+```
+
+### Menjalankan cleanup (Windows PowerShell)
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/cleanup.ps1 -RetentionDays 14
+```
+
+### Override Retensi (Linux/macOS)
+```bash
+RETENTION_DAYS=7 ./scripts/cleanup.sh
+```
+
 ## Catatan
 - Pastikan Laravel development server berjalan sebelum menjalankan script API testing
 - Script ini hanya untuk development dan testing, jangan digunakan di production
+ - Script cleanup aman dijalankan di production (idempotent), sesuaikan retensi dengan kebutuhan backup

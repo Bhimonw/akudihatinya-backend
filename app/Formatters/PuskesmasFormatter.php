@@ -53,6 +53,20 @@ class PuskesmasFormatter extends BaseAdminFormatter
 
         $this->replacePlaceholders($spreadsheet, $replacements);
 
+        // Header metadata sesuai mapping baru
+        $this->sheet->setCellValue('A1', 'REKAPITULASI CAPAIAN STANDAR PELAYANAN MINIMAL BIDANG KESEHATAN');
+        $this->sheet->setCellValue('A2', $this->getDiseaseLabel($diseaseType));
+        $this->sheet->setCellValue('A3', 'SASARAN');
+        $this->sheet->setCellValue('B3', ':');
+        $this->sheet->setCellValue('C3', $target);
+        $this->sheet->setCellValue('A4', 'PUSKESMAS');
+        $this->sheet->setCellValue('B4', ':');
+        $this->sheet->setCellValue('C4', $puskesmasName);
+        // Kosongkan area A5..Z untuk keterangan tambahan
+        for ($col = 'A'; $col <= 'Z'; ++$col) {
+            $this->sheet->setCellValue($col . '5', '');
+        }
+
         // Ensure puskesmas/patient headers exist and align with data
         $this->ensurePuskesmasHeaders(7);
 

@@ -46,8 +46,8 @@ class UserController extends Controller
         // Load puskesmas relationship for puskesmas users
         $query->with('puskesmas');
 
-        // Pagination
-        $perPage = $request->get('per_page', 15);
+        // Pagination with maximum limit to prevent abuse
+        $perPage = min($request->get('per_page', 15), 100); // Max 100 per page
         $users = $query->paginate($perPage);
 
         return UserResource::collection($users);

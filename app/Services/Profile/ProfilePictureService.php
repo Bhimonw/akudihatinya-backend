@@ -19,31 +19,34 @@ class ProfilePictureService
                 'old_picture' => $oldPicturePath
             ]);
 
-            // Validate file
+            // Validate file integrity
             if (!$file->isValid()) {
                 throw new \Exception('File upload tidak valid');
             }
 
-            // Optional file size check (increased limit to 10MB)
-            if ($file->getSize() > 10240 * 1024) {
-                Log::warning('Large file uploaded', ['size' => $file->getSize()]);
+            // Enforce strict allowed mime types (disallow SVG to avoid XSS payloads unless sanitized separately)
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff'];
+            $mime = $file->getMimeType();
+            if (!in_array($mime, $allowedMimes, true)) {
+                throw new \Exception('Tipe file tidak diizinkan');
             }
 
-            // Log mime type but don't restrict
-            Log::info('File mime type', ['mime_type' => $file->getMimeType()]);
-            
-            // Accept any file type - let users upload what they want
-            $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff', 'image/svg+xml'];
-            if (!in_array($file->getMimeType(), $allowedMimes)) {
-                Log::info('Non-standard image format uploaded', ['mime_type' => $file->getMimeType()]);
-                // Don't throw exception, just log it
+            // Enforce max file size 5MB
+            if ($file->getSize() > 5 * 1024 * 1024) {
+                throw new \Exception('Ukuran file melebihi batas 5MB');
             }
+
+            Log::info('Validated image mime type', ['mime_type' => $mime]);
 
             // Delete old profile picture if exists
             if ($oldPicturePath) {
-                $oldPath = public_path('img/' . $oldPicturePath);
-                if (file_exists($oldPath)) {
-                    if (!unlink($oldPath)) {
+                // Prevent directory traversal
+                $oldPictureBasename = basename($oldPicturePath);
+                $oldPath = public_path('img/' . $oldPictureBasename);
+                if (str_contains($oldPictureBasename, '..')) {
+                    Log::warning('Attempted traversal in old picture path', ['path' => $oldPicturePath]);
+                } elseif (file_exists($oldPath) && is_file($oldPath)) {
+                    if (!@unlink($oldPath)) {
                         Log::warning('Failed to delete old profile picture', ['path' => $oldPath]);
                     } else {
                         Log::info('Old profile picture deleted', ['path' => $oldPath]);
@@ -66,8 +69,13 @@ class ProfilePictureService
             }
 
             // Generate unique filename
-            $extension = $file->getClientOriginalExtension();
-            $filename = time() . '_' . ($userId ?? 'temp') . '_' . uniqid() . '.' . $extension;
+            $extension = strtolower($file->guessExtension() ?: $file->getClientOriginalExtension());
+            $allowedExtensions = ['jpg','jpeg','png','gif','webp','bmp','tiff'];
+            if (!in_array($extension, $allowedExtensions, true)) {
+                // Fallback to jpg if extension suspicious
+                $extension = 'jpg';
+            }
+            $filename = time() . '_' . ($userId ?? 'u') . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
             
             Log::info('Generated filename', ['filename' => $filename]);
 
