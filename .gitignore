@@ -3,9 +3,18 @@
 /public/build
 /public/hot
 /public/storage
+/public/frontend/*
+!/public/frontend/.gitkeep
+!/public/frontend/README.md
+/public/frontend/runtime-config.js
+/public/frontend/assets
+/public/frontend/index.html
+# NOTE: Frontend build artifacts should come from CI. If you intentionally track them, remove these lines.
 /storage/*.key
 /storage/pail
 /vendor
+.runtime-cache
+exports/
 .env
 .env.backup
 .env.production
