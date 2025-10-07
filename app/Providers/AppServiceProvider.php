@@ -218,5 +218,38 @@ class AppServiceProvider extends ServiceProvider
         
         // Add PDF namespace for template access
         view()->addNamespace('pdf', resource_path('views/pdf'));
+
+        // Share dynamically built frontend asset filenames with SPA view
+        try {
+            $frontendPath = public_path('frontend/assets');
+            $css = null; $js = null;
+            if (is_dir($frontendPath)) {
+                $files = scandir($frontendPath);
+                foreach ($files as $file) {
+                    if (!$css && str_starts_with($file, 'index-') && str_ends_with($file, '.css')) {
+                        $css = 'frontend/assets/' . $file;
+                    }
+                    if (!$js && str_starts_with($file, 'index-') && str_ends_with($file, '.js')) {
+                        $js = 'frontend/assets/' . $file;
+                    }
+                }
+            }
+            // Fallback to previously hard-coded names if discovery fails (won't break existing)
+            $css = $css ?: 'frontend/assets/index-C5lgOqs8.css';
+            $js  = $js  ?: 'frontend/assets/index-Bou9_clT.js';
+
+            view()->share('frontendAssets', [
+                'css' => asset($css),
+                'js'  => asset($js),
+                'version' => substr(md5($css.$js.filemtime(public_path('index.php'))), 0, 10),
+            ]);
+        } catch (\Throwable $e) {
+            // In case of any failure, still provide defaults to prevent view errors
+            view()->share('frontendAssets', [
+                'css' => asset('frontend/assets/index-C5lgOqs8.css'),
+                'js'  => asset('frontend/assets/index-Bou9_clT.js'),
+                'version' => 'dev-fallback'
+            ]);
+        }
     }
 }
