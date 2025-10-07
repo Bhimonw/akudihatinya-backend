@@ -7,10 +7,10 @@
     <title>akudihatinya</title>
 
     @php($fa = $frontendAssets ?? null)
-    @if($fa)
+    @if($fa && $fa['css'])
         <!-- Preload critical resources -->
         <link rel="preload" href="{{ $fa['css'] }}" as="style">
-        <link rel="preload" href="{{ $fa['js'] }}" as="script">
+        @if($fa['js'])<link rel="preload" href="{{ $fa['js'] }}" as="script">@endif
         <!-- CSS -->
         <link rel="stylesheet" href="{{ $fa['css'] }}?v={{ $fa['version'] }}">
     @endif
@@ -24,14 +24,23 @@
     <div id="app"></div>
     
     <script>
-        window.__RUNTIME_CONFIG = {
-            apiBase: '{{ rtrim(config('app.url'), '/') }}/api',
-            appName: '{{ config('app.name', 'akudihatinya') }}',
-            buildVersion: '{{ $fa['version'] ?? 'dev' }}'
-        };
+        // Unified runtime config for frontend bundle
+        (function(){
+            const configured = @json(config('frontend.api_base'));
+            const apiBase = (configured && configured.trim() !== '')
+                ? configured.replace(/\/$/, '')
+                : (window.location.origin + '/api');
+            window.__RUNTIME_CONFIG__ = {
+                API_BASE_URL: apiBase,
+                APP_NAME: '{{ config('app.name', 'akudihatinya') }}',
+                BUILD_VERSION: '{{ $fa['version'] ?? 'dev' }}'
+            };
+        })();
     </script>
-    @if($fa)
+    @if($fa && $fa['js'])
         <script type="module" src="{{ $fa['js'] }}?v={{ $fa['version'] }}"></script>
+    @else
+        <noscript>Frontend assets tidak ditemukan. Pastikan sudah menjalankan build Vite.</noscript>
     @endif
 </body>
 </html>

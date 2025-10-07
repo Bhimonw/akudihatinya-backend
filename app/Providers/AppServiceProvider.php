@@ -219,36 +219,53 @@ class AppServiceProvider extends ServiceProvider
         // Add PDF namespace for template access
         view()->addNamespace('pdf', resource_path('views/pdf'));
 
-        // Share dynamically built frontend asset filenames with SPA view
+        // Share dynamically built frontend asset filenames with SPA view (robust discovery)
         try {
-            $frontendPath = public_path('frontend/assets');
-            $css = null; $js = null;
+            // Updated path: build output langsung ke public/assets (tanpa subfolder spa)
+            $frontendPath = public_path('assets');
+            $cssFile = null; $jsFile = null;
+
             if (is_dir($frontendPath)) {
-                $files = scandir($frontendPath);
-                foreach ($files as $file) {
-                    if (!$css && str_starts_with($file, 'index-') && str_ends_with($file, '.css')) {
-                        $css = 'frontend/assets/' . $file;
-                    }
-                    if (!$js && str_starts_with($file, 'index-') && str_ends_with($file, '.js')) {
-                        $js = 'frontend/assets/' . $file;
-                    }
-                }
+                $candidatesCss = glob($frontendPath . DIRECTORY_SEPARATOR . 'index-*.css') ?: [];
+                $candidatesJs  = glob($frontendPath . DIRECTORY_SEPARATOR . 'index-*.js') ?: [];
+
+                // Pick newest (mtime) to avoid stale multiple hashes after partial clean
+                usort($candidatesCss, fn($a,$b)=> filemtime($b) <=> filemtime($a));
+                usort($candidatesJs, fn($a,$b)=> filemtime($b) <=> filemtime($a));
+                $cssFile = $candidatesCss[0] ?? null;
+                $jsFile  = $candidatesJs[0] ?? null;
             }
-            // Fallback to previously hard-coded names if discovery fails (won't break existing)
-            $css = $css ?: 'frontend/assets/index-C5lgOqs8.css';
-            $js  = $js  ?: 'frontend/assets/index-Bou9_clT.js';
+
+            // Allow override via env (useful for CDN fronting) FRONTEND_CSS / FRONTEND_JS
+            if (env('FRONTEND_CSS')) {
+                $cssUrl = env('FRONTEND_CSS');
+            } elseif ($cssFile) {
+                $cssUrl = asset('assets/' . basename($cssFile));
+            } else {
+                $cssUrl = null; // purposely null so Blade can branch
+            }
+
+            if (env('FRONTEND_JS')) {
+                $jsUrl = env('FRONTEND_JS');
+            } elseif ($jsFile) {
+                $jsUrl = asset('assets/' . basename($jsFile));
+            } else {
+                $jsUrl = null;
+            }
+
+            $versionSeed = ($cssFile && file_exists($cssFile) ? filemtime($cssFile) : '') . '|' . ($jsFile && file_exists($jsFile) ? filemtime($jsFile) : '');
+            $version = $versionSeed ? substr(md5($versionSeed), 0, 12) : 'dev';
 
             view()->share('frontendAssets', [
-                'css' => asset($css),
-                'js'  => asset($js),
-                'version' => substr(md5($css.$js.filemtime(public_path('index.php'))), 0, 10),
+                'css' => $cssUrl,
+                'js' => $jsUrl,
+                'version' => $version,
             ]);
         } catch (\Throwable $e) {
-            // In case of any failure, still provide defaults to prevent view errors
             view()->share('frontendAssets', [
-                'css' => asset('frontend/assets/index-C5lgOqs8.css'),
-                'js'  => asset('frontend/assets/index-Bou9_clT.js'),
-                'version' => 'dev-fallback'
+                'css' => null,
+                'js' => null,
+                'version' => 'dev-error'
             ]);
         }
     }
